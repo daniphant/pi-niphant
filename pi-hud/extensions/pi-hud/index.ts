@@ -190,6 +190,11 @@ export default function piHudExtension(pi: ExtensionAPI) {
         render(width: number): string[] {
           if (!enabled) return [];
           const activeCtx = getActiveCtx() ?? ctx;
+          // Keep the HUD from touching the terminal frame. Account for the padding in all
+          // fit/wrap calculations so the added breathing room does not cause accidental overflow.
+          const horizontalPadding = width >= 4 ? 1 : 0;
+          const renderWidth = Math.max(1, width - horizontalPadding * 2);
+          const padLine = (line: string) => horizontalPadding ? `${" ".repeat(horizontalPadding)}${line}` : line;
 
           // Fall back to pi's synchronous branch accessor if the async probe hasn't landed yet,
           // so the very first render still shows *something* instead of flickering empty.
@@ -200,14 +205,14 @@ export default function piHudExtension(pi: ExtensionAPI) {
               : null);
 
           const modelLabel = renderHudField(theme as ThemeLike, "Model", theme.fg("text", getModelLabel(pi, activeCtx)), "accent");
-          const projectPath = theme.fg("text", getAdaptiveProjectLabel(activeCtx.cwd, width));
+          const projectPath = theme.fg("text", getAdaptiveProjectLabel(activeCtx.cwd, renderWidth));
           const repoLabel = renderHudField(theme as ThemeLike, "Repo", projectPath, "customMessageLabel");
           const gitSegment = formatGitBranch(theme as ThemeLike, effectiveGitStatus);
           const branchLabel = gitSegment ? renderHudField(theme as ThemeLike, "Branch", gitSegment, "success") : null;
 
           const usage = activeCtx.getContextUsage();
           const contextPercent = clampPercent(usage?.percent);
-          const meterWidth = getAdaptiveMeterWidth(width);
+          const meterWidth = getAdaptiveMeterWidth(renderWidth);
           // Pi returns `{percent: null}` right after a compact (until the next assistant message
           // reports real token counts). Paint the bar muted in that state — omitting the color
           // would fall through to buildBar's quota-remaining heuristic and light the whole
@@ -223,10 +228,10 @@ export default function piHudExtension(pi: ExtensionAPI) {
           // Abbreviate the label on narrow terminals so the whole block contracts, not just the
           // bar. Otherwise "Context" (7 chars) dominates a 4-wide bar and the block looks like
           // it isn't shrinking even though the bar itself is smaller.
-          const contextLabel = getAdaptiveLabel("Context", "Ctx", width);
+          const contextLabel = getAdaptiveLabel("Context", "Ctx", renderWidth);
           const contextBlock = `${renderHudLabel(theme as ThemeLike, contextLabel, "accent")} ${contextBar} ${contextText}`;
 
-          const quotaBlock = renderQuotaBlock(theme as ThemeLike, quotaSnapshot, showWeeklyLimits, quotaError, quotaProviderKey, meterWidth, width);
+          const quotaBlock = renderQuotaBlock(theme as ThemeLike, quotaSnapshot, showWeeklyLimits, quotaError, quotaProviderKey, meterWidth, renderWidth);
           const quotaResetBlock = renderQuotaResetBlock(theme as ThemeLike, quotaSnapshot, quotaProviderKey);
           const niphantBlock = formatNiphantWorkspace(theme as ThemeLike, getNiphantWorkspace(activeCtx.cwd));
           const pieces = [modelLabel, contextBlock, repoLabel, branchLabel, niphantBlock, quotaBlock, quotaResetBlock].filter(Boolean) as string[];
@@ -234,7 +239,7 @@ export default function piHudExtension(pi: ExtensionAPI) {
 
           // Happy path: everything fits on one row.
           const single = pieces.join(separator);
-          if (visibleWidth(single) <= width) return [single];
+          if (visibleWidth(single) <= renderWidth) return [padLine(single)];
 
           // Otherwise wrap across rows the way claude-hud does: greedily pack pieces left-to-right,
           // and when a piece can't fit on the current row, start a new row with it. This keeps the
@@ -249,7 +254,7 @@ export default function piHudExtension(pi: ExtensionAPI) {
               continue;
             }
             const candidate: string = `${current}${separator}${piece}`;
-            if (visibleWidth(candidate) <= width) {
+            if (visibleWidth(candidate) <= renderWidth) {
               current = candidate;
             } else {
               lines.push(current);
@@ -260,7 +265,7 @@ export default function piHudExtension(pi: ExtensionAPI) {
 
           // If a single piece is still wider than the terminal (e.g. a very long model name on a
           // cramped screen), truncate that row so we never emit a line that overflows.
-          return lines.map((line) => (visibleWidth(line) <= width ? line : truncateToWidth(line, width)));
+          return lines.map((line) => padLine(visibleWidth(line) <= renderWidth ? line : truncateToWidth(line, renderWidth)));
         },
       };
     });
