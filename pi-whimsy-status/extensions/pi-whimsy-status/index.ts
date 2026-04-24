@@ -2,9 +2,6 @@ import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-age
 
 const REFRESH_MS = 100;
 const ROTATE_MS = 7000;
-const SHIMMER_SWEEP_MS = 2200;
-const SHIMMER_PADDING = 8;
-const SHIMMER_HALF_WIDTH = 4;
 
 const messages = [
 	// Familiar classics for variety
@@ -76,20 +73,8 @@ function shimmerText(theme: ExtensionContext["ui"]["theme"], text: string): stri
 	const chars = [...text];
 	if (chars.length === 0) return text;
 
-	const period = chars.length + SHIMMER_PADDING * 2;
-	const phase = (Date.now() % SHIMMER_SWEEP_MS) / SHIMMER_SWEEP_MS;
-	const position = phase * period;
-
 	return chars
-		.map((char, index) => {
-			const distance = Math.abs(index + SHIMMER_PADDING - position);
-			if (distance > SHIMMER_HALF_WIDTH) return theme.fg("muted", char);
-
-			const intensity = 0.5 * (1 + Math.cos(Math.PI * (distance / SHIMMER_HALF_WIDTH)));
-			if (intensity > 0.7) return theme.fg("accent", char);
-			if (intensity > 0.35) return theme.fg("thinkingMedium", char);
-			return theme.fg("muted", char);
-		})
+		.map((char) => theme.fg("accent", char))
 		.join("");
 }
 
@@ -97,9 +82,9 @@ function renderStatus(ctx: ExtensionContext, message: string, startedAt: number)
 	const theme = ctx.ui.theme;
 	const elapsed = formatDuration(Date.now() - startedAt);
 	const animatedMessage = shimmerText(theme, message);
-	const metaOpen = theme.fg("dim", ` (${elapsed} • `);
-	const interrupt = theme.fg("dim", "esc");
-	const metaClose = theme.fg("dim", " to interrupt)");
+	const metaOpen = theme.fg("accent", ` (${elapsed} • `);
+	const interrupt = theme.fg("accent", "esc");
+	const metaClose = theme.fg("accent", " to interrupt)");
 	return `${animatedMessage}${metaOpen}${interrupt}${metaClose}`;
 }
 
