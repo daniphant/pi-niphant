@@ -74,16 +74,23 @@ export const formatGitBranch = (
   return `${parens("git:(")}${inner.join("")}${parens(")")}`;
 };
 
+export const renderHudLabel = (theme: ThemeLike, label: string, color = "muted") => theme.fg(color, label.toUpperCase());
+
+export const renderHudField = (theme: ThemeLike, label: string, value: string, labelColor = "muted") => `${renderHudLabel(theme, label, labelColor)} ${value}`;
+
 export const renderQuotaWindow = (
   theme: ThemeLike,
   usedPercent: number | null,
   resetAt: number | null,
   width = DEFAULT_METER_WIDTH,
   terminalWidth?: number,
+  options: { showReset?: boolean } = {},
 ) => {
   const used = clampPercent(usedPercent);
   const bar = buildBar(theme, used, width, { color: "accent" });
   const percentText = used === null ? theme.fg("muted", "--%") : theme.fg("accent", `${Math.round(used)}%`);
+  if (options.showReset === false) return `${bar} ${percentText}`;
+
   const reset = formatResetCountdown(resetAt);
   // Drop the verbose "(resets in …)" wrapper on narrow terminals — the bare countdown keeps
   // the block short enough to show both bars side-by-side.
@@ -106,24 +113,31 @@ export const renderQuotaBlock = (
   const usageLabel = terminalWidth !== undefined ? getAdaptiveLabel("Usage", "Use", terminalWidth) : "Usage";
 
   if (snapshot?.kind === "codex") {
-    const usage = `${theme.fg("muted", usageLabel)} ${renderQuotaWindow(theme, snapshot.sessionUsedPercent, snapshot.sessionResetAt, width, terminalWidth)}`;
+    const usage = `${renderHudLabel(theme, usageLabel, "accent")} ${renderQuotaWindow(theme, snapshot.sessionUsedPercent, snapshot.sessionResetAt, width, terminalWidth, { showReset: false })}`;
     const weekly = showWeeklyLimits && snapshot.weeklyUsedPercent !== null
-      ? renderQuotaWindow(theme, snapshot.weeklyUsedPercent, snapshot.weeklyResetAt, width, terminalWidth)
+      ? renderQuotaWindow(theme, snapshot.weeklyUsedPercent, snapshot.weeklyResetAt, width, terminalWidth, { showReset: false })
       : null;
     return weekly ? `${usage}${theme.fg("dim", " | ")}${weekly}` : usage;
   }
 
   if (snapshot?.kind === "zai") {
     const usage = snapshot.primary
-      ? `${theme.fg("muted", usageLabel)} ${renderQuotaWindow(theme, snapshot.primary.usedPercent, snapshot.primary.resetAt, width, terminalWidth)}`
+      ? `${renderHudLabel(theme, usageLabel, "accent")} ${renderQuotaWindow(theme, snapshot.primary.usedPercent, snapshot.primary.resetAt, width, terminalWidth, { showReset: false })}`
       : null;
     const weekly = showWeeklyLimits && snapshot.secondary
-      ? renderQuotaWindow(theme, snapshot.secondary.usedPercent, snapshot.secondary.resetAt, width, terminalWidth)
+      ? renderQuotaWindow(theme, snapshot.secondary.usedPercent, snapshot.secondary.resetAt, width, terminalWidth, { showReset: false })
       : null;
     if (!usage && !weekly) return null;
     return [usage, weekly].filter(Boolean).join(theme.fg("dim", " | "));
   }
 
-  if (quotaError && quotaProviderKey) return theme.fg("warning", "Usage unavailable");
+  if (quotaError && quotaProviderKey) return renderHudField(theme, usageLabel, theme.fg("warning", "unavailable"), "accent");
   return null;
+};
+
+export const renderQuotaResetBlock = (theme: ThemeLike, snapshot: ProviderQuotaSnapshot, quotaProviderKey: string | null) => {
+  if (!snapshot || !quotaProviderKey) return null;
+  const resetAt = snapshot.kind === "codex" ? snapshot.sessionResetAt : snapshot.primary?.resetAt;
+  const reset = formatResetCountdown(resetAt ?? null);
+  return renderHudField(theme, "Reset", reset ? theme.fg("text", reset) : theme.fg("muted", "—"), "warning");
 };

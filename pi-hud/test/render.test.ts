@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildBar, formatGitBranch, renderQuotaBlock } from "../extensions/pi-hud/render.js";
+import { buildBar, formatGitBranch, renderHudField, renderQuotaBlock, renderQuotaResetBlock } from "../extensions/pi-hud/render.js";
 import type { ThemeLike } from "../extensions/pi-hud/types.js";
 
 const theme: ThemeLike = {
@@ -22,13 +22,33 @@ describe("renderQuotaBlock", () => {
       weeklyResetAt: Date.now() + 120_000,
     }, true, null, "codex", 12);
 
-    expect(rendered).toContain("Usage");
+    expect(rendered).toContain("USAGE");
     expect(rendered).toContain("12%");
     expect(rendered).toContain("40%");
   });
 
   it("renders unavailable state", () => {
-    expect(renderQuotaBlock(theme, null, false, "boom", "zai", 12)).toBe("Usage unavailable");
+    expect(renderQuotaBlock(theme, null, false, "boom", "zai", 12)).toBe("USAGE unavailable");
+  });
+
+  it("renders reset as a separate compact HUD segment", () => {
+    const rendered = renderQuotaResetBlock(theme, {
+      kind: "codex",
+      plan: null,
+      sessionUsedPercent: 12,
+      sessionResetAt: Date.now() + 60_000,
+      weeklyUsedPercent: null,
+      weeklyResetAt: null,
+    }, "codex");
+
+    expect(rendered).toContain("RESET");
+    expect(rendered).toContain("m");
+  });
+});
+
+describe("renderHudField", () => {
+  it("renders screenshot-style uppercase labels", () => {
+    expect(renderHudField(theme, "Model", "gpt-5.5")).toBe("MODEL gpt-5.5");
   });
 });
 

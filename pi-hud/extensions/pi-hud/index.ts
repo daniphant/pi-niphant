@@ -9,7 +9,7 @@ import { fetchCodexQuota } from "./providers/codex.js";
 import { detectQuotaProvider } from "./providers/detect.js";
 import { fetchZaiQuota } from "./providers/zai.js";
 import { formatNiphantWorkspace, getNiphantWorkspace } from "./niphant.js";
-import { formatGitBranch, renderQuotaBlock, buildBar } from "./render.js";
+import { formatGitBranch, renderHudField, renderHudLabel, renderQuotaBlock, renderQuotaResetBlock, buildBar } from "./render.js";
 import { getSessionTotals } from "./session.js";
 import { loadSettings, saveSettings } from "./settings.js";
 import type { CachedQuotaEntry, GitStatus, HudSettings, PiExtensionContext, ProviderKey, ProviderQuotaSnapshot, ThemeLike } from "./types.js";
@@ -199,10 +199,11 @@ export default function piHudExtension(pi: ExtensionAPI) {
               ? { branch: branchString, isDirty: false, ahead: 0, behind: 0, fileStats: null }
               : null);
 
-          const modelLabel = theme.fg("accent", `[${getModelLabel(pi, activeCtx)}]`);
+          const modelLabel = renderHudField(theme as ThemeLike, "Model", theme.fg("text", getModelLabel(pi, activeCtx)), "accent");
           const projectPath = theme.fg("text", getAdaptiveProjectLabel(activeCtx.cwd, width));
+          const repoLabel = renderHudField(theme as ThemeLike, "Repo", projectPath, "customMessageLabel");
           const gitSegment = formatGitBranch(theme as ThemeLike, effectiveGitStatus);
-          const projectLabel = gitSegment ? `${projectPath} ${gitSegment}` : projectPath;
+          const branchLabel = gitSegment ? renderHudField(theme as ThemeLike, "Branch", gitSegment, "success") : null;
 
           const usage = activeCtx.getContextUsage();
           const contextPercent = clampPercent(usage?.percent);
@@ -223,11 +224,12 @@ export default function piHudExtension(pi: ExtensionAPI) {
           // bar. Otherwise "Context" (7 chars) dominates a 4-wide bar and the block looks like
           // it isn't shrinking even though the bar itself is smaller.
           const contextLabel = getAdaptiveLabel("Context", "Ctx", width);
-          const contextBlock = `${theme.fg("muted", contextLabel)} ${contextBar} ${contextText}`;
+          const contextBlock = `${renderHudLabel(theme as ThemeLike, contextLabel, "accent")} ${contextBar} ${contextText}`;
 
           const quotaBlock = renderQuotaBlock(theme as ThemeLike, quotaSnapshot, showWeeklyLimits, quotaError, quotaProviderKey, meterWidth, width);
+          const quotaResetBlock = renderQuotaResetBlock(theme as ThemeLike, quotaSnapshot, quotaProviderKey);
           const niphantBlock = formatNiphantWorkspace(theme as ThemeLike, getNiphantWorkspace(activeCtx.cwd));
-          const pieces = [modelLabel, projectLabel, niphantBlock, contextBlock, quotaBlock].filter(Boolean) as string[];
+          const pieces = [modelLabel, contextBlock, repoLabel, branchLabel, niphantBlock, quotaBlock, quotaResetBlock].filter(Boolean) as string[];
           const separator = theme.fg("dim", " | ");
 
           // Happy path: everything fits on one row.

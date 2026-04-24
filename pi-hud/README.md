@@ -4,8 +4,9 @@
 
 A custom Pi footer/HUD extension inspired by [Claude HUD](https://github.com/jarrodwatts/claude-hud) and [CodexBar](https://github.com/steipete/codexbar).
 
-It adds a denser, more legible status line with:
-- active model + thinking level + context window
+It adds a compact Catppuccin-friendly status line with screenshot-style uppercase segments:
+- `MODEL`, `CTX`, `REPO`, `BRANCH`, `USAGE`, and `RESET`
+- no duplicate agent, latency, or idle status segments
 - relative project path + git branch
 - context usage bar
 - provider-aware usage bars for Codex and z.ai / GLM
@@ -17,8 +18,8 @@ Early but real. This repo was extracted from a working local Pi extension and is
 
 ## Features
 
-- Model label like `GPT 5.4 medium (400k)`
-- Project label like `~/projects/pi-hud (main)`
+- Model segment like `MODEL GPT 5.4 medium (400k)`
+- Project and branch segments like `REPO ~/projects/pi-hud | BRANCH git:(main)`
 - Colored context usage meter
 - Quota-aware usage meter for Codex and z.ai / GLM
 - Optional weekly window display
