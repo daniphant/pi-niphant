@@ -12,10 +12,15 @@ export default function clearExtension(pi: ExtensionAPI) {
 	pi.registerCommand("clear", {
 		description: "New session + reload (like Codex/Claude Code /clear)",
 		handler: async (_args, ctx) => {
+			const parentSession = ctx.sessionManager.getSessionFile();
+
 			await ctx.newSession({
-				parentSession: ctx.sessionManager.getSessionFile(),
+				parentSession,
+				withSession: async (ctx) => {
+					await ctx.reload();
+					return;
+				},
 			});
-			await ctx.reload();
 		},
 	});
 }
