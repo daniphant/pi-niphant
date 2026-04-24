@@ -1,0 +1,47 @@
+{
+  "name": "pi-delegated-agents",
+  "version": "0.1.0",
+  "description": "Blocking delegated specialist agents for Pi",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "files": [
+    "extensions",
+    "skills",
+    "agents",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*",
+    "@sinclair/typebox": "*"
+  },
+  "devDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*",
+    "@sinclair/typebox": "*",
+    "@types/node": "^24.5.2",
+    "typescript": "^5.9.3"
+  },
+  "keywords": [
+    "pi",
+    "pi-package",
+    "delegated-agents",
+    "subagent",
+    "orchestration",
+    "extension"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/pi-delegated-agents"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "pi-workflow",
+  "version": "0.1.0",
+  "description": "Research → spec → implementation plan → execute workflow for Pi with browser plan review.",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "keywords": ["pi", "pi-package", "extension", "workflow", "plan-mode"],
+  "pi": {
+    "extensions": ["."],
+    "skills": [
+      "./skills/research-plan-implement",
+      "./skills/workflow-brainstorm",
+      "./skills/workflow-spec",
+      "./skills/workflow-plan",
+      "./skills/workflow-implement"
+    ]
+  }
+}

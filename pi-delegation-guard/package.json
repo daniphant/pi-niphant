@@ -1,0 +1,26 @@
+{
+  "name": "pi-delegation-guard",
+  "version": "0.1.0",
+  "description": "Opinionated guard for Pi delegated-agent tools; blocks accidental exploration delegation.",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "keywords": [
+    "pi",
+    "pi-package",
+    "extension",
+    "delegation"
+  ],
+  "pi": {
+    "extensions": [
+      "."
+    ]
+  },
+  "dependencies": {
+    "@sinclair/typebox": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.3"
+  }
+}

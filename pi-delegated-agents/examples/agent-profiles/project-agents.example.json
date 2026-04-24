@@ -1,0 +1,22 @@
+{
+  "agents": [
+    {
+      "name": "backend-explorer",
+      "displayName": "Backend Explorer",
+      "shortLabel": "backend",
+      "description": "Project-specific backend reconnaissance profile.",
+      "focus": "Focus on API boundaries, service-to-service calls, worker pipelines, and failure handling specific to this codebase.",
+      "tools": ["read", "bash", "grep", "find", "ls"],
+      "outputSchema": "repo-summary"
+    },
+    {
+      "name": "release-agent",
+      "displayName": "Release Agent",
+      "shortLabel": "release",
+      "description": "Deployment and release quality specialist.",
+      "focus": "Focus on release process safety, CI/CD workflow correctness, rollout strategy, and operational risks.",
+      "tools": ["read", "bash", "grep", "find", "ls"],
+      "outputSchema": "plan-review"
+    }
+  ]
+}

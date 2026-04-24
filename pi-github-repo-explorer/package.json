@@ -1,0 +1,26 @@
+{
+  "name": "pi-github-repo-explorer",
+  "version": "0.1.0",
+  "description": "Pi skill package for cloning and inspecting GitHub repositories with file-backed answers",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "files": [
+    "skills",
+    "scripts",
+    "README.md"
+  ],
+  "keywords": [
+    "pi",
+    "pi-package",
+    "skills",
+    "github",
+    "repository",
+    "exploration"
+  ],
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  }
+}

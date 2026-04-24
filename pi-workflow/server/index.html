@@ -1,0 +1,1642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plan Review</title>
+  <style>
+    :root {
+      --color-canvas-default: #0d1117;
+      --color-canvas-subtle: #161b22;
+      --color-canvas-inset: #010409;
+      --color-border-default: #30363d;
+      --color-border-muted: #21262d;
+      --color-fg-default: #e6edf3;
+      --color-fg-muted: #7d8590;
+      --color-fg-subtle: #6e7681;
+      --color-accent-fg: #2f81f7;
+      --color-accent-emphasis: #1f6feb;
+      --color-accent-subtle: rgba(56,139,253,0.15);
+      --color-danger-fg: #f85149;
+      --color-danger-subtle: rgba(248,81,73,0.15);
+      --color-success-fg: #3fb950;
+      --color-success-emphasis: #238636;
+      --color-success-subtle: rgba(46,160,67,0.15);
+      --color-attention-fg: #d29922;
+      --color-attention-subtle: rgba(187,128,9,0.15);
+      --color-btn-bg: #21262d;
+      --color-btn-border: #363b42;
+      --color-btn-hover-bg: #30363d;
+      --color-btn-primary-bg: #238636;
+      --color-btn-primary-hover-bg: #2ea043;
+      --color-btn-primary-border: rgba(240,246,252,0.1);
+      --color-btn-danger-bg: #21262d;
+      --color-btn-danger-hover-bg: #da3633;
+      --color-header-bg: #010409;
+      --color-timeline-badge-bg: #21262d;
+      --color-neutral-muted: rgba(110,118,129,0.4);
+      --color-avatar-bg: #6e7681;
+      --color-code-bg: rgba(110,118,129,0.1);
+      --shadow-md: 0 3px 6px rgba(0,0,0,0.3);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,0.4);
+    }
+
+    [data-theme="light"] {
+      --color-canvas-default: #ffffff;
+      --color-canvas-subtle: #f6f8fa;
+      --color-canvas-inset: #eff2f5;
+      --color-border-default: #d0d7de;
+      --color-border-muted: #d8dee4;
+      --color-fg-default: #1f2328;
+      --color-fg-muted: #656d76;
+      --color-fg-subtle: #6e7781;
+      --color-accent-fg: #0969da;
+      --color-accent-emphasis: #0550ae;
+      --color-accent-subtle: rgba(84,174,255,0.15);
+      --color-danger-fg: #d1242f;
+      --color-danger-subtle: rgba(255,129,130,0.15);
+      --color-success-fg: #1a7f37;
+      --color-success-emphasis: #1f883d;
+      --color-success-subtle: rgba(74,194,107,0.15);
+      --color-attention-fg: #9a6700;
+      --color-attention-subtle: rgba(212,167,44,0.15);
+      --color-btn-bg: #f6f8fa;
+      --color-btn-border: rgba(31,35,40,0.15);
+      --color-btn-hover-bg: #f3f4f6;
+      --color-btn-primary-bg: #1f883d;
+      --color-btn-primary-hover-bg: #1a7f37;
+      --color-btn-primary-border: rgba(31,35,40,0.15);
+      --color-btn-danger-bg: #f6f8fa;
+      --color-btn-danger-hover-bg: #a40e26;
+      --color-header-bg: #f6f8fa;
+      --color-timeline-badge-bg: #eaeef2;
+      --color-neutral-muted: rgba(175,184,193,0.4);
+      --color-avatar-bg: #6e7781;
+      --color-code-bg: rgba(175,184,193,0.2);
+      --shadow-md: 0 3px 6px rgba(140,149,159,0.15);
+      --shadow-lg: 0 8px 24px rgba(140,149,159,0.2);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+      background: var(--color-canvas-default);
+      color: var(--color-fg-default);
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
+    /* ── ICONS ── */
+    .octicon { display: inline-block; vertical-align: text-bottom; fill: currentColor; overflow: visible; }
+
+    /* ── LAYOUT ── */
+    .gh-app { display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* ── HEADER ── */
+    .gh-header {
+      background: var(--color-header-bg);
+      border-bottom: 1px solid var(--color-border-default);
+      padding: 16px 24px;
+    }
+    .gh-header-inner { width: 100%; }
+    .gh-header-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--color-fg-muted);
+    }
+
+    /* ── TAB NAV ── */
+    .gh-tab-nav {
+      background: var(--color-canvas-subtle);
+      border-bottom: 1px solid var(--color-border-default);
+      padding: 0 24px;
+    }
+    .gh-tab-nav-inner {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .gh-tabs { display: flex; gap: 0; }
+    .gh-tab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 16px;
+      font-size: 14px;
+      color: var(--color-fg-muted);
+      text-decoration: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: color 0.1s;
+      background: none;
+      border-top: none;
+      border-left: none;
+      border-right: none;
+      font-family: inherit;
+    }
+    .gh-tab:hover { color: var(--color-fg-default); }
+    .gh-tab.active {
+      color: var(--color-fg-default);
+      font-weight: 600;
+      border-bottom-color: #f78166;
+    }
+    .gh-counter {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      padding: 0 6px;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 18px;
+      border-radius: 20px;
+      background: var(--color-neutral-muted);
+      color: var(--color-fg-default);
+    }
+    .gh-tab-actions { display: flex; gap: 8px; align-items: center; }
+
+    /* ── BUTTONS ── */
+    .gh-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 20px;
+      border-radius: 6px;
+      border: 1px solid var(--color-btn-border);
+      background: var(--color-btn-bg);
+      color: var(--color-fg-default);
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.12s, border-color 0.12s;
+      white-space: nowrap;
+    }
+    .gh-btn:hover { background: var(--color-btn-hover-bg); }
+    .gh-btn-primary {
+      background: var(--color-btn-primary-bg);
+      border-color: var(--color-btn-primary-border);
+      color: #fff;
+    }
+    .gh-btn-primary:hover { background: var(--color-btn-primary-hover-bg); }
+    .gh-btn-primary:disabled {
+      background: var(--color-btn-primary-bg);
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .gh-btn-danger {
+      color: var(--color-danger-fg);
+    }
+    .gh-btn-danger:hover {
+      background: var(--color-btn-danger-hover-bg);
+      border-color: var(--color-btn-danger-hover-bg);
+      color: #fff;
+    }
+    .gh-btn-sm {
+      padding: 3px 12px;
+      font-size: 12px;
+      line-height: 20px;
+    }
+    .gh-btn-invisible {
+      background: transparent;
+      border-color: transparent;
+      color: var(--color-fg-muted);
+      padding: 4px 8px;
+    }
+    .gh-btn-invisible:hover {
+      background: var(--color-neutral-muted);
+      border-color: transparent;
+      color: var(--color-fg-default);
+    }
+
+    /* ── MAIN CONTENT AREA ── */
+    .gh-content {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr min(320px, 30vw);
+      width: 100%;
+      padding: 16px 24px;
+      gap: 16px;
+      box-sizing: border-box;
+    }
+
+    /* ── FILE VIEWER ── */
+    .gh-file {
+      border: 1px solid var(--color-border-default);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .gh-file-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: var(--color-canvas-subtle);
+      border-bottom: 1px solid var(--color-border-default);
+      font-size: 12px;
+      color: var(--color-fg-default);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .gh-file-header .octicon { color: var(--color-fg-muted); }
+    .gh-filename {
+      font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .gh-file-header .gh-file-spacer { flex: 1; }
+    .gh-file-body {
+      padding: 24px 32px;
+      overflow-y: auto;
+      max-height: calc(100vh - 200px);
+    }
+
+    /* ── PLAN CONTENT (Markdown) ── */
+    .plan-content { font-size: 14px; line-height: 1.6; color: var(--color-fg-default); }
+    .plan-content h1 {
+      font-size: 24px; font-weight: 600; margin: 0 0 16px;
+      padding-bottom: 8px; border-bottom: 1px solid var(--color-border-default);
+    }
+    .plan-content h2 {
+      font-size: 20px; font-weight: 600; margin: 24px 0 12px;
+      padding-bottom: 6px; border-bottom: 1px solid var(--color-border-muted);
+    }
+    .plan-content h3 { font-size: 16px; font-weight: 600; margin: 20px 0 8px; }
+    .plan-content h4 { font-size: 14px; font-weight: 600; margin: 16px 0 6px; }
+    .plan-content p { margin: 8px 0; }
+    .plan-content ul, .plan-content ol { margin: 8px 0; padding-left: 2em; }
+    .plan-content li { margin: 4px 0; }
+    .plan-content code {
+      background: var(--color-code-bg);
+      padding: 0.2em 0.4em;
+      border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 85%;
+    }
+    .plan-content pre {
+      background: var(--color-canvas-subtle);
+      border: 1px solid var(--color-border-default);
+      border-radius: 6px;
+      padding: 16px;
+      overflow-x: auto;
+      margin: 12px 0;
+      line-height: 1.45;
+    }
+    .plan-content pre code {
+      background: none; padding: 0; border-radius: 0; font-size: 12px;
+    }
+    .plan-content blockquote {
+      border-left: 3px solid var(--color-border-default);
+      padding-left: 16px;
+      margin: 8px 0;
+      color: var(--color-fg-muted);
+    }
+    .plan-content table {
+      border-collapse: collapse; width: 100%; margin: 12px 0;
+    }
+    .plan-content th, .plan-content td {
+      border: 1px solid var(--color-border-default);
+      padding: 6px 13px;
+      text-align: left;
+    }
+    .plan-content th {
+      background: var(--color-canvas-subtle);
+      font-weight: 600;
+    }
+    .plan-content a {
+      color: var(--color-accent-fg);
+      text-decoration: none;
+    }
+    .plan-content a:hover {
+      text-decoration: underline;
+    }
+    .plan-content hr {
+      border: none;
+      border-top: 1px solid var(--color-border-default);
+      margin: 16px 0;
+    }
+    .plan-content ::selection {
+      background: var(--color-accent-subtle);
+    }
+
+    /* ── SECTIONS ── */
+    .plan-section {
+      position: relative;
+      border-radius: 6px;
+      transition: background 0.15s;
+      padding: 2px 4px;
+      margin: -2px -4px;
+    }
+    .plan-section:hover { background: var(--color-canvas-subtle); }
+    .plan-section:hover .section-actions { opacity: 1; }
+    .plan-section.deleted {
+      opacity: 0.6;
+      text-decoration: line-through;
+      text-decoration-color: var(--color-danger-fg);
+      color: var(--color-danger-fg);
+    }
+    .plan-section.deleted .section-actions { opacity: 1; }
+    .section-actions {
+      position: absolute;
+      top: 4px;
+      right: -32px;
+      opacity: 0;
+      transition: opacity 0.1s;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .section-action-btn {
+      width: 28px; height: 28px;
+      border-radius: 6px;
+      border: 1px solid var(--color-border-default);
+      background: var(--color-canvas-default);
+      color: var(--color-fg-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.12s;
+    }
+    .section-action-btn:hover {
+      background: var(--color-danger-subtle);
+      color: var(--color-danger-fg);
+      border-color: var(--color-danger-fg);
+    }
+    .section-action-btn.restore-btn:hover {
+      background: var(--color-success-subtle);
+      color: var(--color-success-fg);
+      border-color: var(--color-success-fg);
+    }
+
+    /* ── ANNOTATED TEXT ── */
+    .annotated-text {
+      background: var(--color-accent-subtle);
+      border-bottom: 2px solid var(--color-accent-fg);
+      cursor: pointer;
+      padding: 1px 2px;
+      border-radius: 3px;
+      transition: background 0.12s;
+    }
+    .annotated-text:hover {
+      background: rgba(56,139,253,0.3);
+    }
+    .annotation-flash {
+      animation: gh-flash 0.8s ease;
+    }
+    @keyframes gh-flash {
+      0% { background: var(--color-attention-subtle); box-shadow: 0 0 0 3px var(--color-attention-subtle); }
+      100% { background: var(--color-accent-subtle); box-shadow: none; }
+    }
+
+    /* ── DELETED TEXT ── */
+    .deleted-text {
+      background: var(--color-danger-subtle);
+      text-decoration: line-through;
+      text-decoration-color: var(--color-danger-fg);
+      color: var(--color-danger-fg);
+      padding: 1px 2px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .deleted-text:hover { background: rgba(248,81,73,0.3); }
+
+    /* ── EDITED TEXT ── */
+    .edited-text {
+      background: var(--color-attention-subtle);
+      border-bottom: 2px solid var(--color-attention-fg);
+      cursor: pointer;
+      padding: 1px 2px;
+      border-radius: 3px;
+      transition: background 0.12s;
+    }
+    .edited-text:hover {
+      background: rgba(187,128,9,0.3);
+    }
+
+    /* ── ANNOTATION POPUP ── */
+    .annotation-popup {
+      position: fixed;
+      z-index: 100;
+      background: var(--color-canvas-default);
+      border: 1px solid var(--color-border-default);
+      border-radius: 6px;
+      width: 340px;
+      box-shadow: var(--shadow-lg);
+      display: none;
+      animation: gh-popup-in 0.12s ease;
+    }
+    @keyframes gh-popup-in {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .annotation-popup.visible { display: block; }
+    .popup-header {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--color-border-default);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-fg-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .popup-quoted {
+      margin: 8px 12px;
+      padding: 8px 12px;
+      background: var(--color-canvas-subtle);
+      border-left: 3px solid var(--color-accent-fg);
+      border-radius: 0 6px 6px 0;
+      font-size: 12px;
+      color: var(--color-fg-muted);
+      font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+      max-height: 52px;
+      overflow: hidden;
+      line-height: 1.4;
+    }
+    .popup-body { padding: 0 12px 12px; }
+    .popup-choice {
+      display: flex;
+      gap: 8px;
+    }
+    .popup-choice-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 6px;
+      border: 1px solid var(--color-border-default);
+      background: var(--color-canvas-default);
+      color: var(--color-fg-default);
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.12s;
+    }
+    .popup-choice-btn:hover {
+      background: var(--color-canvas-subtle);
+      border-color: var(--color-fg-muted);
+    }
+    .popup-choice-btn.edit {
+      color: var(--color-attention-fg);
+    }
+    .popup-choice-btn.edit:hover {
+      background: var(--color-attention-subtle);
+      border-color: var(--color-attention-fg);
+    }
+    .popup-choice-btn.danger {
+      color: var(--color-danger-fg);
+    }
+    .popup-choice-btn.danger:hover {
+      background: var(--color-danger-subtle);
+      border-color: var(--color-danger-fg);
+    }
+    .popup-comment-form { display: none; }
+    .popup-comment-form textarea {
+      width: 100%;
+      min-height: 80px;
+      padding: 8px 12px;
+      background: var(--color-canvas-default);
+      border: 1px solid var(--color-border-default);
+      border-radius: 6px;
+      color: var(--color-fg-default);
+      font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+      line-height: 1.5;
+      margin-bottom: 8px;
+      transition: border-color 0.12s;
+    }
+    .popup-comment-form textarea:focus {
+      outline: none;
+      border-color: var(--color-accent-fg);
+      box-shadow: 0 0 0 3px var(--color-accent-subtle);
+    }
+    .popup-comment-form textarea::placeholder { color: var(--color-fg-subtle); }
+    .popup-edit-form { display: none; }
+    .popup-edit-form textarea {
+      width: 100%;
+      min-height: 80px;
+      padding: 8px 12px;
+      background: var(--color-canvas-default);
+      border: 1px solid var(--color-attention-fg);
+      border-radius: 6px;
+      color: var(--color-fg-default);
+      font-size: 13px;
+      font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+      resize: vertical;
+      line-height: 1.5;
+      margin-bottom: 8px;
+      transition: border-color 0.12s;
+    }
+    .popup-edit-form textarea:focus {
+      outline: none;
+      border-color: var(--color-attention-fg);
+      box-shadow: 0 0 0 3px var(--color-attention-subtle);
+    }
+    .popup-edit-form textarea::placeholder { color: var(--color-fg-subtle); }
+    .popup-edit-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--color-fg-muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .popup-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    /* ── SIDEBAR ── */
+    .gh-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Sidebar panel */
+    .gh-panel {
+      border: 1px solid var(--color-border-default);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .gh-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-fg-default);
+      background: var(--color-canvas-subtle);
+      border-bottom: 1px solid var(--color-border-default);
+    }
+    .gh-panel-body { padding: 12px 16px; }
+    .gh-panel-body.no-pad { padding: 0; }
+
+    /* Stats row */
+    .gh-stats {
+      display: flex;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--color-fg-muted);
+    }
+    .gh-stat {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .gh-stat-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .gh-stat-dot.comment { background: var(--color-accent-fg); }
+    .gh-stat-dot.deletion { background: var(--color-danger-fg); }
+    .gh-stat-dot.edit { background: var(--color-attention-fg); }
+
+    /* ── CONVERSATION TIMELINE ── */
+    .gh-timeline {
+      max-height: calc(100vh - 440px);
+      overflow-y: auto;
+    }
+    .gh-timeline-empty {
+      padding: 32px 16px;
+      text-align: center;
+      color: var(--color-fg-muted);
+      font-size: 13px;
+    }
+    .gh-timeline-empty .octicon {
+      display: block;
+      margin: 0 auto 8px;
+      color: var(--color-fg-subtle);
+    }
+
+    /* ── COMMENT CARD ── */
+    .gh-comment {
+      border: 1px solid var(--color-border-default);
+      border-radius: 6px;
+      margin: 8px 0;
+      overflow: hidden;
+      transition: border-color 0.15s;
+    }
+    .gh-comment:hover { border-color: var(--color-border-muted); }
+    .gh-comment.type-annotation {
+      border-color: var(--color-accent-fg);
+    }
+    .gh-comment.type-deletion {
+      border-color: var(--color-danger-fg);
+    }
+    .gh-comment-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--color-canvas-subtle);
+      border-bottom: 1px solid var(--color-border-default);
+      font-size: 12px;
+    }
+    .gh-comment.type-annotation .gh-comment-header {
+      background: var(--color-accent-subtle);
+      border-bottom-color: rgba(56,139,253,0.2);
+    }
+    .gh-comment.type-deletion .gh-comment-header {
+      background: var(--color-danger-subtle);
+      border-bottom-color: rgba(248,81,73,0.2);
+    }
+    .gh-avatar {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--color-avatar-bg);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .gh-comment-author {
+      font-weight: 600;
+      color: var(--color-fg-default);
+    }
+    .gh-comment-meta {
+      color: var(--color-fg-muted);
+      flex: 1;
+    }
+    .gh-comment-quoted {
+      margin: 8px 12px 4px;
+      padding: 6px 10px;
+      background: var(--color-canvas-subtle);
+      border-left: 3px solid var(--color-border-default);
+      border-radius: 0 6px 6px 0;
+      font-size: 11px;
+      color: var(--color-fg-muted);
+      font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+      max-height: 36px;
+      overflow: hidden;
+      line-height: 1.4;
+      cursor: pointer;
+    }
+    .gh-comment.type-annotation .gh-comment-quoted {
+      border-left-color: var(--color-accent-fg);
+    }
+    .gh-comment.type-deletion .gh-comment-quoted {
+      border-left-color: var(--color-danger-fg);
+      text-decoration: line-through;
+    }
+    .gh-comment-body {
+      padding: 8px 12px;
+      font-size: 13px;
+      color: var(--color-fg-default);
+      line-height: 1.5;
+    }
+    .gh-comment-section {
+      padding: 4px 12px 8px;
+      font-size: 11px;
+      color: var(--color-fg-subtle);
+      font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+    }
+    .gh-comment-footer {
+      display: flex;
+      justify-content: flex-end;
+      padding: 4px 8px 8px;
+    }
+
+    /* ── REVIEW SUBMIT PANEL ── */
+    .gh-review-panel {
+      border: 1px solid var(--color-border-default);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .gh-review-panel-header {
+      padding: 8px 16px;
+      background: var(--color-canvas-subtle);
+      border-bottom: 1px solid var(--color-border-default);
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .gh-review-panel-body { padding: 12px 16px; }
+    .gh-review-panel-body label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-fg-muted);
+      margin-bottom: 6px;
+    }
+    .gh-review-panel-body textarea {
+      width: 100%;
+      min-height: 80px;
+      padding: 8px 12px;
+      background: var(--color-canvas-default);
+      border: 1px solid var(--color-border-default);
+      border-radius: 6px;
+      color: var(--color-fg-default);
+      font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+      line-height: 1.5;
+      margin-bottom: 12px;
+      transition: border-color 0.12s;
+    }
+    .gh-review-panel-body textarea:focus {
+      outline: none;
+      border-color: var(--color-accent-fg);
+      box-shadow: 0 0 0 3px var(--color-accent-subtle);
+    }
+    .gh-review-panel-body textarea::placeholder { color: var(--color-fg-subtle); }
+    .gh-review-submit-row {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    /* ── TOAST ── */
+    .gh-toast {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 24px;
+      background: var(--color-accent-fg);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 500;
+      text-align: center;
+      z-index: 300;
+      transform: translateY(-100%);
+      transition: transform 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .gh-toast.visible { transform: translateY(0); }
+    .gh-toast.success { background: var(--color-success-emphasis); }
+    .gh-toast.danger { background: var(--color-danger-fg); }
+
+    /* ── SUBMITTED SCREEN ── */
+    .gh-submitted {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: var(--color-canvas-default);
+      gap: 12px;
+    }
+    .gh-submitted .check-circle {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: var(--color-success-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-success-fg);
+    }
+    .gh-submitted h2 {
+      font-size: 24px;
+      font-weight: 600;
+    }
+    .gh-submitted p {
+      color: var(--color-fg-muted);
+      font-size: 14px;
+    }
+
+    /* ── HELP HINT ── */
+    .gh-help-hint {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--color-canvas-subtle);
+      border: 1px solid var(--color-border-default);
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--color-fg-muted);
+      line-height: 1.4;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      .gh-content {
+        grid-template-columns: 1fr;
+        padding: 12px;
+      }
+      .gh-sidebar { order: 2; }
+      .section-actions { right: 4px; opacity: 1; }
+      .gh-file-body { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="gh-app">
+
+    <!-- HEADER -->
+    <div class="gh-header">
+      <div class="gh-header-inner">
+        <div class="gh-header-meta">
+          <span>Review plan with inline annotations</span>
+          <span>&middot;</span>
+          <span id="filePath" style="font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; font-size: 12px;"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB NAV -->
+    <div class="gh-tab-nav">
+      <div class="gh-tab-nav-inner">
+        <div class="gh-tabs">
+          <button class="gh-tab active" data-tab="conversation" onclick="switchMainTab('conversation')">
+            <svg class="octicon" viewBox="0 0 16 16" width="16" height="16"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 10.25 10H7.061l-2.574 2.573A1.458 1.458 0 0 1 2 11.543V10h-.25A1.75 1.75 0 0 1 0 8.25v-5.5C0 1.784.784 1 1.75 1ZM1.5 2.75v5.5c0 .138.112.25.25.25h1a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h3.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25Zm13 2a.25.25 0 0 0-.25-.25h-.5a.75.75 0 0 1 0-1.5h.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 14.25 12H14v1.543a1.458 1.458 0 0 1-2.487 1.03L9.22 12.28a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215l2.22 2.22v-2.19a.75.75 0 0 1 .75-.75h1a.25.25 0 0 0 .25-.25Z"/></svg>
+            Conversation
+            <span class="gh-counter" id="conversationCount">0</span>
+          </button>
+          <button class="gh-tab" data-tab="changes" onclick="switchMainTab('changes')">
+            <svg class="octicon" viewBox="0 0 16 16" width="16" height="16"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914Z"/></svg>
+            Files changed
+            <span class="gh-counter">1</span>
+          </button>
+        </div>
+        <div class="gh-tab-actions">
+          <button class="gh-btn gh-btn-sm" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">
+            <svg class="octicon" viewBox="0 0 16 16" width="16" height="16" id="themeIcon"><path d="M9.598 1.591a.749.749 0 0 1 .785-.175 7.001 7.001 0 1 1-8.967 8.967.75.75 0 0 1 .961-.96 5.5 5.5 0 0 0 7.046-7.046.75.75 0 0 1 .175-.786Zm1.616 1.945a7 7 0 0 1-7.678 7.678 5.499 5.499 0 1 0 7.678-7.678Z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="gh-content">
+
+      <!-- LEFT: File viewer -->
+      <div>
+        <div class="gh-file">
+          <div class="gh-file-header">
+            <svg class="octicon" viewBox="0 0 16 16" width="16" height="16"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914Z"/></svg>
+            <span class="gh-filename" id="fileNameHeader"></span>
+            <span class="gh-file-spacer"></span>
+            <div class="gh-stats" id="headerStats">
+              <span class="gh-stat"><span class="gh-stat-dot comment"></span> <span id="hdrAnnotations">0</span> comments</span>
+              <span class="gh-stat"><span class="gh-stat-dot edit"></span> <span id="hdrEdits">0</span> edits</span>
+              <span class="gh-stat"><span class="gh-stat-dot deletion"></span> <span id="hdrDeletions">0</span> deletions</span>
+            </div>
+          </div>
+          <div class="gh-file-body">
+            <div class="plan-content" id="planContent"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Sidebar -->
+      <div class="gh-sidebar">
+
+        <!-- Help -->
+        <div class="gh-help-hint">
+          <svg class="octicon" viewBox="0 0 16 16" width="16" height="16" style="flex-shrink:0"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.92 6.085h.001a.749.749 0 1 1-1.342-.67c.169-.339.516-.644.918-.82.239-.104.59-.182.972-.146.383.037.77.178 1.09.478.313.292.54.722.54 1.288 0 .39-.114.735-.29 1.005-.154.235-.372.432-.555.583a14 14 0 0 1-.468.36l-.015.011-.009.007-.002.001-.001.001L7.5 8.5l.26.335a.75.75 0 0 1-1.311.026 7 7 0 0 1 .292-.231c.168-.131.305-.253.39-.381.072-.11.094-.2.094-.324 0-.18-.07-.313-.162-.393a.6.6 0 0 0-.3-.132.72.72 0 0 0-.382.053c-.124.054-.232.14-.292.252ZM8 10.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z"/></svg>
+          Select text to comment or mark for deletion. Hover sections to delete them.
+        </div>
+
+        <!-- Conversation panel -->
+        <div class="gh-panel">
+          <div class="gh-panel-header">
+            <span>Review Comments</span>
+            <span class="gh-counter" id="sidebarCount">0</span>
+          </div>
+          <div class="gh-panel-body no-pad">
+            <div class="gh-timeline" id="sidebarContent">
+              <div class="gh-timeline-empty" id="emptyState">
+                <svg class="octicon" viewBox="0 0 16 16" width="24" height="24"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 10.25 10H7.061l-2.574 2.573A1.458 1.458 0 0 1 2 11.543V10h-.25A1.75 1.75 0 0 1 0 8.25v-5.5C0 1.784.784 1 1.75 1ZM1.5 2.75v5.5c0 .138.112.25.25.25h1a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h3.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25Zm13 2a.25.25 0 0 0-.25-.25h-.5a.75.75 0 0 1 0-1.5h.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 14.25 12H14v1.543a1.458 1.458 0 0 1-2.487 1.03L9.22 12.28a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215l2.22 2.22v-2.19a.75.75 0 0 1 .75-.75h1a.25.25 0 0 0 .25-.25Z"/></svg>
+                <div>Select text in the plan to start your review</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Review submission -->
+        <div class="gh-review-panel">
+          <div class="gh-review-panel-header">
+            <svg class="octicon" viewBox="0 0 16 16" width="16" height="16"><path d="M8 2c1.981 0 3.671.992 4.933 2.078 1.27 1.091 2.187 2.345 2.637 3.023a1.62 1.62 0 0 1 0 1.798c-.45.678-1.367 1.932-2.637 3.023C11.67 13.008 9.981 14 8 14c-1.981 0-3.671-.992-4.933-2.078C1.797 10.83.88 9.576.43 8.898a1.62 1.62 0 0 1 0-1.798c.45-.677 1.367-1.931 2.637-3.022C4.33 2.992 6.019 2 8 2ZM1.679 7.932a.12.12 0 0 0 0 .136c.411.622 1.241 1.75 2.366 2.717C5.176 11.758 6.527 12.5 8 12.5c1.473 0 2.825-.742 3.955-1.715 1.124-.967 1.954-2.096 2.366-2.717a.12.12 0 0 0 0-.136c-.412-.621-1.242-1.75-2.366-2.717C10.824 4.242 9.473 3.5 8 3.5c-1.473 0-2.824.742-3.955 1.715-1.124.967-1.954 2.096-2.366 2.717ZM8 10a2 2 0 1 1-.001-3.999A2 2 0 0 1 8 10Z"/></svg>
+            Finish your review
+          </div>
+          <div class="gh-review-panel-body">
+            <label for="generalComments">General feedback</label>
+            <textarea id="generalComments" placeholder="Leave a comment on this plan..."></textarea>
+            <div class="gh-review-submit-row">
+              <button class="gh-btn gh-btn-primary" id="submitBtn" onclick="submitReview()">
+                <svg class="octicon" viewBox="0 0 16 16" width="16" height="16" style="fill:#fff"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/></svg>
+                Submit review
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ANNOTATION POPUP -->
+  <div class="annotation-popup" id="annotationPopup">
+    <div class="popup-header">
+      <svg class="octicon" viewBox="0 0 16 16" width="16" height="16"><path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z"/></svg>
+      Add review comment
+    </div>
+    <div class="popup-quoted" id="popupPreview"></div>
+    <div class="popup-body">
+      <div class="popup-choice" id="popupChoice">
+        <button class="popup-choice-btn" onclick="showCommentInput()">
+          <svg class="octicon" viewBox="0 0 16 16" width="16" height="16"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 10.25 10H7.061l-2.574 2.573A1.458 1.458 0 0 1 2 11.543V10h-.25A1.75 1.75 0 0 1 0 8.25v-5.5C0 1.784.784 1 1.75 1ZM1.5 2.75v5.5c0 .138.112.25.25.25h1a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h3.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25Zm13 2a.25.25 0 0 0-.25-.25h-.5a.75.75 0 0 1 0-1.5h.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 14.25 12H14v1.543a1.458 1.458 0 0 1-2.487 1.03L9.22 12.28a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215l2.22 2.22v-2.19a.75.75 0 0 1 .75-.75h1a.25.25 0 0 0 .25-.25Z"/></svg>
+          Comment
+        </button>
+        <button class="popup-choice-btn edit" onclick="showEditInput()">
+          <svg class="octicon" viewBox="0 0 16 16" width="16" height="16"><path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z"/></svg>
+          Edit
+        </button>
+        <button class="popup-choice-btn danger" onclick="deleteSelectedText()">
+          <svg class="octicon" viewBox="0 0 16 16" width="16" height="16"><path d="M11 1.75V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675l.66 6.6a.25.25 0 0 0 .249.225h5.19a.25.25 0 0 0 .249-.225l.66-6.6a.75.75 0 0 1 1.492.149l-.66 6.6A1.748 1.748 0 0 1 10.595 15h-5.19a1.75 1.75 0 0 1-1.741-1.575l-.66-6.6a.75.75 0 1 1 1.492-.15ZM6.5 1.75V3h3V1.75a.25.25 0 0 0-.25-.25h-2.5a.25.25 0 0 0-.25.25Z"/></svg>
+          Delete
+        </button>
+      </div>
+      <div class="popup-comment-form" id="popupCommentForm">
+        <textarea id="popupComment" placeholder="Leave a comment..."></textarea>
+        <div class="popup-actions">
+          <button class="gh-btn gh-btn-sm" onclick="backToChoice()">Cancel</button>
+          <button class="gh-btn gh-btn-primary gh-btn-sm" onclick="saveAnnotation()">Add review comment</button>
+        </div>
+      </div>
+      <div class="popup-edit-form" id="popupEditForm">
+        <div class="popup-edit-label">Replace with:</div>
+        <textarea id="popupEditText" placeholder="Type the replacement text..."></textarea>
+        <div class="popup-actions">
+          <button class="gh-btn gh-btn-sm" onclick="backToChoice()">Cancel</button>
+          <button class="gh-btn gh-btn-sm" style="background:var(--color-attention-subtle);color:var(--color-attention-fg);border-color:var(--color-attention-fg)" onclick="saveEdit()">Apply edit</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="gh-toast" id="toast"></div>
+
+  <script>
+    let planData = { content: '', filePath: '' };
+    let annotations = [];
+    let edits = [];
+    let deletedSections = [];
+    let deletedSelections = [];
+    let currentSelection = null;
+    let sectionLineMap = {};
+
+    /* ── THEME ── */
+    function initTheme() {
+      const saved = localStorage.getItem('plan-review-theme');
+      if (saved === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        updateThemeIcon('light');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        updateThemeIcon('dark');
+      }
+    }
+    function toggleTheme() {
+      const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+      const next = isLight ? 'dark' : 'light';
+      if (next === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      else document.documentElement.removeAttribute('data-theme');
+      try { localStorage.setItem('plan-review-theme', next); } catch {}
+      updateThemeIcon(next);
+    }
+    function updateThemeIcon(theme) {
+      const el = document.getElementById('themeIcon');
+      el.innerHTML = theme === 'dark'
+        ? '<path d="M9.598 1.591a.749.749 0 0 1 .785-.175 7.001 7.001 0 1 1-8.967 8.967.75.75 0 0 1 .961-.96 5.5 5.5 0 0 0 7.046-7.046.75.75 0 0 1 .175-.786Zm1.616 1.945a7 7 0 0 1-7.678 7.678 5.499 5.499 0 1 0 7.678-7.678Z"/>'
+        : '<path d="M8 12a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm0-1.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm5.657-8.157a.75.75 0 0 1 0 1.061l-1.061 1.06a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734l1.06-1.06a.75.75 0 0 1 1.06 0Zm-9.193 9.193a.75.75 0 0 1 0 1.06l-1.06 1.061a.75.75 0 0 1-1.061-1.06l1.06-1.061a.75.75 0 0 1 1.061 0ZM8 0a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0V.75A.75.75 0 0 1 8 0ZM3 8a.75.75 0 0 1-.75.75H.75a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 3 8Zm13 0a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 16 8Zm-8 5a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 8 13Zm3.536.464a.75.75 0 0 1 0 1.06l-1.06 1.061a.75.75 0 0 1-1.061-1.06l1.06-1.061a.75.75 0 0 1 1.061 0ZM2.343 2.343a.75.75 0 0 1 1.061 0l1.06 1.061a.751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018l-1.06-1.06a.75.75 0 0 1 0-1.06Z"/>';
+    }
+
+    /* ── TAB SWITCHING ── */
+    function switchMainTab(tab) {
+      document.querySelectorAll('.gh-tab').forEach(t =>
+        t.classList.toggle('active', t.dataset.tab === tab)
+      );
+    }
+
+    /* ── INIT ── */
+    async function init() {
+      initTheme();
+      const res = await fetch('/api/plan');
+      planData = await res.json();
+      const fname = planData.filePath.split('/').pop();
+      document.getElementById('filePath').textContent = planData.filePath;
+      document.getElementById('fileNameHeader').textContent = fname;
+      document.title = 'Plan Review · ' + fname;
+      renderPlan(planData.content);
+      setupSelectionListener();
+    }
+
+    /* ── MARKDOWN → HTML ── */
+    function buildSectionLineMap(markdown) {
+      const rawLines = markdown.split('\n');
+      const map = {};
+      let sectionId = 0, currentStart = 1;
+      for (let i = 0; i < rawLines.length; i++) {
+        if (/^#{1,4}\s+/.test(rawLines[i])) {
+          if (sectionId > 0) {
+            map['section-' + sectionId] = { startLine: currentStart, endLine: i, rawMarkdown: rawLines.slice(currentStart - 1, i).join('\n') };
+          } else if (i > 0) {
+            map['section-0'] = { startLine: 1, endLine: i, rawMarkdown: rawLines.slice(0, i).join('\n') };
+          }
+          sectionId++;
+          currentStart = i + 1;
+        }
+      }
+      if (sectionId > 0) {
+        map['section-' + sectionId] = { startLine: currentStart, endLine: rawLines.length, rawMarkdown: rawLines.slice(currentStart - 1).join('\n') };
+      } else {
+        map['section-0'] = { startLine: 1, endLine: rawLines.length, rawMarkdown: markdown };
+      }
+      return map;
+    }
+
+    function renderPlan(markdown) {
+      sectionLineMap = buildSectionLineMap(markdown);
+      const html = markdownToHtml(markdown);
+      document.getElementById('planContent').innerHTML = wrapSections(html);
+    }
+
+    function markdownToHtml(md) {
+      let html = md;
+      html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
+      html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+      html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+      html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+      html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
+        '<pre><code class="language-' + lang + '">' + esc(code.trim()) + '</code></pre>'
+      );
+      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+      html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
+      html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+      const lines = html.split('\n');
+      let result = [], listStack = [];
+      let inTable = false, tableRows = [];
+      let inBlockquote = false, bqLines = [];
+
+      function closeListsTo(indent) {
+        while (listStack.length > 0 && listStack[listStack.length - 1].indent >= indent) {
+          const prev = listStack.pop();
+          result.push(prev.type === 'ul' ? '</ul>' : '</ol>');
+        }
+      }
+
+      function closeAllLists() {
+        while (listStack.length > 0) {
+          const prev = listStack.pop();
+          result.push(prev.type === 'ul' ? '</ul>' : '</ol>');
+        }
+      }
+
+      for (const line of lines) {
+        if (/^>\s?(.*)$/.test(line)) {
+          if (!inBlockquote) { closeAllLists(); inBlockquote = true; bqLines = []; }
+          bqLines.push(line.replace(/^>\s?/, ''));
+          continue;
+        } else if (inBlockquote) {
+          result.push('<blockquote>' + bqLines.join('<br>') + '</blockquote>');
+          inBlockquote = false;
+        }
+        if (/^\|(.+)\|$/.test(line)) {
+          if (!inTable) { closeAllLists(); inTable = true; tableRows = []; }
+          if (!/^\|[\s-:|]+\|$/.test(line)) tableRows.push(line);
+          continue;
+        } else if (inTable) {
+          result.push(buildTable(tableRows));
+          inTable = false; tableRows = [];
+        }
+        if (/^(\s*)[-*]\s+/.test(line) || /^(\s*)\d+\.\s+/.test(line)) {
+          const ulMatch = line.match(/^(\s*)[-*]\s+(.+)$/);
+          const olMatch = line.match(/^(\s*)\d+\.\s+(.+)$/);
+          const match = ulMatch || olMatch;
+          const type = ulMatch ? 'ul' : 'ol';
+          const indent = match[1].length;
+          const content = match[2];
+
+          if (listStack.length === 0) {
+            result.push(type === 'ul' ? '<ul>' : '<ol>');
+            listStack.push({ type, indent });
+          } else {
+            const top = listStack[listStack.length - 1];
+            if (indent > top.indent) {
+              result.push(type === 'ul' ? '<ul>' : '<ol>');
+              listStack.push({ type, indent });
+            } else if (indent < top.indent) {
+              closeListsTo(indent + 1);
+              if (listStack.length > 0 && listStack[listStack.length - 1].type !== type) {
+                const prev = listStack.pop();
+                result.push(prev.type === 'ul' ? '</ul>' : '</ol>');
+                result.push(type === 'ul' ? '<ul>' : '<ol>');
+                listStack.push({ type, indent });
+              }
+            } else if (top.type !== type) {
+              const prev = listStack.pop();
+              result.push(prev.type === 'ul' ? '</ul>' : '</ol>');
+              result.push(type === 'ul' ? '<ul>' : '<ol>');
+              listStack.push({ type, indent });
+            }
+          }
+          result.push('<li>' + content + '</li>');
+          continue;
+        } else if (listStack.length > 0) {
+          closeAllLists();
+        }
+        if (/^---+$/.test(line.trim()) || /^\*\*\*+$/.test(line.trim()) || /^___+$/.test(line.trim())) {
+          result.push('<hr>');
+        } else if (line.match(/^<h[1-4]>/) || line.match(/^<pre>/) || line.match(/^<table/)) {
+          result.push(line);
+        } else if (line.trim() === '') {
+          result.push('');
+        } else if (!line.match(/^</)) {
+          result.push('<p>' + line + '</p>');
+        } else {
+          result.push(line);
+        }
+      }
+      if (inBlockquote) result.push('<blockquote>' + bqLines.join('<br>') + '</blockquote>');
+      closeAllLists();
+      if (inTable && tableRows.length) result.push(buildTable(tableRows));
+      return result.join('\n');
+    }
+
+    function buildTable(rows) {
+      let h = '<table>';
+      rows.forEach((row, i) => {
+        const cells = row.split('|').filter((_, j) => j > 0 && j < row.split('|').length - 1);
+        const tag = i === 0 ? 'th' : 'td';
+        if (i === 0) h += '<thead>';
+        if (i === 1) h += '</thead><tbody>';
+        h += '<tr>' + cells.map(c => '<' + tag + '>' + c.trim() + '</' + tag + '>').join('') + '</tr>';
+      });
+      h += '</tbody></table>';
+      return h;
+    }
+
+    function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function escAttr(s) { return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
+    /* ── SECTIONS ── */
+    function wrapSections(html) {
+      const lines = html.split('\n');
+      let sections = [], cur = null, id = 0;
+      for (const line of lines) {
+        const m = line.match(/^<(h[1-4])>(.*?)<\/\1>$/);
+        if (m) {
+          if (cur) sections.push(cur);
+          id++;
+          cur = { id: 'section-' + id, heading: m[2].replace(/<[^>]+>/g, ''), tag: m[1], lines: [line] };
+        } else if (cur) {
+          cur.lines.push(line);
+        } else {
+          cur = { id: 'section-0', heading: '', tag: '', lines: [line] };
+        }
+      }
+      if (cur) sections.push(cur);
+
+      return sections.map(s => {
+        const isDel = deletedSections.some(d => d.id === s.id);
+        const xIcon = '<svg class="octicon" viewBox="0 0 16 16" width="14" height="14"><path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>';
+        const undoIcon = '<svg class="octicon" viewBox="0 0 16 16" width="14" height="14"><path d="M6.78 1.97a.75.75 0 0 1 0 1.06L4.81 5h3.44a4.75 4.75 0 0 1 0 9.5H5.75a.75.75 0 0 1 0-1.5h2.5a3.25 3.25 0 0 0 0-6.5H4.81l1.97 1.97a.75.75 0 0 1-1.06 1.06l-3.25-3.25a.75.75 0 0 1 0-1.06l3.25-3.25a.75.75 0 0 1 1.06 0Z"/></svg>';
+        const btn = isDel
+          ? '<button class="section-action-btn restore-btn" onclick="restoreSection(\'' + s.id + '\')" title="Restore section">' + undoIcon + '</button>'
+          : '<button class="section-action-btn delete-btn" onclick="deleteSection(\'' + s.id + '\')" title="Delete section">' + xIcon + '</button>';
+        const lineInfo = sectionLineMap[s.id] || {};
+        const lineRange = lineInfo.startLine ? (lineInfo.startLine + '-' + lineInfo.endLine) : '';
+        return '<div class="plan-section ' + (isDel ? 'deleted' : '') + '" data-section-id="' + s.id + '" data-section-heading="' + escAttr(s.heading) + '" data-lines="' + lineRange + '">'
+          + '<div class="section-actions">' + btn + '</div>'
+          + s.lines.join('\n')
+          + '</div>';
+      }).join('\n');
+    }
+
+    /* ── SELECTION LISTENER ── */
+    function setupSelectionListener() {
+      document.getElementById('planContent').addEventListener('mouseup', (e) => {
+        if (e.target.closest('.section-actions') || e.target.closest('.annotation-popup')) return;
+        const sel = window.getSelection();
+        const text = sel.toString().trim();
+        if (text.length > 2) {
+          const range = sel.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          const sectionEl = e.target.closest('.plan-section');
+          const secId = sectionEl ? sectionEl.dataset.sectionId : '';
+          currentSelection = {
+            text,
+            range: range.cloneRange(),
+            sectionHeading: sectionEl ? sectionEl.dataset.sectionHeading : '',
+            sectionId: secId,
+            lines: sectionEl ? sectionEl.dataset.lines : '',
+            rawMarkdown: secId && sectionLineMap[secId] ? sectionLineMap[secId].rawMarkdown : '',
+          };
+          showPopup(rect);
+        } else {
+          hidePopup();
+        }
+      });
+      document.addEventListener('mousedown', (e) => {
+        if (!e.target.closest('.annotation-popup') && !e.target.closest('.section-actions')) hidePopup();
+      });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hidePopup(); });
+    }
+
+    /* ── POPUP ── */
+    function showPopup(rect) {
+      const popup = document.getElementById('annotationPopup');
+      document.getElementById('popupChoice').style.display = 'flex';
+      document.getElementById('popupCommentForm').style.display = 'none';
+      document.getElementById('popupEditForm').style.display = 'none';
+      document.getElementById('popupPreview').textContent = currentSelection.text.length > 140
+        ? currentSelection.text.substring(0, 140) + '...'
+        : currentSelection.text;
+      document.getElementById('popupComment').value = '';
+
+      let top = rect.bottom + 8, left = rect.left;
+      if (top + 220 > window.innerHeight) top = rect.top - 220;
+      if (left + 360 > window.innerWidth) left = window.innerWidth - 380;
+      if (left < 8) left = 8;
+      popup.style.top = top + 'px';
+      popup.style.left = left + 'px';
+      popup.classList.add('visible');
+    }
+    function hidePopup() {
+      document.getElementById('annotationPopup').classList.remove('visible');
+      currentSelection = null;
+    }
+    function showCommentInput() {
+      document.getElementById('popupChoice').style.display = 'none';
+      document.getElementById('popupCommentForm').style.display = 'block';
+      setTimeout(() => document.getElementById('popupComment').focus(), 50);
+    }
+    function backToChoice() {
+      document.getElementById('popupChoice').style.display = 'flex';
+      document.getElementById('popupCommentForm').style.display = 'none';
+      document.getElementById('popupEditForm').style.display = 'none';
+      document.getElementById('popupComment').value = '';
+      document.getElementById('popupEditText').value = '';
+    }
+
+    /* ── SAVE ANNOTATION ── */
+    function saveAnnotation() {
+      const comment = document.getElementById('popupComment').value.trim();
+      if (!comment || !currentSelection) return;
+      const ann = {
+        id: 'ann-' + Date.now(),
+        selectedText: currentSelection.text,
+        comment,
+        sectionHeading: currentSelection.sectionHeading,
+        sectionId: currentSelection.sectionId,
+        lines: currentSelection.lines,
+        rawMarkdown: currentSelection.rawMarkdown,
+      };
+      annotations.push(ann);
+      try {
+        const span = document.createElement('span');
+        span.className = 'annotated-text';
+        span.dataset.annotationId = ann.id;
+        span.title = comment;
+        span.onclick = () => highlightAnnotationCard(ann.id);
+        try {
+          currentSelection.range.surroundContents(span);
+        } catch {
+          span.appendChild(currentSelection.range.extractContents());
+          currentSelection.range.insertNode(span);
+        }
+      } catch {}
+      hidePopup();
+      window.getSelection().removeAllRanges();
+      updateUI();
+      showToast('Comment added to review', 'success');
+    }
+
+    /* ── DELETE TEXT ── */
+    function deleteSelectedText() {
+      if (!currentSelection) return;
+      const del = {
+        id: 'del-text-' + Date.now(),
+        selectedText: currentSelection.text,
+        sectionHeading: currentSelection.sectionHeading,
+        sectionId: currentSelection.sectionId,
+        lines: currentSelection.lines,
+        rawMarkdown: currentSelection.rawMarkdown,
+      };
+      deletedSelections.push(del);
+      try {
+        const span = document.createElement('span');
+        span.className = 'deleted-text';
+        span.dataset.deletionId = del.id;
+        span.title = 'Marked for deletion';
+        try {
+          currentSelection.range.surroundContents(span);
+        } catch {
+          span.appendChild(currentSelection.range.extractContents());
+          currentSelection.range.insertNode(span);
+        }
+      } catch {}
+      hidePopup();
+      window.getSelection().removeAllRanges();
+      updateUI();
+      showToast('Text marked for deletion', 'danger');
+    }
+
+    function restoreDeletedText(id) {
+      deletedSelections = deletedSelections.filter(d => d.id !== id);
+      const span = document.querySelector('[data-deletion-id="' + id + '"]');
+      if (span) { const p = span.parentNode; while (span.firstChild) p.insertBefore(span.firstChild, span); p.removeChild(span); }
+      updateUI();
+      showToast('Deletion removed');
+    }
+
+    /* ── EDIT TEXT ── */
+    function showEditInput() {
+      document.getElementById('popupChoice').style.display = 'none';
+      document.getElementById('popupEditForm').style.display = 'block';
+      const textarea = document.getElementById('popupEditText');
+      textarea.value = currentSelection.text;
+      setTimeout(() => { textarea.focus(); textarea.select(); }, 50);
+    }
+    function saveEdit() {
+      const newText = document.getElementById('popupEditText').value;
+      if (!currentSelection || newText === currentSelection.text) { backToChoice(); return; }
+      const edit = {
+        id: 'edit-' + Date.now(),
+        originalText: currentSelection.text,
+        newText,
+        sectionHeading: currentSelection.sectionHeading,
+        sectionId: currentSelection.sectionId,
+        lines: currentSelection.lines,
+        rawMarkdown: currentSelection.rawMarkdown,
+      };
+      edits.push(edit);
+      try {
+        const span = document.createElement('span');
+        span.className = 'edited-text';
+        span.dataset.editId = edit.id;
+        span.title = 'Edited: ' + newText.substring(0, 80);
+        span.textContent = newText;
+        span.onclick = () => highlightEditCard(edit.id);
+        try {
+          currentSelection.range.deleteContents();
+          currentSelection.range.insertNode(span);
+        } catch {
+          currentSelection.range.deleteContents();
+          currentSelection.range.insertNode(span);
+        }
+      } catch {}
+      hidePopup();
+      window.getSelection().removeAllRanges();
+      updateUI();
+      showToast('Text edited', 'attention');
+    }
+    function restoreEdit(id) {
+      const edit = edits.find(e => e.id === id);
+      edits = edits.filter(e => e.id !== id);
+      const span = document.querySelector('[data-edit-id="' + id + '"]');
+      if (span && edit) {
+        const textNode = document.createTextNode(edit.originalText);
+        span.parentNode.replaceChild(textNode, span);
+      }
+      updateUI();
+      showToast('Edit reverted');
+    }
+    function highlightEditCard(id) {
+      const card = document.getElementById('card-' + id);
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.style.boxShadow = '0 0 0 2px var(--color-attention-fg)';
+        setTimeout(() => { card.style.boxShadow = ''; }, 1500);
+      }
+    }
+
+    /* ── DELETE / RESTORE ANNOTATION ── */
+    function deleteAnnotation(id) {
+      annotations = annotations.filter(a => a.id !== id);
+      const span = document.querySelector('[data-annotation-id="' + id + '"]');
+      if (span) { const p = span.parentNode; while (span.firstChild) p.insertBefore(span.firstChild, span); p.removeChild(span); }
+      updateUI();
+      showToast('Comment removed');
+    }
+
+    /* ── SECTIONS ── */
+    function deleteSection(id) {
+      const el = document.querySelector('[data-section-id="' + id + '"]');
+      if (!el) return;
+      const lineInfo = sectionLineMap[id] || {};
+      deletedSections.push({ id, heading: el.dataset.sectionHeading, content: el.textContent.trim(), lines: el.dataset.lines, rawMarkdown: lineInfo.rawMarkdown || '' });
+      el.classList.add('deleted');
+      const actions = el.querySelector('.section-actions');
+      const undoIcon = '<svg class="octicon" viewBox="0 0 16 16" width="14" height="14"><path d="M6.78 1.97a.75.75 0 0 1 0 1.06L4.81 5h3.44a4.75 4.75 0 0 1 0 9.5H5.75a.75.75 0 0 1 0-1.5h2.5a3.25 3.25 0 0 0 0-6.5H4.81l1.97 1.97a.75.75 0 0 1-1.06 1.06l-3.25-3.25a.75.75 0 0 1 0-1.06l3.25-3.25a.75.75 0 0 1 1.06 0Z"/></svg>';
+      actions.innerHTML = '<button class="section-action-btn restore-btn" onclick="restoreSection(\'' + id + '\')" title="Restore">' + undoIcon + '</button>';
+      updateUI();
+      showToast('Section marked for deletion', 'danger');
+    }
+    function restoreSection(id) {
+      deletedSections = deletedSections.filter(d => d.id !== id);
+      const el = document.querySelector('[data-section-id="' + id + '"]');
+      if (el) {
+        el.classList.remove('deleted');
+        const xIcon = '<svg class="octicon" viewBox="0 0 16 16" width="14" height="14"><path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>';
+        el.querySelector('.section-actions').innerHTML = '<button class="section-action-btn delete-btn" onclick="deleteSection(\'' + id + '\')" title="Delete">' + xIcon + '</button>';
+      }
+      updateUI();
+      showToast('Section restored', 'success');
+    }
+
+    /* ── UPDATE ALL UI ── */
+    function updateUI() {
+      const totalComments = annotations.length;
+      const totalEdits = edits.length;
+      const totalDeletions = deletedSections.length + deletedSelections.length;
+      const total = totalComments + totalEdits + totalDeletions;
+
+      document.getElementById('conversationCount').textContent = total;
+      document.getElementById('sidebarCount').textContent = total;
+      document.getElementById('hdrAnnotations').textContent = totalComments;
+      document.getElementById('hdrEdits').textContent = totalEdits;
+      document.getElementById('hdrDeletions').textContent = totalDeletions;
+
+      // Sidebar timeline
+      const container = document.getElementById('sidebarContent');
+      if (total === 0) {
+        container.innerHTML = '<div class="gh-timeline-empty">'
+          + '<svg class="octicon" viewBox="0 0 16 16" width="24" height="24"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 10.25 10H7.061l-2.574 2.573A1.458 1.458 0 0 1 2 11.543V10h-.25A1.75 1.75 0 0 1 0 8.25v-5.5C0 1.784.784 1 1.75 1ZM1.5 2.75v5.5c0 .138.112.25.25.25h1a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h3.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25Zm13 2a.25.25 0 0 0-.25-.25h-.5a.75.75 0 0 1 0-1.5h.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 14.25 12H14v1.543a1.458 1.458 0 0 1-2.487 1.03L9.22 12.28a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215l2.22 2.22v-2.19a.75.75 0 0 1 .75-.75h1a.25.25 0 0 0 .25-.25Z"/></svg>'
+          + '<div>Select text in the plan to start your review</div></div>';
+        return;
+      }
+
+      let html = '';
+
+      // Annotations
+      for (const a of annotations) {
+        html += '<div class="gh-comment type-annotation" id="card-' + a.id + '">'
+          + '<div class="gh-comment-header">'
+          + '<div class="gh-avatar">Y</div>'
+          + '<span class="gh-comment-author">You</span>'
+          + '<span class="gh-comment-meta">commented</span>'
+          + '</div>'
+          + '<div class="gh-comment-quoted" onclick="scrollToAnnotation(\'' + a.id + '\')">'
+          + esc(a.selectedText.substring(0, 100)) + (a.selectedText.length > 100 ? '...' : '')
+          + '</div>'
+          + '<div class="gh-comment-body">' + esc(a.comment) + '</div>'
+          + (a.sectionHeading ? '<div class="gh-comment-section">in ' + esc(a.sectionHeading) + '</div>' : '')
+          + '<div class="gh-comment-footer">'
+          + '<button class="gh-btn gh-btn-invisible gh-btn-sm" onclick="deleteAnnotation(\'' + a.id + '\')">'
+          + '<svg class="octicon" viewBox="0 0 16 16" width="12" height="12"><path d="M11 1.75V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675l.66 6.6a.25.25 0 0 0 .249.225h5.19a.25.25 0 0 0 .249-.225l.66-6.6a.75.75 0 0 1 1.492.149l-.66 6.6A1.748 1.748 0 0 1 10.595 15h-5.19a1.75 1.75 0 0 1-1.741-1.575l-.66-6.6a.75.75 0 1 1 1.492-.15ZM6.5 1.75V3h3V1.75a.25.25 0 0 0-.25-.25h-2.5a.25.25 0 0 0-.25.25Z"/></svg>'
+          + ' Remove</button>'
+          + '</div>'
+          + '</div>';
+      }
+
+      // Edits
+      for (const e of edits) {
+        html += '<div class="gh-comment type-edit" id="card-' + e.id + '">'
+          + '<div class="gh-comment-header">'
+          + '<div class="gh-avatar">Y</div>'
+          + '<span class="gh-comment-author">You</span>'
+          + '<span class="gh-comment-meta">suggested edit</span>'
+          + '</div>'
+          + '<div class="gh-comment-quoted" style="border-left-color:var(--color-danger-fg);text-decoration:line-through;color:var(--color-fg-muted)">'
+          + esc(e.originalText.substring(0, 100)) + (e.originalText.length > 100 ? '...' : '')
+          + '</div>'
+          + '<div class="gh-comment-quoted" style="border-left-color:var(--color-success-fg)">'
+          + esc(e.newText.substring(0, 100)) + (e.newText.length > 100 ? '...' : '')
+          + '</div>'
+          + (e.sectionHeading ? '<div class="gh-comment-section">in ' + esc(e.sectionHeading) + '</div>' : '')
+          + '<div class="gh-comment-footer">'
+          + '<button class="gh-btn gh-btn-invisible gh-btn-sm" onclick="restoreEdit(\'' + e.id + '\')">'
+          + '<svg class="octicon" viewBox="0 0 16 16" width="12" height="12"><path d="M6.78 1.97a.75.75 0 0 1 0 1.06L4.81 5h3.44a4.75 4.75 0 0 1 0 9.5H5.75a.75.75 0 0 1 0-1.5h2.5a3.25 3.25 0 0 0 0-6.5H4.81l1.97 1.97a.75.75 0 0 1-1.06 1.06l-3.25-3.25a.75.75 0 0 1 0-1.06l3.25-3.25a.75.75 0 0 1 1.06 0Z"/></svg>'
+          + ' Revert</button>'
+          + '</div></div>';
+      }
+
+      // Deleted sections
+      for (const d of deletedSections) {
+        html += '<div class="gh-comment type-deletion">'
+          + '<div class="gh-comment-header">'
+          + '<div class="gh-avatar">Y</div>'
+          + '<span class="gh-comment-author">You</span>'
+          + '<span class="gh-comment-meta">suggested deletion</span>'
+          + '</div>'
+          + '<div class="gh-comment-body" style="color:var(--color-danger-fg);font-weight:500">'
+          + '<svg class="octicon" viewBox="0 0 16 16" width="12" height="12" style="margin-right:4px"><path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>'
+          + 'Section: ' + esc(d.heading)
+          + '</div>'
+          + '<div class="gh-comment-footer">'
+          + '<button class="gh-btn gh-btn-invisible gh-btn-sm" onclick="restoreSection(\'' + d.id + '\')">'
+          + '<svg class="octicon" viewBox="0 0 16 16" width="12" height="12"><path d="M6.78 1.97a.75.75 0 0 1 0 1.06L4.81 5h3.44a4.75 4.75 0 0 1 0 9.5H5.75a.75.75 0 0 1 0-1.5h2.5a3.25 3.25 0 0 0 0-6.5H4.81l1.97 1.97a.75.75 0 0 1-1.06 1.06l-3.25-3.25a.75.75 0 0 1 0-1.06l3.25-3.25a.75.75 0 0 1 1.06 0Z"/></svg>'
+          + ' Restore</button>'
+          + '</div></div>';
+      }
+
+      // Deleted text selections
+      for (const d of deletedSelections) {
+        html += '<div class="gh-comment type-deletion">'
+          + '<div class="gh-comment-header">'
+          + '<div class="gh-avatar">Y</div>'
+          + '<span class="gh-comment-author">You</span>'
+          + '<span class="gh-comment-meta">suggested deletion</span>'
+          + '</div>'
+          + '<div class="gh-comment-quoted">'
+          + esc(d.selectedText.substring(0, 100)) + (d.selectedText.length > 100 ? '...' : '')
+          + '</div>'
+          + (d.sectionHeading ? '<div class="gh-comment-section">in ' + esc(d.sectionHeading) + '</div>' : '')
+          + '<div class="gh-comment-footer">'
+          + '<button class="gh-btn gh-btn-invisible gh-btn-sm" onclick="restoreDeletedText(\'' + d.id + '\')">'
+          + '<svg class="octicon" viewBox="0 0 16 16" width="12" height="12"><path d="M6.78 1.97a.75.75 0 0 1 0 1.06L4.81 5h3.44a4.75 4.75 0 0 1 0 9.5H5.75a.75.75 0 0 1 0-1.5h2.5a3.25 3.25 0 0 0 0-6.5H4.81l1.97 1.97a.75.75 0 0 1-1.06 1.06l-3.25-3.25a.75.75 0 0 1 0-1.06l3.25-3.25a.75.75 0 0 1 1.06 0Z"/></svg>'
+          + ' Restore</button>'
+          + '</div></div>';
+      }
+
+      container.innerHTML = html;
+    }
+
+    /* ── SCROLL / HIGHLIGHT ── */
+    function scrollToAnnotation(id) {
+      const span = document.querySelector('[data-annotation-id="' + id + '"]');
+      if (span) {
+        span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        span.classList.add('annotation-flash');
+        setTimeout(() => span.classList.remove('annotation-flash'), 1200);
+      }
+    }
+    function highlightAnnotationCard(id) {
+      const card = document.getElementById('card-' + id);
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.style.boxShadow = '0 0 0 2px var(--color-accent-fg)';
+        setTimeout(() => { card.style.boxShadow = ''; }, 1500);
+      }
+    }
+
+    /* ── SUBMIT ── */
+    async function submitReview() {
+      const generalComments = document.getElementById('generalComments').value.trim();
+      const data = {
+        annotations: annotations.map(a => ({ selectedText: a.selectedText, comment: a.comment, sectionHeading: a.sectionHeading, lines: a.lines, rawMarkdown: a.rawMarkdown })),
+        edits: edits.map(e => ({ originalText: e.originalText, newText: e.newText, sectionHeading: e.sectionHeading, lines: e.lines, rawMarkdown: e.rawMarkdown })),
+        deletedSections: deletedSections.map(d => ({ heading: d.heading, content: d.content, lines: d.lines, rawMarkdown: d.rawMarkdown })),
+        deletedSelections: deletedSelections.map(d => ({ selectedText: d.selectedText, sectionHeading: d.sectionHeading, lines: d.lines, rawMarkdown: d.rawMarkdown })),
+        generalComments: generalComments || null,
+      };
+      const btn = document.getElementById('submitBtn');
+      btn.textContent = 'Submitting...';
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        const result = await res.json();
+        if (result.success) {
+          showToast('Review submitted successfully!', 'success');
+          setTimeout(() => {
+            document.body.innerHTML = '<div class="gh-submitted">'
+              + '<div class="check-circle"><svg class="octicon" viewBox="0 0 16 16" width="32" height="32"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/></svg></div>'
+              + '<h2>Review submitted</h2>'
+              + '<p>Your annotations have been sent back to Claude Code.</p>'
+              + '<p style="margin-top:4px">Returning to terminal...</p>'
+              + '</div>';
+            // Auto-close the tab after a brief delay
+            setTimeout(() => { window.close(); }, 1500);
+          }, 1200);
+        }
+      } catch {
+        btn.textContent = 'Submit review';
+        btn.disabled = false;
+        showToast('Failed to submit. Try again.', 'danger');
+      }
+    }
+
+    /* ── TOAST ── */
+    function showToast(message, type) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = 'gh-toast' + (type ? ' ' + type : '');
+      toast.classList.add('visible');
+      setTimeout(() => toast.classList.remove('visible'), 2500);
+    }
+
+    init();
+  </script>
+</body>
+</html>

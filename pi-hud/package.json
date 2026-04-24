@@ -1,0 +1,42 @@
+{
+  "name": "pi-hud",
+  "version": "0.1.0",
+  "description": "A quota-aware custom HUD/footer extension for Pi",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "files": [
+    "extensions",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm run test"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "keywords": [
+    "pi",
+    "pi-package",
+    "hud",
+    "extension",
+    "codex",
+    "zai",
+    "glm"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/pi-hud"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "pi-codex-compaction",
+  "version": "0.1.0",
+  "description": "Codex-style checkpoint handoff compaction for Pi.",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "keywords": ["pi", "pi-package", "extension", "compaction", "codex"],
+  "pi": {
+    "extensions": ["."]
+  },
+  "dependencies": {
+    "@mariozechner/pi-ai": "latest"
+  }
+}

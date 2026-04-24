@@ -1,0 +1,24 @@
+{
+  "name": "pi-markdown-commands",
+  "version": "0.1.0",
+  "description": "Load OpenCode-style markdown command files as Pi slash commands.",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "keywords": [
+    "pi",
+    "pi-package",
+    "extension",
+    "commands",
+    "prompts"
+  ],
+  "pi": {
+    "extensions": [
+      "."
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.3"
+  }
+}

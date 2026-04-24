@@ -1,0 +1,29 @@
+{
+  "name": "pi-consensus",
+  "version": "0.1.0",
+  "description": "Run multiple Pi models over the same frozen prompt and synthesize consensus.",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "keywords": [
+    "pi",
+    "pi-package",
+    "extension",
+    "consensus"
+  ],
+  "pi": {
+    "extensions": [
+      "."
+    ],
+    "skills": [
+      "./skills/consensus"
+    ]
+  },
+  "dependencies": {
+    "@sinclair/typebox": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.3"
+  }
+}

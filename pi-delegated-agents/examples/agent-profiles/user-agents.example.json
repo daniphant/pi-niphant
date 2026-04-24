@@ -1,0 +1,22 @@
+{
+  "agents": [
+    {
+      "name": "security-agent",
+      "displayName": "Security Agent",
+      "shortLabel": "security",
+      "description": "Security-focused architecture reviewer.",
+      "focus": "Focus on authn/authz, secrets handling, privilege boundaries, input validation, and exploit paths.",
+      "tools": ["read", "bash", "grep", "find", "ls"],
+      "outputSchema": "plan-review"
+    },
+    {
+      "name": "data-agent",
+      "displayName": "Data Agent",
+      "shortLabel": "data",
+      "description": "Data model and persistence specialist.",
+      "focus": "Focus on schema design, migrations, data access patterns, consistency guarantees, and data-related risks.",
+      "tools": ["read", "bash", "grep", "find", "ls"],
+      "outputSchema": "ownership-review"
+    }
+  ]
+}

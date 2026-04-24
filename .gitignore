@@ -1,0 +1,9 @@
+.DS_Store
+.pi/
+.scratch/
+node_modules/
+dist/
+coverage/
+*.log
+.env
+.env.*

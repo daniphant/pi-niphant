@@ -1,0 +1,31 @@
+{
+  "name": "pi-web-e2e-agent",
+  "version": "0.1.0",
+  "description": "agent-browser powered browser/E2E verification tools for Pi.",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "keywords": [
+    "pi",
+    "pi-package",
+    "extension",
+    "agent-browser",
+    "browser",
+    "e2e"
+  ],
+  "pi": {
+    "extensions": [
+      "."
+    ],
+    "skills": [
+      "./skills/e2e-web-agent"
+    ]
+  },
+  "dependencies": {
+    "@sinclair/typebox": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "pi-whimsy-status",
+  "version": "0.1.0",
+  "description": "Whimsical rotating working messages for Pi, with elapsed time and an animated shimmer",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "files": [
+    "extensions",
+    "index.ts",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md"
+  ],
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*"
+  },
+  "keywords": ["pi", "pi-package", "extension", "working", "status", "whimsy"],
+  "pi": {
+    "extensions": ["./extensions/pi-whimsy-status"]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "pi-clear",
+  "version": "0.1.0",
+  "description": "/clear command for pi — new session + reload, like Codex CLI and Claude Code",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "keywords": ["pi", "pi-package", "extension"],
+  "pi": {
+    "extensions": ["."]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "pi-niphant",
+  "version": "0.1.0",
+  "description": "A trunkful of opinionated workflow, diagnostics, browser, consensus, checkpoint, and harness extensions for Pi.",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "pi-agent-notify",
+    "pi-checkpoint",
+    "pi-clear",
+    "pi-codex-compaction",
+    "pi-consensus",
+    "pi-delegated-agents",
+    "pi-delegation-guard",
+    "pi-diagnostics",
+    "pi-github-repo-explorer",
+    "pi-hud",
+    "pi-markdown-commands",
+    "pi-web-e2e-agent",
+    "pi-whimsy-status",
+    "pi-workflow"
+  ],
+  "scripts": {
+    "check": "npm run check --workspaces --if-present",
+    "install:pi": "./scripts/install.sh",
+    "list": "node scripts/list-packages.mjs"
+  }
+}

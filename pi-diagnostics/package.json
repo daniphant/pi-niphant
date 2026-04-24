@@ -1,0 +1,29 @@
+{
+  "name": "pi-diagnostics",
+  "version": "0.1.0",
+  "description": "Project diagnostics, verification, and systematic debugging helpers for Pi.",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "keywords": [
+    "pi",
+    "pi-package",
+    "extension",
+    "diagnostics"
+  ],
+  "pi": {
+    "extensions": [
+      "."
+    ],
+    "skills": [
+      "./skills/systematic-debugging"
+    ]
+  },
+  "dependencies": {
+    "@sinclair/typebox": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.3"
+  }
+}

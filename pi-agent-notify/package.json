@@ -1,0 +1,33 @@
+{
+  "name": "pi-agent-notify",
+  "version": "0.1.0",
+  "description": "Desktop notifications for Pi when agent turns complete",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "files": [
+    "extensions",
+    "index.ts",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*"
+  },
+  "keywords": [
+    "pi",
+    "pi-package",
+    "extension",
+    "notifications",
+    "cmux",
+    "kitty",
+    "ghostty",
+    "wezterm",
+    "codex",
+    "claude-code"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/pi-agent-notify"
+    ]
+  }
+}
