@@ -61,7 +61,7 @@ function buildPrompt(opts: {
     ? `\n\nFiles modified so far:\n${opts.modifiedFiles.map((f) => `- ${f}`).join("\n")}`
     : "";
 
-  return `${CODEX_SUMMARIZATION_PROMPT}${previous}${custom}${readFiles}${modifiedFiles}
+  return `Summarize this conversation for continuation.${previous}${custom}${readFiles}${modifiedFiles}
 
 Return structured Markdown with these sections when applicable:
 
@@ -149,6 +149,7 @@ export default function codexCompaction(pi: ExtensionAPI) {
       const response = await complete(
         model,
         {
+          systemPrompt: CODEX_SUMMARIZATION_PROMPT,
           messages: [
             {
               role: "user" as const,
@@ -165,6 +166,14 @@ export default function codexCompaction(pi: ExtensionAPI) {
         },
       );
 
+      if (response.stopReason === "error" || response.stopReason === "aborted") {
+        if (ctx.hasUI && notifyEnabled() && !signal.aborted) {
+          const reason = response.errorMessage ? ` ${response.errorMessage}` : "";
+          ctx.ui.notify(`Codex compaction ${response.stopReason}; using Pi default compaction.${reason}`, response.stopReason === "error" ? "error" : "warning");
+        }
+        return undefined;
+      }
+
       const body = response.content
         .filter((part): part is { type: "text"; text: string } => part.type === "text")
         .map((part) => part.text)
@@ -172,7 +181,10 @@ export default function codexCompaction(pi: ExtensionAPI) {
         .trim();
 
       if (!body) {
-        if (ctx.hasUI && notifyEnabled() && !signal.aborted) ctx.ui.notify("Codex compaction produced an empty summary; using Pi default compaction.", "warning");
+        if (ctx.hasUI && notifyEnabled() && !signal.aborted) {
+          const contentTypes = response.content.map((part) => part.type).join(", ") || "none";
+          ctx.ui.notify(`Codex compaction produced no text summary (stop: ${response.stopReason}; content: ${contentTypes}); using Pi default compaction.`, "warning");
+        }
         return undefined;
       }
 
