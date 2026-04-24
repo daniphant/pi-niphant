@@ -1,8 +1,6 @@
 # pi-niphant
 
-A trunkful of opinionated developer harness tools for [Pi](https://github.com/mariozechner/pi-coding-agent): workflow, checkpoints, consensus review, browser/E2E automation, diagnostics, systematic debugging, compaction, notifications, HUD, and delegation guardrails.
-
-Markdown link test: README.md:1 and pi-whimsy-status/extensions/pi-whimsy-status/index.ts:1 should open in VS Code when clicked.
+A trunkful of opinionated developer harness tools for [Pi](https://github.com/mariozechner/pi-coding-agent): workflow, checkpoints, consensus review, browser/E2E automation, diagnostics, systematic debugging, compaction, notifications, HUD, Catppuccin UI polish, and delegation guardrails.
 
 This repository is intentionally a **single toolbox repo**, in the spirit of GStack and Superpowers. Each directory is a standalone Pi extension/skill package, but the recommended install is to clone this repo once and symlink the tools you want into `~/.pi/agent`.
 
@@ -25,6 +23,7 @@ Pi should be a predictable, high-agency coding harness:
 | --- | --- |
 | [`pi-workflow`](./pi-workflow) | Research → spec → implementation plan → implement workflow with durable user-local markdown state. |
 | [`pi-checkpoint`](./pi-checkpoint) | Continuous local WIP auto-commits plus manual patch checkpoints. |
+| [`pi-catppuccin-ui`](./pi-catppuccin-ui) | Catppuccin Mocha theme plus Markdown rendering polish. |
 | [`pi-codex-compaction`](./pi-codex-compaction) | Codex-style checkpoint handoff compaction summaries. |
 | [`pi-consensus`](./pi-consensus) | Multi-model frozen-context consensus reviews. |
 | [`pi-web-e2e-agent`](./pi-web-e2e-agent) | `agent-browser` powered browser/E2E automation and artifacts. |
@@ -65,6 +64,7 @@ The default set installs:
 
 - `pi-clear`
 - `pi-checkpoint`
+- `pi-catppuccin-ui`
 - `pi-codex-compaction`
 - `pi-consensus`
 - `pi-delegation-guard`

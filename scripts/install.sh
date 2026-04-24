@@ -13,6 +13,7 @@ SELECTED=()
 DEFAULT_PACKAGES=(
   pi-clear
   pi-checkpoint
+  pi-catppuccin-ui
   pi-codex-compaction
   pi-consensus
   pi-delegation-guard
@@ -121,6 +122,9 @@ install_package() {
       ;;
     pi-checkpoint)
       link_ext pi-checkpoint "$ROOT/pi-checkpoint"
+      ;;
+    pi-catppuccin-ui)
+      link_ext pi-catppuccin-ui "$ROOT/pi-catppuccin-ui"
       ;;
     pi-clear)
       link_ext pi-clear "$ROOT/pi-clear"
