@@ -72,16 +72,7 @@ function formatDuration(ms: number): string {
 	return `${seconds}s`;
 }
 
-const SHIMMER_BASE_RGB: readonly [number, number, number] = [92, 160, 151];
-const SHIMMER_MID_RGB: readonly [number, number, number] = [122, 194, 184];
-const SHIMMER_HIGHLIGHT_RGB: readonly [number, number, number] = [154, 212, 203]; // #9ad4cb
-
-function rgb(rgb: readonly [number, number, number], text: string): string {
-	const [r, g, b] = rgb;
-	return `\x1b[38;2;${r};${g};${b}m${text}\x1b[39m`;
-}
-
-function shimmerText(_theme: ExtensionContext["ui"]["theme"], text: string): string {
+function shimmerText(theme: ExtensionContext["ui"]["theme"], text: string): string {
 	const chars = [...text];
 	if (chars.length === 0) return text;
 
@@ -92,12 +83,12 @@ function shimmerText(_theme: ExtensionContext["ui"]["theme"], text: string): str
 	return chars
 		.map((char, index) => {
 			const distance = Math.abs(index + SHIMMER_PADDING - position);
-			if (distance > SHIMMER_HALF_WIDTH) return rgb(SHIMMER_BASE_RGB, char);
+			if (distance > SHIMMER_HALF_WIDTH) return theme.fg("muted", char);
 
 			const intensity = 0.5 * (1 + Math.cos(Math.PI * (distance / SHIMMER_HALF_WIDTH)));
-			if (intensity > 0.7) return rgb(SHIMMER_HIGHLIGHT_RGB, char);
-			if (intensity > 0.35) return rgb(SHIMMER_MID_RGB, char);
-			return rgb(SHIMMER_BASE_RGB, char);
+			if (intensity > 0.7) return theme.fg("accent", char);
+			if (intensity > 0.35) return theme.fg("thinkingMedium", char);
+			return theme.fg("muted", char);
 		})
 		.join("");
 }
