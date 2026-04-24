@@ -94,19 +94,37 @@ async function gitStatus(cwd: string) {
 
 function summarizeStatus(status: string) {
   const lines = status.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const files = lines.map((line) => line.replace(/^..\s+/, "")).slice(0, 12);
+  const allFiles = lines.map((line) => line.replace(/^..\s+/, ""));
+  const files = allFiles.slice(0, 12);
   return {
     count: lines.length,
+    allFiles,
     files,
     text: files.length ? files.map((f) => `- ${f}`).join("\n") : "- no files listed",
   };
+}
+
+function commonTopLevel(files: string[]) {
+  if (!files.length) return null;
+  const [first, ...rest] = files.map((file) => file.split(/[\\/]/)[0]).filter(Boolean);
+  if (!first) return null;
+  return rest.every((part) => part === first) ? first : null;
+}
+
+function commitSubject(status: string) {
+  const summary = summarizeStatus(status);
+  if (summary.count === 0) return "Update working tree";
+  if (summary.count === 1) return `Update ${summary.allFiles[0]}`;
+  const topLevel = commonTopLevel(summary.allFiles);
+  if (topLevel) return `Update ${topLevel} (${summary.count} files)`;
+  return `Update ${summary.count} files`;
 }
 
 function commitMessage(ctx: ExtensionContext, status: string) {
   const summary = summarizeStatus(status);
   const session = ctx.sessionManager.getSessionFile() ?? "ephemeral";
   const model = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "unknown";
-  return `WIP: pi auto-checkpoint\n\n[gstack-context]\nSource: pi-checkpoint continuous mode\nSession: ${session}\nModel: ${model}\nChanged files: ${summary.count}\n\nFiles:\n${summary.text}\n\nDecisions: see Pi session transcript and workflow files for reasoning.\nRemaining work: continue from latest Pi message / workflow stage.\n[/gstack-context]\n`;
+  return `${commitSubject(status)}\n\n[gstack-context]\nSource: pi-checkpoint continuous auto-commit\nSession: ${session}\nModel: ${model}\nChanged files: ${summary.count}\n\nFiles:\n${summary.text}\n\nDecisions: see Pi session transcript and workflow files for reasoning.\nRemaining work: continue from latest Pi message / workflow stage.\n[/gstack-context]\n`;
 }
 
 async function autoCommit(ctx: ExtensionContext, reason: string) {
@@ -145,10 +163,10 @@ export default function checkpointExtension(pi: ExtensionAPI) {
     const config = readConfig();
     if (!config.notify || !ctx.hasUI || result.skipped) return;
     if ("error" in result && result.error) {
-      ctx.ui.notify(`Auto-checkpoint failed:\n${result.error.slice(-2000)}`, "warning");
+      ctx.ui.notify(`Auto-commit failed:\n${result.error.slice(-2000)}`, "warning");
       return;
     }
-    ctx.ui.notify(`Auto-checkpoint committed: ${result.sha}`, "info");
+    ctx.ui.notify(`Auto-commit created: ${result.sha}`, "info");
   });
 
   pi.registerCommand("checkpoint-mode", {
@@ -171,7 +189,7 @@ export default function checkpointExtension(pi: ExtensionAPI) {
   });
 
   pi.registerCommand("checkpoint-notify", {
-    description: "Toggle auto-checkpoint notifications: /checkpoint-notify on|off|status",
+    description: "Toggle auto-commit notifications: /checkpoint-notify on|off|status",
     handler: async (args, ctx) => {
       const config = readConfig();
       const value = args.trim().toLowerCase();
@@ -202,7 +220,7 @@ export default function checkpointExtension(pi: ExtensionAPI) {
   });
 
   pi.registerCommand("checkpoint-commit", {
-    description: "Immediately create a WIP git commit for current changes",
+    description: "Immediately commit current changes",
     handler: async (_args, ctx) => {
       const old = readConfig();
       const temp = { ...old, mode: "continuous" as const };
@@ -214,7 +232,7 @@ export default function checkpointExtension(pi: ExtensionAPI) {
       } else if ("error" in result && result.error) {
         ctx.ui.notify(`Auto-commit failed:\n${result.error}`, "error");
       } else {
-        ctx.ui.notify(`Auto-checkpoint committed: ${result.sha}`, "info");
+        ctx.ui.notify(`Auto-commit created: ${result.sha}`, "info");
       }
     },
   });

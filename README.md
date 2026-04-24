@@ -15,14 +15,14 @@ Pi should be a predictable, high-agency coding harness:
 - debugging should be systematic, evidence-first, and root-cause driven
 - long sessions should survive `/clear`, compaction, and crashes
 - planning artifacts should be durable but user-local, not committed to project repos
-- local WIP commits are useful recovery points, but never pushed automatically
+- local auto-commits are useful recovery points, but never pushed automatically
 
 ## What is included
 
 | Package | Purpose |
 | --- | --- |
 | [`pi-workflow`](./pi-workflow) | Research → spec → implementation plan → implement workflow with durable user-local markdown state. |
-| [`pi-checkpoint`](./pi-checkpoint) | Continuous local WIP auto-commits plus manual patch checkpoints. |
+| [`pi-checkpoint`](./pi-checkpoint) | Continuous local auto-commits plus manual patch checkpoints. |
 | [`pi-catppuccin-ui`](./pi-catppuccin-ui) | Catppuccin Mocha theme plus Markdown rendering polish. |
 | [`pi-codex-compaction`](./pi-codex-compaction) | Codex-style checkpoint handoff compaction summaries. |
 | [`pi-consensus`](./pi-consensus) | Multi-model frozen-context consensus reviews. |
@@ -184,7 +184,7 @@ NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST.
 
 ## Checkpoints and commits
 
-`pi-checkpoint` defaults to continuous local WIP commits after agent turns when the working tree changes.
+`pi-checkpoint` defaults to continuous local auto-commits after agent turns when the working tree changes.
 
 It never pushes.
 

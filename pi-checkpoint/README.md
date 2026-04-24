@@ -1,6 +1,6 @@
 # pi-checkpoint
 
-Continuous local WIP checkpoints for [Pi](https://github.com/mariozechner/pi-coding-agent).
+Continuous local auto-commits for [Pi](https://github.com/mariozechner/pi-coding-agent).
 
 By default, `pi-checkpoint` creates a local git commit after each Pi agent turn whenever the working tree changed. It is designed as a recovery layer for long agent sessions, `/clear` boundaries, compaction, and multi-stage workflows.
 
@@ -8,7 +8,7 @@ It never pushes.
 
 ## Features
 
-- continuous local WIP auto-commits by default
+- continuous local auto-commits by default
 - structured `[gstack-context]` commit messages
 - manual patch checkpoints under `.pi/checkpoints`
 - quick diff/status command
@@ -24,15 +24,15 @@ After each agent turn:
 2. check whether the working tree changed
 3. stage changes
 4. exclude local Pi planning/checkpoint artifacts
-5. commit with a structured WIP message
+5. commit with a structured message based on the changed files
 
 Commit messages include:
 
 ```text
-WIP: pi auto-checkpoint
+Update pi-hud (4 files)
 
 [gstack-context]
-Source: pi-checkpoint continuous mode
+Source: pi-checkpoint continuous auto-commit
 Session: ...
 Model: ...
 Changed files: ...
@@ -66,7 +66,7 @@ These paths are explicitly excluded from auto-commits:
 /checkpoint-mode off          # disabled
 
 /checkpoint [label]           # save a patch under .pi/checkpoints
-/checkpoint-commit            # immediately create a WIP git commit
+/checkpoint-commit            # immediately commit current changes
 /checkpoint-notify on|off     # toggle UI notifications
 /checkpoints                  # list patch checkpoints
 /checkpoint-show              # show latest patch checkpoint
@@ -85,7 +85,7 @@ Then run `/reload` inside Pi.
 
 ## Recommended workflow
 
-Use auto-commits as disposable recovery points. Before shipping, use normal git tools to squash, rebase, drop, or rewrite the WIP commits into a clean history.
+Use auto-commits as local recovery points. Before shipping, use normal git tools to squash, rebase, drop, or rewrite them into the history you want.
 
 ## Safety notes
 
