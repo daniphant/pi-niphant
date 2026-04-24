@@ -35,8 +35,8 @@ const diff = [
   " 3 }"
 ].join("\n");
 const rendered = renderCodexLikeDiff(diff, theme, { filePath: "demo.ts" });
-assert.match(rendered, /\x1b\[48;2;37;50;68m\+2/); // added bg
-assert.match(rendered, /\x1b\[48;2;58;36;52m-2/); // removed bg
+assert.match(rendered, /\x1b\[48;2;35;68;50m\+2/); // added bg
+assert.match(rendered, /\x1b\[48;2;74;38;52m-2/); // removed bg
 assert.match(rendered, /\x1b\[38;2;/); // syntax/context foregrounds
 assert.match(rendered, /\x1b\[1m\x1b\[4m2\x1b\[24m\x1b\[22m/); // bold+underline changed token
 assert.doesNotMatch(rendered, /\x1b\[7m/); // no inverse
@@ -44,6 +44,6 @@ const pureAdd = renderCodexLikeDiff("+3   return value;", theme, { filePath: "de
 assert.match(pureAdd, /\+3\s+return value;/);
 
 const unknown = renderCodexLikeDiff("+1 hello plain", theme, { filePath: "file.unknownext" });
-assert.match(unknown, /\x1b\[48;2;37;50;68m\+1 hello plain\x1b\[49m/);
+assert.match(unknown, /\x1b\[48;2;35;68;50m\+1 hello plain\x1b\[49m/);
 
 console.log("render-diff tests passed");

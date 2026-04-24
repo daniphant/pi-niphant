@@ -11,7 +11,7 @@ import {
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { renderCodexLikeDiff } from "./render-diff.js";
+import { applyDiffRowBackground, renderCodexLikeDiff, renderCodexLikeDiffRows } from "./render-diff.js";
 
 type EditArgs = { path?: string; file_path?: string; edits?: Array<{ oldText: string; newText: string }> | string; oldText?: string; newText?: string };
 type Preview = { diff: string; firstChangedLine?: number } | { error: string };
@@ -131,15 +131,29 @@ function renderSafeDiff(diff: string, theme: Theme, filePath?: string): string {
   }
 }
 
+function addDiffRows(component: { addChild(child: unknown): void }, diff: string, theme: Theme, filePath: string | undefined, paddingX = 0) {
+  try {
+    for (const row of renderCodexLikeDiffRows(diff, theme, { filePath })) {
+      const bgFn = row.bg ? (text: string) => applyDiffRowBackground(row.bg!, text) : undefined;
+      component.addChild(new Text(row.text, paddingX, 0, bgFn));
+    }
+  } catch {
+    component.addChild(new Text(renderSafeDiff(diff, theme, filePath), paddingX, 0));
+  }
+}
+
 function buildEditCallComponent(component: EditCallComponent, args: EditArgs | undefined, theme: Theme): EditCallComponent {
   component.setBgFn(getEditHeaderBg(component.preview, component.settledError, theme));
   component.clear();
   component.addChild(new Text(formatEditCall(args, theme), 0, 0));
   if (!component.preview) return component;
   const rawPath = str(args?.file_path ?? args?.path) ?? undefined;
-  const body = "error" in component.preview ? theme.fg("error", component.preview.error) : renderSafeDiff(component.preview.diff, theme, rawPath);
   component.addChild(new Spacer(1));
-  component.addChild(new Text(body, 0, 0));
+  if ("error" in component.preview) {
+    component.addChild(new Text(theme.fg("error", component.preview.error), 0, 0));
+  } else {
+    addDiffRows(component, component.preview.diff, theme, rawPath, 0);
+  }
   return component;
 }
 
@@ -218,7 +232,13 @@ export default function codexLikeDiffExtension(pi: ExtensionAPI) {
       component.clear();
       if (!output) return component;
       component.addChild(new Spacer(1));
-      component.addChild(new Text(output, 1, 0));
+      const rawPath = str((context.args as EditArgs)?.file_path ?? (context.args as EditArgs)?.path) ?? undefined;
+      const previewDiff = callComponent?.preview && !("error" in callComponent.preview) ? callComponent.preview.diff : undefined;
+      if (!context.isError && typeof resultDiff === "string" && resultDiff !== previewDiff) {
+        addDiffRows(component, resultDiff, theme, rawPath, 1);
+      } else {
+        component.addChild(new Text(output, 1, 0));
+      }
       return component;
     },
   } satisfies ToolDefinition<any, any, EditState>;

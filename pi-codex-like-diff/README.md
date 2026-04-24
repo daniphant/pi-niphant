@@ -8,7 +8,7 @@ Codex-like edit diffs for Pi. This extension overrides the built-in `edit` tool 
 - Reuses Pi's built-in `createEditToolDefinition()` for edit execution, schema, prompt metadata, validation, and result shape.
 - Replaces only `renderCall` and `renderResult`.
 - Uses Pi `0.70.2`'s private `dist/core/tools/edit-diff.js` preview helper for preview diffs, isolated behind a runtime loader.
-- Renders added lines with `toolSuccessBg` and removed lines with `toolErrorBg`.
+- Renders added/removed rows with custom subtle Catppuccin-style green/red backgrounds that remain distinct from the edit tool container background.
 - Applies syntax highlighting from `getLanguageFromPath()` / `highlightCode()` for known file extensions.
 - Unknown file types remain plain readable text on the diff background.
 - Adjacent one-removed/one-added modification pairs receive conservative word-level bold + underline emphasis on changed code spans. It intentionally does not use inverse video.
@@ -61,5 +61,5 @@ To remove it from default installation, delete or comment out `pi-codex-like-dif
 
 - Exact visual parity with Codex CLI is behavioral, not source-level; Codex source was not copied.
 - Syntax highlighting is line-oriented through Pi's existing helper.
-- Full terminal-row background fill is not attempted; background covers the rendered text extent.
+- Diff rows are rendered as individual TUI `Text` components with custom row backgrounds, so Pi pads the added/removed background across the available row width.
 - Preview diff computation intentionally uses a private Pi `0.70.2` helper because that helper is not publicly exported.

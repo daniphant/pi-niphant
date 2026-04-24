@@ -11,6 +11,21 @@ export interface ParsedDiffLine {
   raw: string;
 }
 
+export interface RenderedDiffRow {
+  text: string;
+  bg?: "added" | "removed";
+}
+
+// Slightly greener/redder than Pi's toolSuccessBg/toolErrorBg so changed rows
+// remain visible inside the edit tool's success/error container background.
+export const ADDED_ROW_BG = "\x1b[48;2;35;68;50m";
+export const REMOVED_ROW_BG = "\x1b[48;2;74;38;52m";
+export const RESET_BG = "\x1b[49m";
+
+export function applyDiffRowBackground(kind: "added" | "removed", text: string): string {
+  return `${kind === "added" ? ADDED_ROW_BG : REMOVED_ROW_BG}${text}${RESET_BG}`;
+}
+
 const ANSI_RE = /\x1b\[[0-?]*[ -/]*[@-~]/g;
 
 export function parseDiffLine(line: string): ParsedDiffLine | null {
@@ -120,25 +135,25 @@ function applySpans(styled: string, spans: Array<[number, number]>): string {
   return styled;
 }
 
-function renderLine(parsed: ParsedDiffLine, theme: Theme, filePath?: string, spans?: Array<[number, number]>): string {
+function renderLine(parsed: ParsedDiffLine, theme: Theme, filePath?: string, spans?: Array<[number, number]>): RenderedDiffRow {
   const content = replaceTabs(parsed.content);
   let renderedContent = parsed.prefix === " " ? content : highlightLine(content, filePath);
   if (spans?.length) renderedContent = applySpans(renderedContent, spans);
   const line = `${parsed.prefix}${parsed.lineNum} ${renderedContent}`;
-  if (parsed.prefix === "+") return theme.bg("toolSuccessBg", line);
-  if (parsed.prefix === "-") return theme.bg("toolErrorBg", line);
-  return theme.fg("toolDiffContext", line);
+  if (parsed.prefix === "+") return { text: line, bg: "added" };
+  if (parsed.prefix === "-") return { text: line, bg: "removed" };
+  return { text: theme.fg("toolDiffContext", line) };
 }
 
-export function renderCodexLikeDiff(diffText: string, theme: Theme, options: CodexLikeDiffOptions = {}): string {
+export function renderCodexLikeDiffRows(diffText: string, theme: Theme, options: CodexLikeDiffOptions = {}): RenderedDiffRow[] {
   try {
     const lines = diffText.split("\n");
-    const out: string[] = [];
+    const out: RenderedDiffRow[] = [];
     let i = 0;
     while (i < lines.length) {
       const parsed = parseDiffLine(lines[i]!);
       if (!parsed) {
-        out.push(theme.fg("toolDiffContext", lines[i]!));
+        out.push({ text: theme.fg("toolDiffContext", lines[i]!) });
         i++;
         continue;
       }
@@ -170,8 +185,14 @@ export function renderCodexLikeDiff(diffText: string, theme: Theme, options: Cod
       out.push(renderLine(parsed, theme, options.filePath));
       i++;
     }
-    return out.join("\n");
+    return out;
   } catch (error) {
-    return diffText;
+    return diffText.split("\n").map((text) => ({ text }));
   }
+}
+
+export function renderCodexLikeDiff(diffText: string, theme: Theme, options: CodexLikeDiffOptions = {}): string {
+  return renderCodexLikeDiffRows(diffText, theme, options)
+    .map((row) => row.bg ? applyDiffRowBackground(row.bg, row.text) : row.text)
+    .join("\n");
 }
