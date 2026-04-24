@@ -78,6 +78,27 @@ export const renderHudLabel = (theme: ThemeLike, label: string, color = "muted")
 
 export const renderHudField = (theme: ThemeLike, label: string, value: string, labelColor = "muted") => `${renderHudLabel(theme, label, labelColor)} ${value}`;
 
+export const renderContextBlock = (
+  theme: ThemeLike,
+  percent: number | null | undefined,
+  width = DEFAULT_METER_WIDTH,
+  terminalWidth?: number,
+) => {
+  const contextPercent = clampPercent(percent);
+  const contextLabel = terminalWidth !== undefined ? getAdaptiveLabel("Context", "Ctx", terminalWidth) : "Context";
+
+  if (contextPercent === null) {
+    // Right after compaction Pi may not have recomputed token usage yet. Avoid rendering
+    // an empty meter with "--%" because it looks broken/misleading in the footer.
+    return renderHudField(theme, contextLabel, theme.fg("muted", "updating…"), "accent");
+  }
+
+  const contextColor = contextPercent >= 85 ? "error" : contextPercent >= 65 ? "warning" : "success";
+  const contextBar = buildBar(theme, contextPercent, width, { color: contextColor });
+  const contextText = theme.fg(contextColor, `${Math.round(contextPercent)}%`);
+  return `${renderHudLabel(theme, contextLabel, "accent")} ${contextBar} ${contextText}`;
+};
+
 export const renderQuotaWindow = (
   theme: ThemeLike,
   usedPercent: number | null,

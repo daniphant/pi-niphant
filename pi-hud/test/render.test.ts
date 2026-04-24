@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildBar, formatGitBranch, renderHudField, renderQuotaBlock, renderQuotaResetBlock } from "../extensions/pi-hud/render.js";
+import { buildBar, formatGitBranch, renderContextBlock, renderHudField, renderQuotaBlock, renderQuotaResetBlock } from "../extensions/pi-hud/render.js";
 import type { ThemeLike } from "../extensions/pi-hud/types.js";
 
 const theme: ThemeLike = {
@@ -49,6 +49,16 @@ describe("renderQuotaBlock", () => {
 describe("renderHudField", () => {
   it("renders screenshot-style uppercase labels", () => {
     expect(renderHudField(theme, "Model", "gpt-5.5")).toBe("MODEL gpt-5.5");
+  });
+});
+
+describe("renderContextBlock", () => {
+  it("renders a compact updating state instead of an empty --% meter when context usage is unknown", () => {
+    expect(renderContextBlock(taggingTheme, null, 6, 120)).toBe("<accent>CONTEXT</accent> <muted>updating…</muted>");
+  });
+
+  it("renders the normal context meter when usage is known", () => {
+    expect(renderContextBlock(taggingTheme, 50, 4, 120)).toBe("<accent>CONTEXT</accent> <success>██░░</success> <success>50%</success>");
   });
 });
 

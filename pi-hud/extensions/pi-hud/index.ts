@@ -2,14 +2,14 @@ import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 
 import { QUOTA_TTL_MS } from "./constants.js";
-import { formatCompactNumber, getAdaptiveLabel, getAdaptiveMeterWidth, getAdaptiveProjectLabel, clampPercent } from "./format.js";
+import { formatCompactNumber, getAdaptiveMeterWidth, getAdaptiveProjectLabel } from "./format.js";
 import { getGitStatus } from "./git.js";
 import { getModelLabel } from "./model.js";
 import { fetchCodexQuota } from "./providers/codex.js";
 import { detectQuotaProvider } from "./providers/detect.js";
 import { fetchZaiQuota } from "./providers/zai.js";
 import { formatNiphantWorkspace, getNiphantWorkspace } from "./niphant.js";
-import { formatGitBranch, renderHudField, renderHudLabel, renderQuotaBlock, renderQuotaResetBlock, buildBar } from "./render.js";
+import { formatGitBranch, renderContextBlock, renderHudField, renderQuotaBlock, renderQuotaResetBlock } from "./render.js";
 import { getSessionTotals } from "./session.js";
 import { loadSettings, saveSettings } from "./settings.js";
 import type { CachedQuotaEntry, GitStatus, HudSettings, PiExtensionContext, ProviderKey, ProviderQuotaSnapshot, ThemeLike } from "./types.js";
@@ -211,25 +211,8 @@ export default function piHudExtension(pi: ExtensionAPI) {
           const branchLabel = gitSegment ? renderHudField(theme as ThemeLike, "Branch", gitSegment, "success") : null;
 
           const usage = activeCtx.getContextUsage();
-          const contextPercent = clampPercent(usage?.percent);
           const meterWidth = getAdaptiveMeterWidth(renderWidth);
-          // Pi returns `{percent: null}` right after a compact (until the next assistant message
-          // reports real token counts). Paint the bar muted in that state — omitting the color
-          // would fall through to buildBar's quota-remaining heuristic and light the whole
-          // empty bar up red, which looks like "context is full" when it actually means
-          // "unknown".
-          const contextColor = contextPercent === null
-            ? "muted"
-            : contextPercent >= 85 ? "error" : contextPercent >= 65 ? "warning" : "success";
-          const contextBar = buildBar(theme as ThemeLike, contextPercent, meterWidth, { color: contextColor });
-          const contextText = contextPercent === null
-            ? theme.fg("muted", "--%")
-            : theme.fg(contextColor, `${Math.round(contextPercent)}%`);
-          // Abbreviate the label on narrow terminals so the whole block contracts, not just the
-          // bar. Otherwise "Context" (7 chars) dominates a 4-wide bar and the block looks like
-          // it isn't shrinking even though the bar itself is smaller.
-          const contextLabel = getAdaptiveLabel("Context", "Ctx", renderWidth);
-          const contextBlock = `${renderHudLabel(theme as ThemeLike, contextLabel, "accent")} ${contextBar} ${contextText}`;
+          const contextBlock = renderContextBlock(theme as ThemeLike, usage?.percent, meterWidth, renderWidth);
 
           const quotaBlock = renderQuotaBlock(theme as ThemeLike, quotaSnapshot, showWeeklyLimits, quotaError, quotaProviderKey, meterWidth, renderWidth);
           const quotaResetBlock = renderQuotaResetBlock(theme as ThemeLike, quotaSnapshot, quotaProviderKey);
