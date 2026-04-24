@@ -2,6 +2,8 @@
 
 A trunkful of opinionated developer harness tools for [Pi](https://github.com/mariozechner/pi-coding-agent): workflow, checkpoints, consensus review, browser/E2E automation, diagnostics, systematic debugging, compaction, notifications, HUD, and delegation guardrails.
 
+Markdown link test: README.md:1 and pi-whimsy-status/extensions/pi-whimsy-status/index.ts:1 should open in VS Code when clicked.
+
 This repository is intentionally a **single toolbox repo**, in the spirit of GStack and Superpowers. Each directory is a standalone Pi extension/skill package, but the recommended install is to clone this repo once and symlink the tools you want into `~/.pi/agent`.
 
 ## Philosophy
