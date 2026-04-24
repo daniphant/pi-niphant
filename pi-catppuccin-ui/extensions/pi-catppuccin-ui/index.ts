@@ -39,16 +39,12 @@ type MarkdownToken = {
   tokens?: unknown[];
 };
 
-const PATCH_FLAG = Symbol.for("pi.catppuccinMarkdownPolish.v2");
+const PATCH_FLAG = Symbol.for("pi.catppuccinMarkdownPolish.v5");
 const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const CODE_BLOCK_BG = "\x1b[48;2;37;50;68m"; // catppuccin-mocha toolSuccessBg, matching edit/diff blocks
+const RESET_BG = "\x1b[49m";
 
 let currentCwd = process.cwd();
-
-const shellLanguages = new Set(["bash", "sh", "shell", "zsh", "fish", "console", "terminal"]);
-
-function stripAnsi(text: string): string {
-  return text.replace(/\x1b\[[0-9;]*m/g, "");
-}
 
 function pushBlankAfter(lines: string[], nextTokenType?: string) {
   if (nextTokenType && nextTokenType !== "space") lines.push("");
@@ -56,6 +52,18 @@ function pushBlankAfter(lines: string[], nextTokenType?: string) {
 
 function fitLine(line: string, width: number): string {
   return visibleWidth(line) <= width ? line : truncateToWidth(line, width);
+}
+
+function codeBlockBlankLine(width: number): string {
+  return `${CODE_BLOCK_BG}${" ".repeat(Math.max(0, width))}${RESET_BG}`;
+}
+
+function applyCodeBlockBackground(line: string, width: number): string {
+  // Keep code blocks copy-friendly: background only, no extra visible border/prefix chars.
+  // Pad the visual row so the background reads as a block, not just colored text spans.
+  // Re-apply after full SGR resets from syntax highlighters so the block remains visually distinct.
+  const padded = `${line}${" ".repeat(Math.max(0, width - visibleWidth(line)))}`;
+  return `${CODE_BLOCK_BG}${padded.replace(/\x1b\[0m/g, `\x1b[0m${CODE_BLOCK_BG}`)}${RESET_BG}`;
 }
 
 function osc8(url: string, text: string): string {
@@ -92,24 +100,18 @@ function linkifyFileRefs(text: string): string {
 function renderCodeBlock(ctx: MarkdownInternals, token: MarkdownToken, width: number, nextTokenType?: string): string[] {
   const theme = ctx.theme;
   const lang = (token.lang ?? "").trim();
-  const langKey = lang.toLowerCase();
-  const isShell = shellLanguages.has(langKey);
   const code = token.text ?? "";
-  const contentWidth = Math.max(8, width - 2);
-  const label = lang ? ` ${lang} ` : " code ";
-  const top = theme.codeBlockBorder(`╭─${label}${"─".repeat(Math.max(0, contentWidth - visibleWidth(label) - 2))}`);
-  const bottom = theme.codeBlockBorder(`╰${"─".repeat(Math.max(1, contentWidth))}`);
   const rendered = theme.highlightCode
     ? theme.highlightCode(code, lang || undefined)
     : code.split("\n").map((line) => theme.codeBlock(line));
 
-  const lines = [fitLine(top, width)];
-  for (const renderedLine of rendered) {
-    const plain = stripAnsi(renderedLine).trimStart();
-    const prompt = isShell && plain && !plain.startsWith("$") && !plain.startsWith("#") ? theme.codeBlockBorder("$ ") : "";
-    lines.push(fitLine(`${theme.codeBlockBorder("│ ")}${prompt}${renderedLine}`, width));
-  }
-  lines.push(fitLine(bottom, width));
+  // Keep code blocks copy-friendly. Use syntax/color styling plus a subtle background,
+  // but avoid selectable border glyphs, language labels, or injected shell prompts.
+  const lines = [
+    codeBlockBlankLine(width),
+    ...rendered.map((line) => applyCodeBlockBackground(fitLine(line, width), width)),
+    codeBlockBlankLine(width),
+  ];
   pushBlankAfter(lines, nextTokenType);
   return lines;
 }
