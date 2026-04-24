@@ -2,6 +2,8 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { workflowPreflight } from "./niphant/preflight.js";
+import { doneCommand, listCommand, statusCommand, terminalCommand } from "./niphant/commands.js";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 
@@ -94,6 +96,16 @@ export default function workflowExtension(pi: ExtensionAPI) {
         ctx.ui.notify("Usage: /workflow <description>", "warning");
         return;
       }
+      const preflight = workflowPreflight(ctx.cwd, request);
+      if (preflight.mode === "blocked") {
+        ctx.ui.notify(preflight.message, "warning");
+        return;
+      }
+      if (preflight.mode === "created" || preflight.mode === "continued") {
+        ctx.ui.notify(preflight.handoffText ?? preflight.message, preflight.workspace?.setupStatus === "failed" ? "warning" : "info");
+        return;
+      }
+
       const workflow = createWorkflow(ctx.cwd, request);
       ctx.ui.notify(`Created user-local workflow: ${workflow.file}`, "info");
       pi.sendUserMessage(`/skill:workflow-brainstorm\n\nStart Stage 1 Research for this request. Use and continuously update this canonical workflow file:\n${workflow.file}\n\nRequest:\n${request}\n\nInterview me aggressively when needed, but first inspect code directly for anything you can answer yourself. Do not implement code yet.`);
@@ -162,5 +174,25 @@ export default function workflowExtension(pi: ExtensionAPI) {
       }
       pi.sendUserMessage(`/skill:workflow-implement\n\nBegin Stage 4 Implementation from this finalized workflow file:\n${file}\n\nRead the workflow file first. Verify the spec and implementation plan are finalized or explicitly approved. Then implement task-by-task, update the execution log, run diagnostics/tests, use browser/E2E validation when relevant, and summarize final results.`);
     },
+  });
+
+  pi.registerCommand("niphant-list", {
+    description: "List niphant workspaces",
+    handler: async (_args, ctx) => ctx.ui.notify(listCommand(ctx.cwd), "info"),
+  });
+
+  pi.registerCommand("niphant-status", {
+    description: "Show current niphant workspace status; use /niphant-status locks to clear stale locks",
+    handler: async (args, ctx) => ctx.ui.notify(statusCommand(args.trim() || ctx.cwd), "info"),
+  });
+
+  pi.registerCommand("niphant-done", {
+    description: "Archive current niphant workspace metadata without deleting git branches/worktrees",
+    handler: async (_args, ctx) => ctx.ui.notify(doneCommand(ctx.cwd), "info"),
+  });
+
+  pi.registerCommand("niphant-terminal", {
+    description: "Print commands for opening another terminal in the current workspace",
+    handler: async (_args, ctx) => ctx.ui.notify(terminalCommand(ctx.cwd), "info"),
   });
 }

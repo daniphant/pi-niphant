@@ -51,6 +51,8 @@ Install the opinionated default set:
 ./scripts/install.sh
 ```
 
+This also installs the short `ni` launcher to `~/.local/bin/ni` (override with `PI_BIN_DIR=/some/bin`). Ensure that directory is on `PATH`.
+
 Then inside Pi:
 
 ```text
@@ -99,13 +101,47 @@ Or selected:
 ./scripts/install.sh --uninstall pi-workflow pi-consensus
 ```
 
+## Niphant `ni` flow
+
+From any existing git checkout:
+
+```bash
+cd ~/Projects/my-app
+ni
+```
+
+`ni` verifies git/Pi availability, sets `NIPHANT=1`, `NIPHANT_HOME` (default `~/.niphant`), and `NIPHANT_PROJECT_ROOT`, then launches Pi in the current repo.
+
+Inside that Pi session:
+
+```text
+/workflow Build a new billing dashboard
+```
+
+In niphant mode this creates or resumes a task worktree under `~/.niphant/worktrees/...`, records JSON metadata under `~/.niphant/state/workspaces`, optionally runs `.niphant/setup.sh` or `.superset/setup.sh`, and prints an explicit handoff:
+
+```bash
+cd '<worktree>' && ni
+```
+
+Pi cwd switching is explicit in V1; normal `pi` usage keeps the old `/workflow` behavior unchanged.
+
+Useful workspace commands:
+
+```text
+/niphant-list
+/niphant-status
+/niphant-terminal
+/niphant-done
+```
+
 ## Core workflow
 
 ```text
 /workflow Build a new billing dashboard
 ```
 
-Creates a user-local workflow file under:
+Outside niphant mode, this creates a user-local workflow file under:
 
 ```txt
 ~/.pi/agent/workflows/<project-slug>/<workflow-id>/workflow.md

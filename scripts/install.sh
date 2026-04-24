@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXT_DIR="${PI_EXTENSIONS_DIR:-$HOME/.pi/agent/extensions}"
 SKILL_DIR="${PI_SKILLS_DIR:-$HOME/.pi/agent/skills}"
+BIN_DIR="${PI_BIN_DIR:-$HOME/.local/bin}"
 UNINSTALL=0
 INSTALL_ALL=0
 INSTALL_DELEGATED=0
@@ -39,6 +40,7 @@ Options:
   --all                 Install every package, including pi-delegated-agents.
   --delegated-agents    Include pi-delegated-agents with the default set.
   --uninstall           Remove symlinks instead of installing.
+  PI_BIN_DIR=dir        Override ni launcher install dir (default ~/.local/bin).
   -h, --help            Show help.
 
 Examples:
@@ -85,7 +87,7 @@ else
   fi
 fi
 
-mkdir -p "$EXT_DIR" "$SKILL_DIR"
+mkdir -p "$EXT_DIR" "$SKILL_DIR" "$BIN_DIR"
 
 link_ext() {
   local name="$1"
@@ -176,8 +178,27 @@ for pkg in "${PACKAGES[@]}"; do
   install_package "$pkg"
 done
 
+install_ni=0
+for pkg in "${PACKAGES[@]}"; do
+  if [[ "$pkg" == "pi-workflow" ]]; then install_ni=1; fi
+done
+
+if [[ "$install_ni" == "1" ]]; then
+  if [[ "$UNINSTALL" == "1" ]]; then
+    if [[ -L "$BIN_DIR/ni" && "$(readlink "$BIN_DIR/ni")" == "$ROOT/scripts/ni" ]]; then
+      rm -f "$BIN_DIR/ni"
+      echo "removed launcher ni"
+    else
+      echo "left launcher ni untouched (not an owned symlink)"
+    fi
+  else
+    ln -sfn "$ROOT/scripts/ni" "$BIN_DIR/ni"
+    echo "installed launcher ni -> $ROOT/scripts/ni"
+  fi
+fi
+
 if [[ "$UNINSTALL" == "1" ]]; then
   echo "Done. Removed selected Pi symlinks."
 else
-  echo "Done. Run /reload inside Pi."
+  echo "Done. Run /reload inside Pi. Ensure $BIN_DIR is on PATH, then use: ni"
 fi

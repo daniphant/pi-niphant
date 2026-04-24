@@ -7,6 +7,7 @@ A durable Research → Spec → Implementation Plan → Implement workflow for [
 ## Features
 
 - `/workflow <request>` creates a user-local workflow file
+- when launched with `ni`/`NIPHANT=1`, `/workflow` first creates or resumes a niphant git worktree and prints an explicit `cd <worktree> && ni` handoff
 - stage-specific skills:
   - `workflow-brainstorm`
   - `workflow-spec`
@@ -18,6 +19,35 @@ A durable Research → Spec → Implementation Plan → Implement workflow for [
 - explicit gates and readiness dashboards
 - task graph with dependencies, blockers, validation, rollback, and parallel-safe groups
 - implementation guidance that avoids giant pre-coded snippets
+
+## Niphant worktree mode
+
+When Pi is launched through the `ni` launcher, these environment markers are set:
+
+- `NIPHANT=1`
+- `NIPHANT_HOME` (default `~/.niphant`)
+- `NIPHANT_PROJECT_ROOT` (the git root where `ni` was started)
+
+In this mode `/workflow <task>` does **not** immediately start Stage 1 from the old checkout. It:
+
+1. identifies the current project from git root/origin,
+2. matches an existing active workspace by deterministic project/task slug,
+3. otherwise creates a git worktree under `~/.niphant/worktrees/<project>/<task>`,
+4. records inspectable JSON metadata under `~/.niphant/state/workspaces`,
+5. runs `.niphant/setup.sh` or `.superset/setup.sh` when present unless `NIPHANT_SETUP_MODE=skip`, and
+6. prints an explicit handoff: `cd '<worktree>' && ni`.
+
+Pi cwd switching is deliberately explicit in V1; see `docs/niphant-handoff.md`. Niphant never writes state to `~/.superset`.
+
+Additional commands:
+
+```text
+/niphant-list       # list active/recent niphant workspaces
+/niphant-status     # show current workspace metadata
+/niphant-status locks # clear stale niphant locks
+/niphant-terminal   # print cd/ni commands for another terminal
+/niphant-done       # archive metadata; does not delete branches/worktrees
+```
 
 ## Storage model
 
@@ -38,6 +68,10 @@ They are user-local planning artifacts and should not be committed.
 /workflow-plan [workflow.md]   # Stage 3 implementation plan with review/consensus
 /workflow-review [workflow.md] # open browser annotation review UI
 /workflow-implement [file]     # Stage 4 implementation from finalized plan
+/niphant-list                 # niphant workspace list
+/niphant-status               # current niphant workspace status
+/niphant-terminal             # print terminal commands for current workspace
+/niphant-done                 # archive current niphant workspace metadata
 ```
 
 ## The workflow

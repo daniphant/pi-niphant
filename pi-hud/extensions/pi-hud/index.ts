@@ -8,6 +8,7 @@ import { getModelLabel } from "./model.js";
 import { fetchCodexQuota } from "./providers/codex.js";
 import { detectQuotaProvider } from "./providers/detect.js";
 import { fetchZaiQuota } from "./providers/zai.js";
+import { formatNiphantWorkspace, getNiphantWorkspace } from "./niphant.js";
 import { formatGitBranch, renderQuotaBlock, buildBar } from "./render.js";
 import { getSessionTotals } from "./session.js";
 import { loadSettings, saveSettings } from "./settings.js";
@@ -225,7 +226,8 @@ export default function piHudExtension(pi: ExtensionAPI) {
           const contextBlock = `${theme.fg("muted", contextLabel)} ${contextBar} ${contextText}`;
 
           const quotaBlock = renderQuotaBlock(theme as ThemeLike, quotaSnapshot, showWeeklyLimits, quotaError, quotaProviderKey, meterWidth, width);
-          const pieces = [modelLabel, projectLabel, contextBlock, quotaBlock].filter(Boolean) as string[];
+          const niphantBlock = formatNiphantWorkspace(theme as ThemeLike, getNiphantWorkspace(activeCtx.cwd));
+          const pieces = [modelLabel, projectLabel, niphantBlock, contextBlock, quotaBlock].filter(Boolean) as string[];
           const separator = theme.fg("dim", " | ");
 
           // Happy path: everything fits on one row.
