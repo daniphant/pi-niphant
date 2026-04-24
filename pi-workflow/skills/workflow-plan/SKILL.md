@@ -1,26 +1,28 @@
 ---
 name: workflow-plan
-description: Stage 3 of the Pi workflow. Create an implementation plan/task graph from the finalized spec, then automatically run browser annotation review and multi-model consensus before finalizing. Do not write implementation code.
+description: Stage 3 of the Pi workflow. Create a focused workflow.plan.md task graph, then automatically run multi-model consensus before browser annotation/user review. Populate workflow.toml with execution task state only. Do not write implementation code.
 ---
 
 # Workflow Implementation Plan
 
-This is Stage 3. It creates the implementation plan and task graph.
+This is Stage 3. It creates `workflow.plan.md` and initializes execution state in `workflow.toml`, following the Multiverse-style split between human-readable tasks and machine-readable task state.
 
 ## Hard rules
 
 - Do not implement code.
-- Update only the workflow markdown file and generated annotation/consensus artifacts.
-- Browser annotation review is automatic and required.
+- Update only `workflow.plan.md`, `workflow.toml`, and generated annotation/consensus artifacts.
+- `workflow.plan.md` contains strategy, task graph, dependencies, validation, rollback, and review feedback.
+- `workflow.toml` contains execution/task state only. Do not add spec/plan gates, browser-review status, or consensus status to TOML.
 - Multi-model consensus is automatic and required unless the user explicitly says to skip it in this stage request.
+- Browser annotation/user review is automatic and required after consensus revisions are applied.
 - Implementation plans should say what to change and how to validate it, not generate large blocks of code.
 
 ## Process
 
-1. Read the workflow file.
-2. Confirm `# 2. Spec` is finalized or the user explicitly says to proceed.
+1. Read `workflow.spec.md` and existing `workflow.plan.md`.
+2. Confirm the spec is finalized enough to plan, or the user explicitly says to proceed.
 3. Inspect only the code needed to plan accurately. Do not over-explore.
-4. Draft `# 3. Implementation Plan`.
+4. Draft `workflow.plan.md`.
 
 ## Required plan contents
 
@@ -54,23 +56,9 @@ Explicitly include:
 - Parallelizable Tasks
 - Blocked tasks and their blockers
 
-## Automatic browser annotation review
-
-After drafting the implementation plan, run:
-
-```bash
-node /Users/daniphant/Projects/pi-extensions/pi-workflow/server/server.mjs "<workflow-file>"
-```
-
-After `PLAN_REVIEW_COMPLETE:<annotations-file>`:
-
-1. Read annotations.
-2. Apply every requested change to the implementation plan.
-3. Update `## Implementation Plan Review Annotations`.
-
 ## Automatic consensus
 
-After browser-review changes, run `run_consensus` on frozen context:
+After drafting the implementation plan, run `run_consensus` on frozen context before asking the user for browser review:
 
 ```text
 Review this frozen implementation plan before coding. Identify dependency mistakes, unsafe parallelization, missing validation, missing rollback steps, over-specific code generation, under-specified tasks, and likely blockers. Return blocking issues first, then recommended revisions.
@@ -80,7 +68,7 @@ Review this frozen implementation plan before coding. Identify dependency mistak
 </context>
 
 <implementation_plan>
-[the full # 3. Implementation Plan section]
+[the full workflow.plan.md]
 </implementation_plan>
 ```
 
@@ -88,20 +76,48 @@ Default models:
 - `openai-codex/gpt-5.5`
 - `zai/glm-5.1`
 
-Apply all required consensus changes. Update `## Implementation Plan Consensus`.
+Apply all required consensus changes to `workflow.plan.md`. Summarize consensus feedback in `## Consensus Feedback` without adding gate/state checkboxes.
+
+## Automatic browser annotation / user review
+
+After consensus revisions are applied, run browser review on the plan file only:
+
+```bash
+node /Users/daniphant/Projects/pi-extensions/pi-workflow/server/server.mjs "<workflow.plan.md>"
+```
+
+After `PLAN_REVIEW_COMPLETE:<annotations-file>`:
+
+1. Read annotations.
+2. Apply every requested change to `workflow.plan.md`.
+3. Summarize browser feedback in `## Browser Review Feedback` without turning it into gate/state checkboxes.
+
+## Initialize execution state in workflow.toml
+
+After the final plan is ready, update `workflow.toml` from the final task graph. Preserve top-level metadata and write one `[[tasks]]` table per task:
+
+```toml
+[[tasks]]
+id = "T1"
+name = "Short task title"
+status = "pending"
+dependencies = []
+parallel_group = "A"
+files = ["path/to/file.ts"]
+validation = ["npm test"]
+```
+
+Rules:
+- All tasks start as `pending`.
+- Dependencies must reference valid task IDs.
+- No circular dependencies.
+- Do not include review/consensus/spec gates in TOML.
 
 ## Exit
 
-When finalized, update Stage Gates:
-
-- [x] Implementation plan drafted
-- [x] Implementation plan browser review complete
-- [x] Implementation plan consensus complete or explicitly skipped
-- [x] Implementation plan finalized
-
-Then tell the user:
+Tell the user:
 
 ```text
 Implementation plan is finalized. Run /clear if you want a clean context, then run:
-/workflow-implement <workflow-file>
+/workflow-implement <workflow-directory-or-workflow.toml>
 ```

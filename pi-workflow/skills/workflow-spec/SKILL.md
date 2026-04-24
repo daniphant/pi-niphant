@@ -1,29 +1,34 @@
 ---
 name: workflow-spec
-description: Stage 2 of the Pi workflow. Convert research into a durable spec in workflow.md, then automatically run browser annotation review and multi-model consensus before finalizing. Do not write implementation code.
+description: Stage 2 of the Pi workflow. Convert research into a focused workflow.spec.md file, then automatically run multi-model consensus before browser annotation/user review. Do not write implementation code.
 ---
 
 # Workflow Spec
 
-This is Stage 2. It converts the research log into a finalized spec.
+This is Stage 2. It converts `workflow.research.md` into a focused, reviewable `workflow.spec.md`.
 
 ## Hard rules
 
 - Do not implement code.
-- Update only the workflow markdown file and generated annotation/consensus artifacts.
-- Browser annotation review is automatic and required.
+- Update only `workflow.spec.md` and generated annotation/consensus artifacts.
+- Do not use `workflow.toml` for spec status/gates; it is execution/task state only.
 - Multi-model consensus is automatic and required unless the user explicitly says to skip it in this stage request.
+- Browser annotation/user review is automatic and required after consensus revisions are applied.
 - Use consensus on frozen text only; do not ask consensus models to explore the repo.
 
 ## Inputs
 
-The command should provide a workflow file path. If not, use the latest `.pi/workflows/*/workflow.md`.
+The command should provide a workflow bundle path and concrete file paths. If not, use the latest workflow bundle under `~/.pi/agent/workflows/*/`.
+
+For split workflows, read:
+
+- `workflow.research.md`
+- `workflow.spec.md`
 
 ## Process
 
-1. Read the workflow file.
-2. Read `# 1. Research Log` and any existing `# 2. Spec` content.
-3. Draft or revise `# 2. Spec` with:
+1. Read `workflow.research.md` and existing `workflow.spec.md`.
+2. Draft or revise `workflow.spec.md` with:
    - Summary
    - Functional Requirements
    - Non-Functional Requirements
@@ -32,28 +37,11 @@ The command should provide a workflow file path. If not, use the latest `.pi/wor
    - Out of Scope
    - Risks and Mitigations
    - Reference implementations / quality anchors
-4. Save the workflow file.
-
-## Automatic browser annotation review
-
-After drafting the spec, run the browser review server. The skill file lives in `pi-workflow/skills/workflow-spec`; the server is at `../../server/server.mjs` relative to this skill directory.
-
-Run:
-
-```bash
-node /Users/daniphant/Projects/pi-extensions/pi-workflow/server/server.mjs "<workflow-file>"
-```
-
-Tell the user the browser is open and wait for the command to complete. After it emits `PLAN_REVIEW_COMPLETE:<annotations-file>`:
-
-1. Read the annotations file.
-2. Apply every edit, deletion, annotation, and general comment to the workflow file.
-3. If annotations say `No Changes`, record spec browser review as approved.
-4. Update `## Spec Review Annotations` with status and annotation file path.
+3. Save only the spec markdown.
 
 ## Automatic consensus
 
-After browser-review changes are applied, run `run_consensus` on frozen context:
+After drafting the spec, run `run_consensus` on frozen context before asking the user for browser review:
 
 ```text
 Review this frozen pre-implementation spec. Identify missing requirements, contradictions, unclear acceptance criteria, hidden risks, and implementation blockers. Return blocking issues first, then recommended revisions.
@@ -63,7 +51,7 @@ Review this frozen pre-implementation spec. Identify missing requirements, contr
 </context>
 
 <spec>
-[the full # 2. Spec section]
+[the full workflow.spec.md]
 </spec>
 ```
 
@@ -71,25 +59,28 @@ Default models:
 - `openai-codex/gpt-5.5`
 - `zai/glm-5.1`
 
-Apply all required consensus changes to the spec. Update `## Spec Consensus` with:
-- status: completed
-- models
-- summary
-- required changes applied
+Apply all required consensus changes to `workflow.spec.md`. Summarize consensus feedback in `## Consensus Feedback` without adding gate/state checkboxes.
+
+## Automatic browser annotation / user review
+
+After consensus revisions are applied, run the browser review server on the spec file only:
+
+```bash
+node /Users/daniphant/Projects/pi-extensions/pi-workflow/server/server.mjs "<workflow.spec.md>"
+```
+
+Tell the user the browser is open and wait for the command to complete. After it emits `PLAN_REVIEW_COMPLETE:<annotations-file>`:
+
+1. Read the annotations file.
+2. Apply every edit, deletion, annotation, and general comment to `workflow.spec.md`.
+3. If annotations say `No Changes`, no markdown change is needed.
+4. Summarize browser feedback in `## Browser Review Feedback` without turning it into gate/state checkboxes.
 
 ## Exit
 
-When finalized, update Stage Gates:
-
-- [x] Research complete
-- [x] Spec drafted
-- [x] Spec browser review complete
-- [x] Spec consensus complete or explicitly skipped
-- [x] Spec finalized
-
-Then tell the user:
+Tell the user:
 
 ```text
 Spec is finalized. Run /clear if you want a clean context, then run:
-/workflow-plan <workflow-file>
+/workflow-plan <workflow-directory-or-workflow.toml>
 ```

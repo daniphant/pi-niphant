@@ -6,17 +6,19 @@ A durable Research → Spec → Implementation Plan → Implement workflow for [
 
 ## Features
 
-- `/workflow <request>` creates a user-local workflow file
+- `/workflow [--name concise-slug --] <request>` creates a user-local workflow bundle with a short plan slug
 - when launched with `ni`/`NIPHANT=1`, `/workflow` first creates or resumes a niphant git worktree and prints an explicit `cd <worktree> && ni` handoff
+- discovery/front-door skill:
+  - `workflow-start`
 - stage-specific skills:
   - `workflow-brainstorm`
   - `workflow-spec`
   - `workflow-plan`
   - `workflow-implement`
 - browser annotation review UI for specs/plans
-- automatic consensus-review instructions for spec and implementation-plan stages
-- durable Markdown state boundary that survives `/clear`
-- explicit gates and readiness dashboards
+- automatic consensus-review before user/browser review for spec and implementation-plan stages
+- split research/spec/plan Markdown artifacts that survive `/clear`
+- TOML execution state for task progress, dependencies, timestamps, errors, and commits
 - task graph with dependencies, blockers, validation, rollback, and parallel-safe groups
 - implementation guidance that avoids giant pre-coded snippets
 
@@ -51,10 +53,15 @@ Additional commands:
 
 ## Storage model
 
-Workflow files intentionally live outside the project repository:
+Workflow bundles intentionally live outside the project repository:
 
 ```txt
-~/.pi/agent/workflows/<project-slug>/<workflow-id>/workflow.md
+~/.pi/agent/workflows/<short-project-slug>/<timestamp>-<concise-plan-slug>/
+├── workflow.md            # tiny index / source request
+├── workflow.research.md   # research notes
+├── workflow.spec.md       # focused spec for review
+├── workflow.plan.md       # focused implementation plan for review
+└── workflow.toml          # execution/task state only
 ```
 
 They are user-local planning artifacts and should not be committed.
@@ -62,12 +69,13 @@ They are user-local planning artifacts and should not be committed.
 ## Commands
 
 ```text
-/workflow <description>        # create workflow and start Stage 1 research
-/workflow-latest               # show latest workflow file for this project
-/workflow-spec [workflow.md]   # Stage 2 spec with review/consensus
-/workflow-plan [workflow.md]   # Stage 3 implementation plan with review/consensus
-/workflow-review [workflow.md] # open browser annotation review UI
-/workflow-implement [file]     # Stage 4 implementation from finalized plan
+/workflow <description>        # create workflow bundle and start Stage 1 research
+/workflow --name <slug> -- <description> # same, with an AI/chosen concise slug
+/workflow-latest               # show latest workflow bundle for this project
+/workflow-spec [workflow-dir|workflow.toml]   # Stage 2 spec with review/consensus
+/workflow-plan [workflow-dir|workflow.toml]   # Stage 3 plan with review/consensus and task-state init
+/workflow-review [workflow.plan.md|workflow.spec.md|workflow-dir] # browser annotation review UI
+/workflow-implement [workflow-dir|workflow.toml] # Stage 4 implementation from finalized plan/state
 /niphant-list                 # niphant workspace list
 /niphant-status               # current niphant workspace status
 /niphant-terminal             # print terminal commands for current workspace
@@ -97,7 +105,7 @@ The assistant writes a product/engineering spec with scope posture:
 - Selective Expansion
 - Expansion
 
-The spec stage should run browser annotation review and multi-model consensus before finalizing gates.
+The spec stage should run multi-model consensus first, apply required changes, and then ask for browser/user annotation review before the spec is considered finalized.
 
 ### Stage 3 — Implementation Plan
 
@@ -114,7 +122,7 @@ The plan should guide implementation, not dump huge code blocks.
 
 ### Stage 4 — Implement
 
-The assistant reads the finalized workflow, verifies gates, implements task-by-task, updates the execution log, runs diagnostics/tests, and uses browser/E2E validation when relevant.
+The assistant reads `workflow.toml` for execution state, follows `workflow.plan.md` task instructions, implements task-by-task, updates TOML task statuses/timestamps/results, runs diagnostics/tests, and uses browser/E2E validation when relevant.
 
 ## Install
 
@@ -122,6 +130,7 @@ The assistant reads the finalized workflow, verifies gates, implements task-by-t
 mkdir -p ~/.pi/agent/extensions ~/.pi/agent/skills
 ln -sfn "$PWD" ~/.pi/agent/extensions/pi-workflow
 ln -sfn "$PWD/skills/research-plan-implement" ~/.pi/agent/skills/research-plan-implement
+ln -sfn "$PWD/skills/workflow-start" ~/.pi/agent/skills/workflow-start
 ln -sfn "$PWD/skills/workflow-brainstorm" ~/.pi/agent/skills/workflow-brainstorm
 ln -sfn "$PWD/skills/workflow-spec" ~/.pi/agent/skills/workflow-spec
 ln -sfn "$PWD/skills/workflow-plan" ~/.pi/agent/skills/workflow-plan

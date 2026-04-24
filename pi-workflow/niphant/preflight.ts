@@ -14,21 +14,22 @@ export function isNiphantMode(env: NodeJS.ProcessEnv = process.env) {
   return env[ENV.enabled] === "1" || env[ENV.enabled]?.toLowerCase() === "true";
 }
 
-export function workflowPreflight(cwd: string, request: string, env: NodeJS.ProcessEnv = process.env): PreflightResult {
+export function workflowPreflight(cwd: string, request: string, env: NodeJS.ProcessEnv = process.env, conciseName?: string): PreflightResult {
   if (!isNiphantMode(env)) return { mode: "pass-through", message: "Niphant mode disabled." };
   if (!isGitRepo(cwd)) return { mode: "blocked", message: "Niphant workflow requires a git repository." };
   const home = niphantHome(env);
   ensureNiphantDirs(home);
   const configuredRoot = env[ENV.projectRoot];
   const identity = projectIdentity(configuredRoot && existsSync(configuredRoot) ? configuredRoot : cwd);
-  const taskSlug = slugify(request);
+  const taskName = conciseName?.trim() || request;
+  const taskSlug = slugify(taskName);
   const lock = acquireLock(home, `${identity.slug}-${taskSlug}`);
   try {
-    const match = exactMatch(home, identity.slug, request);
+    const match = exactMatch(home, identity.slug, taskName) ?? exactMatch(home, identity.slug, request);
     if (match) return { mode: "continued", workspace: match, handoffText: handoffText(match), message: "Existing matching niphant workspace found." };
 
     const parent = currentWorkspace(home, cwd);
-    const created = createWorktree(cwd, identity.slug, request, home);
+    const created = createWorktree(cwd, identity.slug, taskName, home);
     const now = new Date().toISOString();
     let record: WorkspaceRecord = {
       schemaVersion: NIPHANT_SCHEMA_VERSION,
@@ -44,7 +45,7 @@ export function workflowPreflight(cwd: string, request: string, env: NodeJS.Proc
       parentWorkspaceId: parent?.id,
       parentWorkspacePath: parent?.worktreePath,
       parentBranch: parent?.branch,
-      taskTitle: request.trim().split(/\s+/).slice(0, 10).join(" ") || taskSlug,
+      taskTitle: taskName.trim().split(/\s+/).slice(0, 6).join(" ") || taskSlug,
       taskSlug: created.taskSlug,
       createdAt: now,
       updatedAt: now,

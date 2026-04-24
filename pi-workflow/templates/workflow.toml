@@ -1,0 +1,25 @@
+version = 1
+workflow_id = "{{id}}"
+title = "{{title}}"
+created_at = "{{createdAt}}"
+updated_at = "{{createdAt}}"
+workflow_path = "."
+research_file = "workflow.research.md"
+spec_file = "workflow.spec.md"
+plan_file = "workflow.plan.md"
+
+# Execution state only. Spec/review/consensus notes live in the focused markdown files.
+# Stage 3 populates [[tasks]] from workflow.plan.md; Stage 4 updates status/timestamps/results.
+
+# [[tasks]]
+# id = "T1"
+# name = "Example task"
+# status = "pending" # pending | in_progress | completed | failed | skipped
+# dependencies = []
+# parallel_group = "A"
+# files = []
+# validation = []
+# started_at = ""
+# completed_at = ""
+# commit_sha = ""
+# error = ""

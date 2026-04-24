@@ -10,6 +10,7 @@
     "extensions": ["."],
     "skills": [
       "./skills/research-plan-implement",
+      "./skills/workflow-start",
       "./skills/workflow-brainstorm",
       "./skills/workflow-spec",
       "./skills/workflow-plan",

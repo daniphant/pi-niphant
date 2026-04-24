@@ -1,11 +1,20 @@
 ---
 name: workflow-brainstorm
-description: Stage 1 of the Pi workflow. Interview, brainstorm, research, challenge assumptions, and update the durable workflow markdown file. Use when starting /workflow or when moving into research/discussion. Do not write implementation code.
+description: Stage 1 after /workflow has created a split workflow bundle. Interview, brainstorm, research, challenge assumptions, and update workflow.research.md. For raw requests like "use workflow" or "start workflow", use workflow-start first so it can choose a concise slug and call /workflow --name. Do not write implementation code.
 ---
 
 # Workflow Brainstorm / Research
 
-This is Stage 1 of the Pi workflow. It writes to the canonical user-local workflow file under `~/.pi/agent/workflows/<project>/<id>/workflow.md`. Workflow files should not be committed to project git.
+This is Stage 1 after `/workflow` creates a user-local workflow bundle under `~/.pi/agent/workflows/<project>/<id>/`.
+
+The bundle uses focused files:
+
+- `workflow.research.md` — Stage 1 research log. This is the only file normally edited in this stage.
+- `workflow.spec.md` — Stage 2 spec.
+- `workflow.plan.md` — Stage 3 implementation plan.
+- `workflow.toml` — execution/task state only, populated from the final plan and updated during implementation.
+
+Workflow files should not be committed to project git.
 
 ## Goal
 
@@ -15,14 +24,15 @@ Reach shared understanding before producing a spec.
 
 - Do not implement code.
 - Do not create tests, migrations, schemas, or app code.
-- You may read code, search files, inspect docs, and update the workflow markdown file.
+- You may read code, search files, inspect docs, and update `workflow.research.md`.
+- Do not update `workflow.toml` during research except to fix broken file references; it is for execution/task state only.
 - Do exploration yourself in the main context. Do not delegate ordinary code exploration.
 - Ask questions aggressively, but do not ask what you can answer by reading code.
-- Keep updating `# 1. Research Log` in the workflow file.
+- Do not copy all research into `workflow.spec.md` or `workflow.plan.md`.
 
 ## Process
 
-1. Read the workflow file.
+1. Read `workflow.research.md`.
 2. Understand the user's motivation:
    - why this matters
    - what pain exists today
@@ -41,7 +51,7 @@ Reach shared understanding before producing a spec.
    - consistency implications
    - sequencing and dependencies
 5. Ask targeted questions for unresolved decisions.
-6. Update the workflow file with:
+6. Update `workflow.research.md` with:
    - problem/opportunity
    - motivation
    - goals/non-goals
@@ -51,13 +61,22 @@ Reach shared understanding before producing a spec.
    - reference implementations with paths
    - risks/unknowns
 
+## Naming
+
+When you are responsible for initiating a workflow from a raw user request, choose a concise Codex-CLI-style slug before the script creates paths/worktrees:
+
+- 2-4 short words, kebab-case, max 32 characters.
+- Prefer concrete nouns/verbs from the request.
+- Avoid generic prefixes like `plan`, `workflow`, `task`, or `feature`.
+- Pass it down as `/workflow --name <slug> -- <full user request>` when invoking the workflow command.
+
 ## Exit
 
 When research is complete, tell the user:
 
 ```text
 Research is complete. Run /clear if you want a clean context, then run:
-/workflow-spec <workflow-file>
+/workflow-spec <workflow-directory-or-workflow.toml>
 ```
 
 Do not proceed to spec unless the user asks you to continue.

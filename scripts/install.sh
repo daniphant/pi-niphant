@@ -170,6 +170,7 @@ install_package() {
     pi-workflow)
       link_ext pi-workflow "$ROOT/pi-workflow"
       link_skill research-plan-implement "$ROOT/pi-workflow/skills/research-plan-implement"
+      link_skill workflow-start "$ROOT/pi-workflow/skills/workflow-start"
       link_skill workflow-brainstorm "$ROOT/pi-workflow/skills/workflow-brainstorm"
       link_skill workflow-spec "$ROOT/pi-workflow/skills/workflow-spec"
       link_skill workflow-plan "$ROOT/pi-workflow/skills/workflow-plan"
