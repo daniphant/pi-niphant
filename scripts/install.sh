@@ -15,6 +15,7 @@ DEFAULT_PACKAGES=(
   pi-checkpoint
   pi-catppuccin-ui
   pi-codex-compaction
+  pi-codex-like-diff
   pi-consensus
   pi-delegation-guard
   pi-diagnostics
@@ -131,6 +132,9 @@ install_package() {
       ;;
     pi-codex-compaction)
       link_ext pi-codex-compaction "$ROOT/pi-codex-compaction"
+      ;;
+    pi-codex-like-diff)
+      link_ext pi-codex-like-diff "$ROOT/pi-codex-like-diff"
       ;;
     pi-consensus)
       link_ext pi-consensus "$ROOT/pi-consensus"

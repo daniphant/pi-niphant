@@ -1,0 +1,16 @@
+{
+  "name": "pi-codex-like-diff",
+  "version": "0.1.0",
+  "description": "Codex-like background-tinted, syntax-preserving edit diffs for Pi",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "keywords": ["pi", "pi-package", "extension", "diff"],
+  "pi": {
+    "extensions": ["."]
+  },
+  "scripts": {
+    "check": "npm test",
+    "test": "node test/render-diff.test.mjs"
+  }
+}
