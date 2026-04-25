@@ -36,6 +36,14 @@ export interface StackLike {
 
 export interface ConfigLike {
   stacks: Record<string, StackLike>;
+  defaultStack?: string;
+}
+
+export interface StackRecommendation {
+  stackId: string;
+  reason: string;
+  scores: Record<string, number>;
+  signals: string[];
 }
 
 export type ArtifactKind = "findings" | "reviewer_markdown" | "reviewer_json" | "log" | "text" | "unknown";
@@ -137,6 +145,78 @@ export function collectModelInfos(raw: unknown): PalModelInfo[] {
   };
   visit(raw);
   return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+
+function keywordHits(text: string, patterns: Array<[RegExp, string, number]>): { score: number; signals: string[] } {
+  let score = 0;
+  const signals: string[] = [];
+  for (const [pattern, signal, weight] of patterns) {
+    if (pattern.test(text)) {
+      score += weight;
+      signals.push(signal);
+    }
+  }
+  return { score, signals };
+}
+
+export function recommendStack(planText: string, config: ConfigLike): StackRecommendation {
+  const text = planText.toLowerCase();
+  const hasStack = (id: string) => Boolean(config.stacks[id]);
+  const scores: Record<string, number> = {};
+  for (const id of Object.keys(config.stacks)) scores[id] = 0;
+  const signals: string[] = [];
+
+  const budget = keywordHits(text, [
+    [/\b(budget|cheap|cheaper|low[- ]cost|minimi[sz]e spend|cost[- ]sensitive)\b/, "explicit cost minimization", 4],
+    [/\b(prototype|spike|mvp|quick demo|demo|smallest useful|low[- ]risk)\b/, "prototype or smallest-useful-scope language", 3],
+    [/\b(token cap|spend cap|cost cap|avoid expensive|limit retries)\b/, "spend guard language", 2],
+  ]);
+  if (hasStack("budget")) scores["budget"] = budget.score;
+  signals.push(...budget.signals);
+
+  const open = keywordHits(text, [
+    [/\b(open[- ]source model|open model|oss model|local model|provider diversity|non[- ]us provider)\b/, "provider/model diversity language", 4],
+    [/\b(china model|qwen|deepseek|glm|kimi|moonshot|z[- ]ai)\b/, "China/open model ecosystem language", 4],
+    [/\b(self[- ]hosted|local[- ]first model|offline model)\b/, "local/open model deployment language", 2],
+  ]);
+  if (hasStack("china-open")) scores["china-open"] = open.score;
+  signals.push(...open.signals);
+
+  const frontier = keywordHits(text, [
+    [/\b(payment|billing|checkout|bank|financial|money movement)\b/, "payment or financial risk", 4],
+    [/\b(auth|authentication|authorization|oauth|session|multi[- ]tenant)\b/, "identity or multi-tenant risk", 4],
+    [/\b(pii|phi|personal data|customer data|secrets?|api keys?|credential)\b/, "sensitive data or secrets", 4],
+    [/\b(compliance|regulated|soc2|hipaa|gdpr|audit|legal)\b/, "compliance or regulated domain", 4],
+    [/\b(data loss|destructive|irreversible|rollback impossible|customer[- ]visible migration)\b/, "irreversible/data-loss risk", 4],
+    [/\b(enterprise security|high[- ]stakes|critical production)\b/, "explicit high-stakes production language", 3],
+  ]);
+  if (hasStack("frontier-modern")) scores["frontier-modern"] = frontier.score;
+  signals.push(...frontier.signals);
+
+  const standardSignals = keywordHits(text, [
+    [/\b(production|migration|security|privacy|rollout|release)\b/, "ordinary engineering quality signal", 1],
+    [/\b(architecture|refactor|dashboard|api|workflow|integration)\b/, "general technical plan signal", 1],
+  ]);
+  if (hasStack("standard-modern")) scores["standard-modern"] = Math.max(2, standardSignals.score + 2);
+  signals.push(...standardSignals.signals);
+
+  let stackId = hasStack("standard-modern") ? "standard-modern" : (config.defaultStack || Object.keys(config.stacks)[0] || "standard-modern");
+  if (hasStack("budget") && scores["budget"] >= 4) stackId = "budget";
+  if (hasStack("china-open") && scores["china-open"] >= 4 && scores["china-open"] >= (scores[stackId] ?? 0)) stackId = "china-open";
+  if (hasStack("frontier-modern") && scores["frontier-modern"] >= 4 && scores["frontier-modern"] > Math.max(scores["budget"] ?? 0, scores["china-open"] ?? 0)) stackId = "frontier-modern";
+
+  const reasonByStack: Record<string, string> = {
+    budget: "Plan explicitly emphasizes cost, budget, prototype, MVP, demo, or smallest-useful-scope concerns.",
+    "china-open": "Plan explicitly asks for open/local/provider-diverse model ecosystem review.",
+    "frontier-modern": "Plan contains strong high-stakes signals such as payments, auth, sensitive data, compliance, or irreversible customer-data risk.",
+    "standard-modern": "Default balanced stack for ordinary technical plans; quality matters but frontier-level risk signals are not strong enough.",
+  };
+  return {
+    stackId,
+    reason: reasonByStack[stackId] || `Fallback to configured stack '${stackId}'.`,
+    scores,
+    signals: Array.from(new Set(signals)),
+  };
 }
 
 export function stackAvailability(config: ConfigLike, models: PalModelInfo[]): Record<string, StackAvailability> {

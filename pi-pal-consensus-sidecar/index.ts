@@ -9,7 +9,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { artifactKind, artifactMediaType, classifyError, collectModelInfos, FINDINGS_PARSER_VERSION, FINDINGS_SCHEMA_VERSION, isSafeArtifactName, REVIEW_PROMPT_VERSION, SIDECAR_VERSION, stackAvailability, type PalModelInfo, type StackAvailability, type StructuredError } from "./src/core.js";
+import { artifactKind, artifactMediaType, classifyError, collectModelInfos, FINDINGS_PARSER_VERSION, FINDINGS_SCHEMA_VERSION, isSafeArtifactName, recommendStack, REVIEW_PROMPT_VERSION, SIDECAR_VERSION, stackAvailability, type PalModelInfo, type StackAvailability, type StructuredError } from "./src/core.js";
 
 interface ReviewerConfig {
   id: string;
@@ -578,20 +578,8 @@ async function validatePlanFile(path: string, cwd: string): Promise<string> {
 }
 
 function chooseStack(planText: string, config: SidecarConfig): { stackId: string; reason: string } {
-  const text = planText.toLowerCase();
-  const available = config.stacks;
-  const has = (id: string) => Boolean(available[id]);
-  if (/\b(budget|cost|cheap|cheaper|spend|token|prototype|spike|demo|mvp|minimal|smallest)\b/.test(text) && has("budget")) {
-    return { stackId: "budget", reason: "Plan emphasizes cost, budget, MVP, prototype, or smallest-useful-scope concerns." };
-  }
-  if (/\b(open[- ]source|oss|local model|china|qwen|deepseek|glm|kimi|open model|provider diversity)\b/.test(text) && has("china-open")) {
-    return { stackId: "china-open", reason: "Plan references open/china model ecosystem or provider diversity." };
-  }
-  if (/\b(production|enterprise|security|privacy|auth|payment|migration|high[- ]stakes|compliance|data loss|secret|rollout)\b/.test(text) && has("frontier-modern")) {
-    return { stackId: "frontier-modern", reason: "Plan appears high-stakes or production/security sensitive." };
-  }
-  if (has("standard-modern")) return { stackId: "standard-modern", reason: "Default balanced stack for general technical plans." };
-  return { stackId: config.defaultStack, reason: "Fallback to configured default stack." };
+  const recommendation = recommendStack(planText, config);
+  return { stackId: recommendation.stackId, reason: recommendation.reason };
 }
 
 function assertUniqueModelStances(reviewers: ReviewerConfig[]) {
@@ -1289,8 +1277,9 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       const body = (await readBody(req)) as Record<string, unknown>;
       const planFile = await validatePlanFile(String(body.planFile || ""), state.cwd);
       const config = await loadSidecarConfig(state.cwd);
-      const choice = chooseStack(await readFile(planFile, "utf8"), config);
-      return json(res, 200, { ...choice, stack: config.stacks[choice.stackId] });
+      const recommendation = recommendStack(await readFile(planFile, "utf8"), config);
+      const availability = state.modelDiscoveryCache?.response.stacks[recommendation.stackId];
+      return json(res, 200, { ...recommendation, stack: config.stacks[recommendation.stackId], availability });
     }
     if (req.method === "GET" && url.pathname === "/api/runs") {
       return json(res, 200, { runs: [...state.runs.values()].map((r) => ({ id: r.id, status: r.status, startedAt: r.startedAt, completedAt: r.completedAt, planFile: r.planFile, artifactDir: r.artifactDir, warnings: r.warnings, error: r.error, structuredError: r.structuredError, findingsPath: r.findingsPath })) });

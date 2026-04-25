@@ -228,6 +228,17 @@ Important safety properties:
 - dashboard responses include a strict CSP
 - no external CDN/runtime assets are required
 
+## Stack recommendation policy
+
+`stackId: "auto"` and `POST /api/recommend-stack` use a cost-aware recommendation policy:
+
+- `standard-modern` is the default for ordinary technical plans.
+- `budget` is selected only for explicit cost/MVP/prototype/smallest-scope language.
+- `china-open` is selected only for explicit open/local/provider-diverse model language.
+- `frontier-modern` is selected only for stronger high-stakes signals such as payments, auth, PII, compliance, secrets, multi-tenancy, or irreversible customer-data risk.
+
+`/api/recommend-stack` preserves `stackId` and `reason`, and also returns `scores`, `signals`, and cached `availability` when model discovery has already run. Recommendation does not start PAL model discovery by itself.
+
 ## Built-in stack validation
 
 Built-in stack presets are covered by offline tests in:
