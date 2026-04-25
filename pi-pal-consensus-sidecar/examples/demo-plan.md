@@ -1,132 +1,247 @@
-# Demo Plan: PAL Consensus Dashboard Sidecar
+# Demo Plan: Improve the PAL Consensus Sidecar Milestone by Milestone
 
 ## Goal
 
-Build a local browser dashboard that reviews implementation plans with multiple role-specific LLM reviewers through PAL MCP. The dashboard should show live model progress, preserve raw feedback, and produce compact structured findings.
+Evolve the Pi PAL Consensus Sidecar from a working spike into a reliable plan-review workflow for Pi projects. The sidecar should keep using PAL MCP for model/provider execution, while improving configuration, model discovery, run UX, deterministic artifacts, and workflow integration in small shippable milestones.
 
-## Context
+## Current State
 
-We already have:
+The sidecar already works end-to-end:
 
-- PAL MCP working locally with OpenRouter.
-- A Pi extension sidecar that starts a local HTTP/SSE server.
-- A dashboard at `http://127.0.0.1:8787`.
-- Basic artifact writing under `.pi/pal-consensus-runs/<run-id>/`.
+- Pi command starts a local HTTP/SSE dashboard.
+- Dashboard accepts a markdown plan file path.
+- Plan paths are restricted to trusted roots: project cwd, `~/.pi`, and configured extra roots.
+- Sidecar launches PAL MCP as a stdio subprocess.
+- Provider keys can be loaded from local `.env` files.
+- Reviewer roles call PAL's `consensus` tool one at a time.
+- Run events stream to the browser.
+- Raw reviewer markdown/JSON artifacts are written to disk.
+- A deterministic `findings.json` is generated.
+- Runs support cancellation, timeout, partial success, and `/reload` cleanup.
+- Reviewer/model configuration can live in JSON and be overridden per project.
+- Built-in reviewer stacks exist for frontier, standard, open/china-model, and budget-oriented reviews.
 
-The next step is to harden the sidecar into a useful plan-review workflow.
+## Problem
 
-## Requirements
+The spike is useful, but it still has rough edges that make repeated real-world use brittle:
 
-1. Accept a markdown plan file path from the browser UI.
-2. Let the user define reviewer roles, such as:
-   - Security reviewer
-   - Architecture reviewer
-   - Cost/budget reviewer
-   - UX/product reviewer
-3. Call PAL MCP's `consensus` tool using the selected reviewer models and role prompts.
-4. Stream run status to the browser with Server-Sent Events.
-5. Save raw per-reviewer feedback as markdown and JSON artifacts.
-6. Generate a compact `findings.json` file containing normalized findings.
-7. Keep the implementation small and avoid building a custom model-provider layer.
-
-## Proposed Design
-
-The sidecar acts as a local HTTP service and MCP client.
-
-```text
-Browser Dashboard
-  -> HTTP/SSE
-Sidecar Server
-  -> MCP stdio client
-PAL MCP Server
-  -> OpenRouter / configured providers
-Models
-```
-
-### Server responsibilities
-
-- Serve the dashboard HTML/CSS/JS.
-- Accept `POST /api/runs` with:
-  - `planFile`
-  - reviewer role configs
-  - optional PAL command override
-- Start PAL MCP as a subprocess.
-- Drive the PAL consensus workflow.
-- Emit SSE events:
-  - `run_started`
-  - `pal_connected`
-  - `reviewer_started`
-  - `reviewer_completed`
-  - `synthesis_completed`
-  - `run_completed`
-  - `run_failed`
-- Persist run artifacts.
-
-### Artifact layout
-
-```text
-.pi/pal-consensus-runs/<run-id>/
-  security.md
-  security.json
-  architecture.md
-  architecture.json
-  budget.md
-  budget.json
-  findings.json
-```
-
-## Compact Findings Schema
-
-The final normalized output should look like:
-
-```json
-{
-  "run_id": "pal-2026-04-25-demo",
-  "plan_file": "examples/demo-plan.md",
-  "recommendation": "revise",
-  "findings": [
-    {
-      "severity": "major",
-      "reviewer": "security",
-      "model": "o3",
-      "issue": "The local HTTP server has no explicit origin or auth boundary.",
-      "recommendation": "Bind to 127.0.0.1 only, document local-only access, and avoid exposing secret-bearing logs.",
-      "confidence": "high"
-    }
-  ],
-  "agreements": [
-    "Keep PAL MCP as the provider/model layer rather than reimplementing OpenRouter calls."
-  ],
-  "disagreements": [
-    "Whether schema normalization should be done by a final synthesis model or deterministic parser."
-  ],
-  "raw_artifacts": []
-}
-```
-
-## Risks / Questions
-
-1. PAL's consensus tool is workflow-oriented; the sidecar must correctly drive multiple steps.
-2. Raw PAL output may not always be easy to parse into compact findings.
-3. Cost awareness may require model-specific pricing metadata not returned by PAL.
-4. Long model calls may need timeout, cancellation, and retry behavior.
-5. The browser dashboard should not expose API keys or raw environment variables.
-
-## Success Criteria
-
-The spike is successful if:
-
-- A user can start `/pal-sidecar` in Pi.
-- The dashboard opens locally.
-- This plan file can be submitted.
-- At least two reviewers complete through PAL MCP.
-- The browser shows live status updates.
-- Raw reviewer artifacts appear on disk.
-- `findings.json` is created.
+1. Model aliases and availability can change, causing runs to fail after the user starts them.
+2. Stack selection is currently heuristic and not very visible to the user.
+3. The dashboard shows event logs, but not enough structured run summary or artifact navigation.
+4. The deterministic findings parser needs tests and a versioned schema before workflows rely on it.
+5. Project configuration needs stronger validation and clearer error messages.
+6. Workflow integration should consume stable JSON artifacts rather than dashboard-only state.
+7. Safety controls should remain explicit as the sidecar gains more capabilities.
 
 ## Non-Goals
 
-- Do not build a custom consensus CLI yet.
-- Do not replace PAL MCP's provider routing.
-- Do not add multi-user auth or remote deployment.
-- Do not require a frontend build system.
+- Do not build a custom consensus CLI.
+- Do not bypass PAL MCP for provider/model execution.
+- Do not implement custom OpenRouter calls in the sidecar.
+- Do not turn the local dashboard into a remote multi-user service.
+- Do not replace deterministic `findings.json` with an LLM-only synthesis.
+
+## Proposed Architecture
+
+Keep the current architecture:
+
+```text
+Browser dashboard
+  -> Pi sidecar HTTP/SSE API
+  -> PAL MCP stdio subprocess
+  -> PAL consensus/listmodels tools
+  -> configured model providers
+  -> raw artifacts + deterministic findings.json
+```
+
+The sidecar is responsible for orchestration, safety, local UX, configuration, and artifact normalization. PAL remains responsible for model/provider routing.
+
+## Milestone 1: Harden Reviewer Stack Configuration
+
+### Scope
+
+Make reviewer/model configuration reproducible and project-overridable.
+
+### Tasks
+
+- Keep built-in stack presets in JSON files:
+  - `frontier-modern`
+  - `standard-modern`
+  - `china-open`
+  - `budget`
+- Support project overrides from:
+  - `.pal-sidecar.json`
+  - `.pi/pal-sidecar.json`
+  - `PAL_SIDECAR_CONFIG`
+- Add validation for:
+  - missing reviewer IDs
+  - invalid or empty models
+  - invalid stances
+  - duplicate `model:stance` pairs
+  - `minSuccessfulReviewers` greater than reviewer count
+- Show effective stack ID and stack reason in the dashboard and `findings.json`.
+- Add tests for config merge order and auto-stack selection.
+
+### Acceptance Criteria
+
+- A project can commit `.pal-sidecar.json` and change reviewer defaults without editing extension code.
+- Invalid config fails before PAL starts.
+- A run records the selected stack and reason in `findings.json`.
+
+## Milestone 2: Add PAL Model Discovery
+
+### Scope
+
+Use PAL's `listmodels` tool to reveal which models are actually available before starting expensive review runs.
+
+### Tasks
+
+- Add `GET /api/pal/models`.
+- Start PAL MCP with the same command, cwd, and env used for real runs.
+- Call PAL's `listmodels` tool.
+- Cache results for a short period.
+- Add a dashboard refresh button.
+- Mark each configured stack reviewer as available, unavailable, or unknown.
+- If PAL suggests a replacement model, surface that suggestion in the UI.
+
+### Acceptance Criteria
+
+- The dashboard can show PAL-visible models.
+- Unavailable stack models are visible before a run starts.
+- The user can refresh model availability without restarting Pi.
+
+## Milestone 3: Improve Run UX and Artifact Navigation
+
+### Scope
+
+Make run results understandable without manually opening JSON files.
+
+### Tasks
+
+- Add run cards showing:
+  - selected stack
+  - status
+  - reviewer success count
+  - duration
+  - artifact directory
+- Add a summary panel for completed runs.
+- Add copy buttons for:
+  - artifact directory
+  - `findings.json`
+  - individual reviewer markdown/JSON paths
+- Show partial success distinctly from full success.
+- Preserve selected run in the URL hash or query string.
+
+### Acceptance Criteria
+
+- A user can inspect run status and artifact locations from the dashboard.
+- Partial runs clearly show which reviewers failed and why.
+
+## Milestone 4: Stabilize Deterministic Findings
+
+### Scope
+
+Make `findings.json` suitable as a workflow gate and regression-test artifact.
+
+### Tasks
+
+- Add a schema version field.
+- Add parser fixtures for representative PAL/reviewer markdown.
+- Normalize severity, confidence, recommendation, and location consistently.
+- Preserve raw excerpts for each extracted finding.
+- Add diagnostics for parser misses.
+- Keep optional LLM synthesis separate from deterministic findings.
+
+### Acceptance Criteria
+
+- Parser tests cover complete success, partial success, malformed model output, and empty findings.
+- `findings.json` can be consumed by other Pi workflow tools without dashboard scraping.
+
+## Milestone 5: Integrate with Pi Workflows
+
+### Scope
+
+Make the sidecar useful for plans created by Pi workflow stages, especially files under `~/.pi`.
+
+### Tasks
+
+- Document reviewing workflow research/spec/plan files.
+- Add optional workflow metadata to `POST /api/runs`.
+- Include workflow metadata in `findings.json`.
+- Add a stable API contract for external callers.
+- Consider a Pi command that starts the dashboard prefilled with a plan path.
+
+### Acceptance Criteria
+
+- A workflow can submit a plan path and consume `findings.json` programmatically.
+- Plan-file allowlists remain explicit and safe.
+
+## Milestone 6: Safety and Operations Polish
+
+### Scope
+
+Preserve local safety while adding more automation.
+
+### Tasks
+
+- Add maximum plan size and reviewer count limits.
+- Add artifact retention or cleanup settings.
+- Add structured errors for:
+  - CSRF failure
+  - non-local origin/host
+  - disallowed plan path
+  - PAL startup failure
+  - model validation failure
+  - timeout
+  - cancellation
+- Ensure provider keys and environment variables never appear in browser responses.
+- Consider pinning PAL MCP by git SHA or documented version.
+
+### Acceptance Criteria
+
+- Unsafe requests fail before PAL starts.
+- Local artifacts are controllable and documented.
+- Errors are actionable for users.
+
+## Milestone 7: Optional Synthesis and Cost Visibility
+
+### Scope
+
+Add higher-level decision support without undermining deterministic artifacts.
+
+### Tasks
+
+- Add optional LLM synthesis as a separate artifact.
+- Estimate per-run model/token cost when PAL responses expose enough metadata.
+- Add stack-level expected cost labels.
+- Add warnings when a selected stack is likely expensive.
+
+### Acceptance Criteria
+
+- Deterministic `findings.json` remains the primary machine-readable artifact.
+- Optional synthesis is clearly marked as model-generated.
+- Users can reason about cost before starting a run.
+
+## Key Risks
+
+1. PAL model catalogs may change over time, so stack presets can become stale.
+2. Deterministic parsing can miss nuanced reviewer concerns unless prompts and parser fixtures evolve together.
+3. Expensive frontier stacks can surprise users without clear cost visibility.
+4. More dashboard features can increase local attack surface if origin/path checks regress.
+5. Workflow integrations can become brittle if they depend on unversioned JSON fields.
+
+## Recommended Next Implementation Step
+
+Implement Milestone 2: PAL model discovery.
+
+This is the highest-leverage next step because reviewer stacks are now configurable, but users still need to know whether PAL/OpenRouter can actually access the configured models before they launch a run.
+
+## Success Criteria for the Next Sidecar Iteration
+
+The next iteration is successful if:
+
+- The dashboard lists PAL-visible models.
+- Built-in stack reviewers show availability status.
+- The user can refresh model availability.
+- A missing model is detected before a consensus run starts when possible.
+- Existing successful demo runs still work with the default stack.
