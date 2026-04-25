@@ -61,6 +61,8 @@ describe("stackAvailability", () => {
 describe("classifyError", () => {
   it.each([
     ["Plan file not found: nope.md", "plan_file_not_found", false],
+    ["Plan file is too large: 999 bytes exceeds PAL_SIDECAR_MAX_PLAN_BYTES=10.", "plan_file_too_large", false],
+    ["Concurrent run limit exceeded: 1 active run(s), max 1.", "concurrency_limit_exceeded", true],
     ["Plan file must be inside a trusted root", "plan_file_untrusted_root", false],
     ["PAL needs at least one provider key", "pal_provider_key_missing", false],
     ["PAL MCP did not expose a consensus tool", "pal_contract_mismatch", false],

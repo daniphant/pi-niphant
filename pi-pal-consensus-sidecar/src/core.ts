@@ -47,6 +47,8 @@ export function classifyError(error: unknown, details?: unknown): StructuredErro
   const message = error instanceof Error ? error.message : String(error);
   const lower = message.toLowerCase();
   if (lower.includes("plan file not found")) return { code: "plan_file_not_found", message, retryable: false, details };
+  if (lower.includes("plan file is too large") || lower.includes("plan text is too large")) return { code: "plan_file_too_large", message, retryable: false, details };
+  if (lower.includes("concurrent run limit")) return { code: "concurrency_limit_exceeded", message, retryable: true, details };
   if (lower.includes("trusted root") || lower.includes("allowed roots")) return { code: "plan_file_untrusted_root", message, retryable: false, details };
   if (lower.includes("provider key") || lower.includes("api_key")) return { code: "pal_provider_key_missing", message, retryable: false, details };
   if (lower.includes("did not expose") && lower.includes("tool")) return { code: "pal_contract_mismatch", message, retryable: false, details };

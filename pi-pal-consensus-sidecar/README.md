@@ -136,6 +136,27 @@ When the policy is `warn`, unavailable stack models produce run warnings and `mo
 
 Discovery never returns provider environment variables or API keys. Failures are isolated to discovery/model-availability warnings and do not disable normal consensus runs by default.
 
+## Operational limits and retention
+
+The sidecar applies conservative local safety limits before PAL starts:
+
+```bash
+# Reject plan files or direct planText above 256 KiB by default.
+export PAL_SIDECAR_MAX_PLAN_BYTES=262144
+
+# Keep one PAL run active by default to avoid overlapping provider spend/subprocesses.
+export PAL_SIDECAR_MAX_CONCURRENT_RUNS=1
+
+# Bound in-memory completed run history.
+export PAL_SIDECAR_MAX_RUNS=50
+export PAL_SIDECAR_RETENTION_DAYS=14
+
+# Artifact deletion is opt-in. Only pal-* directories under the artifact root are considered.
+export PAL_SIDECAR_CLEAN_ARTIFACTS=0
+```
+
+`GET /api/health` reports the effective limit values and current active run count. Artifact cleanup is intentionally disabled by default; enabling it only removes expired `pal-*` run directories under the sidecar artifact root.
+
 ## Findings schema and structured errors
 
 Every generated `findings.json` includes stable version metadata so downstream workflow steps can detect parser/prompt/schema changes:
@@ -159,7 +180,7 @@ Run failures also include a structured error where possible:
 }
 ```
 
-Known error codes include `plan_file_not_found`, `plan_file_untrusted_root`, `pal_provider_key_missing`, `pal_contract_mismatch`, `pal_timeout`, `run_cancelled`, `invalid_reviewer_config`, `model_unavailable`, `insufficient_successful_reviewers`, and `unknown_error`.
+Known error codes include `plan_file_not_found`, `plan_file_too_large`, `concurrency_limit_exceeded`, `plan_file_untrusted_root`, `pal_provider_key_missing`, `pal_contract_mismatch`, `pal_timeout`, `run_cancelled`, `invalid_reviewer_config`, `model_unavailable`, `insufficient_successful_reviewers`, and `unknown_error`.
 
 ## Dashboard frontend
 

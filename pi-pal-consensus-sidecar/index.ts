@@ -3,7 +3,7 @@ import { Type } from "@sinclair/typebox";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { chmod, mkdir, mkdtemp, readFile, realpath, readdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, realpath, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
@@ -231,6 +231,41 @@ function modelDiscoveryTtlMs(): number {
 function modelAvailabilityPolicy(): "off" | "warn" | "block" {
   const value = String(process.env.PAL_SIDECAR_MODEL_AVAILABILITY_POLICY || "warn").trim().toLowerCase();
   return value === "off" || value === "block" ? value : "warn";
+}
+
+function positiveIntEnv(name: string, fallback: number): number {
+  const value = Number(process.env[name] || fallback);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+}
+
+function maxPlanBytes(): number {
+  return positiveIntEnv("PAL_SIDECAR_MAX_PLAN_BYTES", 256 * 1024);
+}
+
+function maxConcurrentRuns(): number {
+  return positiveIntEnv("PAL_SIDECAR_MAX_CONCURRENT_RUNS", 1);
+}
+
+function maxRuns(): number {
+  return positiveIntEnv("PAL_SIDECAR_MAX_RUNS", 50);
+}
+
+function retentionDays(): number {
+  return positiveIntEnv("PAL_SIDECAR_RETENTION_DAYS", 14);
+}
+
+function shouldCleanArtifacts(): boolean {
+  return process.env.PAL_SIDECAR_CLEAN_ARTIFACTS === "1" || process.env.PAL_SIDECAR_CLEAN_ARTIFACTS === "true";
+}
+
+function activeRunCount(): number {
+  return [...state.runs.values()].filter((run) => run.status === "queued" || run.status === "running").length;
+}
+
+function assertConcurrentRunCapacity() {
+  const active = activeRunCount();
+  const max = maxConcurrentRuns();
+  if (active >= max) throw new Error(`Concurrent run limit exceeded: ${active} active run(s), max ${max}. Set PAL_SIDECAR_MAX_CONCURRENT_RUNS to adjust.`);
 }
 
 async function readJsonFile(path: string): Promise<Record<string, unknown> | undefined> {
@@ -532,6 +567,9 @@ async function validatePlanFile(path: string, cwd: string): Promise<string> {
   if (!roots.some((root) => isPathInside(realFile, root))) {
     throw new Error(`Plan file must be inside a trusted root (${roots.join(", ")}). Add roots with PAL_SIDECAR_ALLOWED_ROOTS.`);
   }
+  const info = await stat(realFile);
+  const maxBytes = maxPlanBytes();
+  if (info.size > maxBytes) throw new Error(`Plan file is too large: ${info.size} bytes exceeds PAL_SIDECAR_MAX_PLAN_BYTES=${maxBytes}.`);
   return realFile;
 }
 
@@ -1051,6 +1089,9 @@ async function planFileFromToolInput(params: { planFile?: string; planText?: str
   if (params.planFile) return params.planFile;
   const planText = params.planText?.trim();
   if (!planText) throw new Error("Either planFile or planText is required.");
+  const bytes = Buffer.byteLength(planText, "utf8");
+  const maxBytes = maxPlanBytes();
+  if (bytes > maxBytes) throw new Error(`Plan text is too large: ${bytes} bytes exceeds PAL_SIDECAR_MAX_PLAN_BYTES=${maxBytes}.`);
   const inputRoot = resolve(cwd, ".pi", "pal-consensus-inputs");
   await mkdir(inputRoot, { recursive: true, mode: 0o700 });
   const id = `plan-${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}.md`;
@@ -1061,7 +1102,30 @@ async function planFileFromToolInput(params: { planFile?: string; planText?: str
   return path;
 }
 
+async function cleanupRunState(cwd: string, artifactRoot: string) {
+  const runs = [...state.runs.values()].sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
+  const keep = new Set(runs.slice(0, maxRuns()).map((run) => run.id));
+  const cutoff = Date.now() - retentionDays() * 24 * 60 * 60 * 1000;
+  for (const run of runs) {
+    const active = run.status === "queued" || run.status === "running";
+    const expired = Date.parse(run.startedAt) < cutoff;
+    if (!active && (!keep.has(run.id) || expired)) state.runs.delete(run.id);
+  }
+  if (!shouldCleanArtifacts()) return;
+  const root = resolve(cwd, artifactRoot);
+  if (!isPathInside(root, resolve(cwd))) return;
+  if (!existsSync(root)) return;
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !entry.name.startsWith("pal-")) continue;
+    const dir = resolve(root, entry.name);
+    if (!isPathInside(dir, root)) continue;
+    const info = await stat(dir).catch(() => undefined);
+    if (info && info.mtimeMs < cutoff) await rm(dir, { recursive: true, force: true });
+  }
+}
+
 async function startRun(req: RunRequest, cwd: string): Promise<RunState> {
+  assertConcurrentRunCapacity();
   const runId = `pal-${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`;
   const artifactRoot = resolve(cwd, req.artifactRoot ?? join(".pi", "pal-consensus-runs"));
   await mkdir(artifactRoot, { recursive: true, mode: 0o700 });
@@ -1106,6 +1170,7 @@ async function startRun(req: RunRequest, cwd: string): Promise<RunState> {
       clearTimeout(timeout);
       state.cancelledRuns.delete(runId);
       state.runClosers.delete(runId);
+      await cleanupRunState(cwd, req.artifactRoot ?? join(".pi", "pal-consensus-runs")).catch(() => undefined);
     }
   })();
   return run;
@@ -1141,7 +1206,18 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       if (await serveDashboardAsset(url.pathname, res, state.csrfToken)) return;
       return json(res, 500, { error: "Dashboard assets are missing. Run 'npm run build --workspace pi-pal-consensus-sidecar'." });
     }
-    if (req.method === "GET" && url.pathname === "/api/health") return json(res, 200, { ok: true, port: state.port });
+    if (req.method === "GET" && url.pathname === "/api/health") return json(res, 200, {
+      ok: true,
+      port: state.port,
+      limits: {
+        maxPlanBytes: maxPlanBytes(),
+        maxConcurrentRuns: maxConcurrentRuns(),
+        activeRuns: activeRunCount(),
+        maxRuns: maxRuns(),
+        retentionDays: retentionDays(),
+        cleanArtifacts: shouldCleanArtifacts(),
+      },
+    });
     if (req.method === "GET" && url.pathname === "/api/session") return json(res, 200, { csrfToken: state.csrfToken });
     if (req.method === "GET" && url.pathname === "/api/config") return json(res, 200, await loadSidecarConfig(state.cwd));
     if (req.method === "GET" && url.pathname === "/api/pal/contract") return json(res, 200, await inspectPalContract(state.cwd));
