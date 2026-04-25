@@ -2,14 +2,14 @@
 
 Continuous local auto-commits for [Pi](https://github.com/mariozechner/pi-coding-agent).
 
-By default, `pi-checkpoint` creates a local git commit after each Pi agent turn whenever the working tree changed. It is designed as a recovery layer for long agent sessions, `/clear` boundaries, compaction, and multi-stage workflows.
+By default, `pi-checkpoint` creates a local git commit after Pi agent turns that look complete and meaningful. It is designed as a recovery layer for long agent sessions, `/clear` boundaries, compaction, and multi-stage workflows without filling history with low-signal WIP commits.
 
 It never pushes.
 
 ## Features
 
-- continuous local auto-commits by default
-- structured `[gstack-context]` commit messages
+- smart local auto-commits by default
+- one-line conventional commit messages
 - manual patch checkpoints under `.pi/checkpoints`
 - quick diff/status command
 - safety checkpoint before destructive revert
@@ -18,32 +18,25 @@ It never pushes.
 
 ## Default behavior
 
-After each agent turn:
+After each agent turn in `smart` mode:
 
 1. verify the current directory is inside a git repository
 2. check whether the working tree changed
 3. stage changes
 4. exclude local Pi planning/checkpoint artifacts
-5. commit with a structured message based on the changed files
+5. skip the commit if the final agent response looks incomplete, research-only, or validation-pending
+6. commit with a one-line conventional commit subject inferred from the changed files and recent prompt/agent summary
 
-Commit messages include:
+Example commit messages:
 
 ```text
-Update pi-hud (4 files)
-
-[gstack-context]
-Source: pi-checkpoint continuous auto-commit
-Session: ...
-Model: ...
-Changed files: ...
-
-Files:
-- ...
-
-Decisions: see Pi session transcript and workflow files for reasoning.
-Remaining work: continue from latest Pi message / workflow stage.
-[/gstack-context]
+feat(pi-hud): add session timer to hud
+fix(pi-checkpoint): improve auto-commit messages
+docs(pi-checkpoint): update documentation
+chore(repo): update package metadata
 ```
+
+Auto-commit messages intentionally have no `[gstack-context]` block or other hidden metadata body.
 
 ## Planning artifacts are not committed
 
@@ -61,12 +54,13 @@ These paths are explicitly excluded from auto-commits:
 
 ```text
 /checkpoint-mode status
-/checkpoint-mode continuous   # default: auto-commit after agent turns
+/checkpoint-mode smart        # default: commit complete/meaningful agent turns
+/checkpoint-mode continuous   # commit every changed agent turn
 /checkpoint-mode explicit     # manual patch checkpoints only
 /checkpoint-mode off          # disabled
 
 /checkpoint [label]           # save a patch under .pi/checkpoints
-/checkpoint-commit            # immediately commit current changes
+/checkpoint-commit [title]    # immediately commit current changes, optionally with exact title
 /checkpoint-notify on|off     # toggle UI notifications
 /checkpoints                  # list patch checkpoints
 /checkpoint-show              # show latest patch checkpoint
@@ -85,7 +79,7 @@ Then run `/reload` inside Pi.
 
 ## Recommended workflow
 
-Use auto-commits as local recovery points. Before shipping, use normal git tools to squash, rebase, drop, or rewrite them into the history you want.
+Use smart auto-commits as local recovery points that are already close to useful conventional commits. Before shipping, you can still use normal git tools to squash, rebase, drop, or rewrite them into the history you want.
 
 ## Safety notes
 
