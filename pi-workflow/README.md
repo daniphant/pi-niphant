@@ -2,14 +2,14 @@
 
 A durable Research → Spec/Plan as needed → Execute workflow for [Pi](https://github.com/mariozechner/pi-coding-agent).
 
-`pi-workflow` turns vague feature requests into a staged, reviewable, `/clear`-friendly development process. The front door is agent-led: you can start with `/workflow <request>`, the assistant chooses a concise slug, and the extension creates a user-local workflow bundle only from the explicit slugged command it generates.
+`pi-workflow` turns vague feature requests into a staged, reviewable, `/clear`-friendly development process. The front door is frictionless: you can start with `/workflow <request>`, the extension infers a concise slug, creates the user-local workflow bundle immediately, and hands Stage 1 to the research agent.
 
 ## Features
 
-- `/workflow <request>` routes through agent slug selection instead of asking you to name the workflow yourself
-- `/workflow --name <slug> -- <request>` is the terminal bundle-creation command used by the agent-selected front door
+- `/workflow <request>` auto-infers a concise slug and starts Stage 1 without asking you to type a name
+- `/workflow --name <slug> -- <request>` remains available when you want to override the inferred slug
 - strict slug validation: lowercase ASCII letters, digits, and hyphens; max 32 characters; no whitespace, path separators, shell metacharacters, or `..`
-- when launched with `ni`/`NIPHANT=1`, explicit slugged workflow creation first creates or resumes a niphant git worktree and prints a `cd <worktree> && ni` handoff
+- when launched with `ni`/`NIPHANT=1`, workflow creation (inferred or explicit slug) first creates or resumes a niphant git worktree and prints a `cd <worktree> && ni` handoff
 - discovery/front-door skill: `workflow-start`
 - stage-specific skills:
   - `workflow-brainstorm`
@@ -36,7 +36,7 @@ When Pi is launched through the `ni` launcher, these environment markers are set
 - `NIPHANT_HOME` (default `~/.niphant`)
 - `NIPHANT_PROJECT_ROOT` (the git root where `ni` was started)
 
-In this mode explicit `/workflow --name <slug> -- <task>` creation:
+In this mode `/workflow <task>` or explicit `/workflow --name <slug> -- <task>` creation:
 
 1. identifies the current project from git root/origin,
 2. matches an existing active workspace by project/task slug,
@@ -75,8 +75,8 @@ They are user-local planning artifacts and should not be committed.
 ## Commands
 
 ```text
-/workflow <description>        # ask the assistant to choose a slug, then create/start the workflow
-/workflow --name <slug> -- <description> # create/resume workflow with an explicit validated slug
+/workflow <description>        # infer a concise slug, then create/start the workflow
+/workflow --name <slug> -- <description> # create/resume workflow with an explicit validated slug override
 /workflow-latest               # show latest workflow bundle for this project
 /workflow-spec [workflow-dir|workflow.toml]   # Stage 2 spec when route requires it or user overrides
 /workflow-plan [workflow-dir|workflow.toml]   # Stage 3 plan from spec or sufficient skipped-spec research

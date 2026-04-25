@@ -125,12 +125,12 @@ Rules:
 
 ## Naming
 
-When you are responsible for initiating a workflow from a raw user request, choose a concise Codex-CLI-style slug before the script creates paths/worktrees:
+`/workflow <request>` infers a concise slug before creating paths/worktrees. When you are explicitly overriding a name for a raw user request, use a concise Codex-CLI-style slug:
 
 - 2-4 short words, kebab-case, max 32 characters.
 - Prefer concrete nouns/verbs from the request.
 - Avoid generic prefixes like `plan`, `workflow`, `task`, or `feature`.
-- Pass it down as `/workflow --name <slug> -- <full user request>` when invoking the workflow command.
+- Pass it down as `/workflow --name <slug> -- <full user request>` only for explicit name overrides.
 
 ## Exit / Handoff
 

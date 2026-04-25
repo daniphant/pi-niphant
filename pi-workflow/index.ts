@@ -9,7 +9,18 @@ import { homedir } from "node:os";
 import { createHash } from "node:crypto";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const pendingSlugSelectionByCwd = new Map<string, string>();
+
+const slugStopWords = new Set([
+  "about", "after", "again", "also", "and", "are", "auto", "bad", "because", "been", "being", "but", "can", "could", "does", "doing", "easier", "for", "from", "generated", "get", "got", "had", "has", "have", "how", "into", "just", "let", "like", "look", "looks", "make", "making", "now", "please", "propose", "really", "should", "something", "that", "the", "then", "there", "this", "through", "try", "understand", "using", "was", "way", "we", "what", "when", "where", "why", "with", "work", "workflow", "workflows", "would", "you",
+]);
+
+const slugActionWords = [
+  "fix", "debug", "repair", "rename", "shorten", "simplify", "improve", "add", "remove", "update", "refactor", "implement", "support", "prevent", "handle", "create", "resume", "validate",
+];
+
+const slugPreferredNouns = new Set([
+  "auth", "browser", "bundle", "checkpoint", "commit", "commands", "command", "consensus", "diagnostics", "errors", "handoff", "names", "name", "plan", "review", "slug", "slugs", "spec", "worktree", "worktrees",
+]);
 
 function slugify(input: string, max = 32) {
   const slug = input
@@ -31,6 +42,50 @@ function validateSlug(input: string) {
     && !trimmed.includes("..")
     && !/[\\/\s;&|`$<>]/.test(trimmed);
   return { slug: sanitized, valid };
+}
+
+function inferWorkflowSlug(request: string) {
+  const normalized = request
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .toLowerCase();
+  const rawTokens = normalized.match(/[a-z0-9]+/g) ?? [];
+  const tokens = rawTokens
+    .map((token) => token === "pi" ? "" : token.replace(/^pi(?=[a-z0-9]{3,})/, ""))
+    .filter((token) => token.length >= 2 && !/^\d+$/.test(token) && !/^[a-f0-9]{7,}$/.test(token));
+  const scored = new Map<string, { token: string; score: number; first: number }>();
+  tokens.forEach((token, index) => {
+    if (slugStopWords.has(token)) return;
+    const existing = scored.get(token);
+    const next = existing ?? { token, score: 0, first: index };
+    next.score += 1;
+    if (slugPreferredNouns.has(token)) next.score += 3;
+    if (slugActionWords.includes(token)) next.score += 4;
+    if (token.length > 14) next.score -= 2;
+    scored.set(token, next);
+  });
+
+  const firstAction = [...scored.values()]
+    .filter((item) => slugActionWords.includes(item.token))
+    .sort((a, b) => a.first - b.first)[0]?.token;
+  const selected: string[] = [];
+  if (firstAction) selected.push(firstAction);
+  const ranked = [...scored.values()]
+    .filter((item) => item.token !== firstAction && !slugActionWords.includes(item.token))
+    .sort((a, b) => b.score - a.score || a.first - b.first);
+  for (const item of ranked) {
+    if (selected.length >= 4) break;
+    selected.push(item.token);
+  }
+  if (selected.length < 2) {
+    for (const token of tokens) {
+      if (selected.includes(token) || slugStopWords.has(token)) continue;
+      selected.push(token);
+      if (selected.length >= 2) break;
+    }
+  }
+  return slugify(selected.join("-"), 32);
 }
 
 function parseWorkflowArgs(args: string) {
@@ -182,9 +237,8 @@ function resolveWorkflowArg(cwd: string, arg: string): WorkflowPaths | null {
   return existsSync(paths.state) ? paths : null;
 }
 
-function sendSlugSelection(pi: ExtensionAPI, cwd: string, request: string) {
-  pendingSlugSelectionByCwd.set(cwd, request);
-  pi.sendUserMessage(`/skill:workflow-start\n\n${stageContextGuard("slug selection", ["this generated prompt"])}\n\nStart a durable workflow for this request. Choose a concise lowercase kebab-case slug (2-4 words, max 32 chars) and invoke the explicit terminal command form only:\n\n/workflow --name <slug> -- ${request}\n\nDo not call unnamed /workflow again. If you cannot execute slash commands directly, reply with exactly the explicit /workflow --name command.\n\nRequest:\n${request}`);
+function sendStageOnePrompt(pi: ExtensionAPI, workflow: WorkflowPaths, planName: string, request: string) {
+  pi.sendUserMessage(`/skill:workflow-brainstorm\n\n${stageContextGuard("Stage 1 research", ["workflow.research.md", "workflow.md", "workflow.toml for file references only"])}\n\nStart Stage 1 Research for this request. Use and continuously update this workflow bundle:\n${workflowSummary(workflow)}\n\nThe concise workflow slug is: ${planName}.\n\nRequest:\n${request}\n\nInterview me aggressively when needed, but first inspect code directly for anything you can answer yourself. Do not implement code yet. Record the complete Complexity / Route Recommendation and stop with a confirmation-oriented handoff.`);
 }
 
 function executionPrompt(commandName: "workflow-execute" | "workflow-implement", workflow: WorkflowPaths) {
@@ -196,25 +250,21 @@ function executionPrompt(commandName: "workflow-execute" | "workflow-implement",
 
 export default function workflowExtension(pi: ExtensionAPI) {
   pi.registerCommand("workflow", {
-    description: "Start a durable agent-led workflow; unnamed requests route through agent slug selection",
+    description: "Start a durable workflow; unnamed requests auto-infer a concise slug",
     handler: async (args, ctx) => {
-      const { request, planName, explicitName, slugWasValid, rawName } = parseWorkflowArgs(args);
+      const parsed = parseWorkflowArgs(args);
+      const request = parsed.request;
+      const planName = parsed.explicitName ? parsed.planName : inferWorkflowSlug(request);
       if (!request) {
         ctx.ui.notify("Usage: /workflow <description> or /workflow --name concise-slug -- <description>", "warning");
         return;
       }
 
+      const { explicitName, slugWasValid, rawName } = parsed;
       if (!explicitName) {
-        if (pendingSlugSelectionByCwd.has(ctx.cwd)) {
-          ctx.ui.notify("Refusing repeated unnamed /workflow while slug selection is pending. The generated follow-up must use: /workflow --name <slug> -- <description>", "warning");
-          return;
-        }
-        sendSlugSelection(pi, ctx.cwd, request);
-        return;
+        ctx.ui.notify(`Inferred workflow slug '${planName}' from request. Use /workflow --name <slug> -- <description> to override.`, "info");
       }
-
-      pendingSlugSelectionByCwd.delete(ctx.cwd);
-      if (!slugWasValid) {
+      if (explicitName && !slugWasValid) {
         ctx.ui.notify(`Slug '${rawName}' was sanitized to '${planName}'. Use lowercase letters, digits, and hyphens only; max 32 chars; no whitespace, path separators, shell metacharacters, or '..'.`, "warning");
       }
 
@@ -230,7 +280,7 @@ export default function workflowExtension(pi: ExtensionAPI) {
 
       const workflow = createWorkflow(ctx.cwd, request, planName);
       ctx.ui.notify(`Created user-local workflow (${planName}): ${workflow.dir}`, "info");
-      pi.sendUserMessage(`/skill:workflow-brainstorm\n\n${stageContextGuard("Stage 1 research", ["workflow.research.md", "workflow.md", "workflow.toml for file references only"])}\n\nStart Stage 1 Research for this request. Use and continuously update this workflow bundle:\n${workflowSummary(workflow)}\n\nThe concise workflow slug is: ${planName}.\n\nRequest:\n${request}\n\nInterview me aggressively when needed, but first inspect code directly for anything you can answer yourself. Do not implement code yet. Record the complete Complexity / Route Recommendation and stop with a confirmation-oriented handoff.`);
+      sendStageOnePrompt(pi, workflow, planName, request);
     },
   });
 

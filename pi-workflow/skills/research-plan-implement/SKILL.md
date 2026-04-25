@@ -1,11 +1,11 @@
 ---
 name: research-plan-implement
-description: Compatibility overview for Pi's staged workflow. For a new raw request, prefer workflow-start or /workflow <request>; both converge on agent slug selection and explicit /workflow --name creation.
+description: Compatibility overview for Pi's staged workflow. For a new raw request, prefer workflow-start or /workflow <request>; the command infers a concise slug and creates the bundle immediately.
 ---
 
 # Research → Spec/Plan as Needed → Execute
 
-This is the umbrella overview. For a brand-new raw request, prefer `workflow-start` or `/workflow <request>`. Both converge on the same front door: the assistant chooses a concise slug and then routes through `/workflow --name <slug> -- <request>` so paths/worktrees stay short and safe.
+This is the umbrella overview. For a brand-new raw request, prefer `workflow-start` or `/workflow <request>`. The `/workflow` command infers a concise slug and creates/resumes the bundle immediately so paths/worktrees stay short and safe. Use `/workflow --name <slug> -- <request>` only when overriding the inferred slug.
 
 The workflow is split into focused files, following the Multiverse-style separation of readable artifacts from execution state:
 
@@ -37,8 +37,8 @@ Workflow bundles live user-locally under `~/.pi/agent/workflows/<project>/...` a
 Commands:
 
 ```text
-/workflow <description>                  # front door; assistant chooses slug
-/workflow --name <slug> -- <description> # terminal bundle creation with validated slug
+/workflow <description>                  # front door; command infers slug
+/workflow --name <slug> -- <description> # explicit validated slug override
 /workflow-spec [workflow-dir|workflow.toml]
 /workflow-plan [workflow-dir|workflow.toml]
 /workflow-execute [workflow-dir|workflow.toml|workflow.plan.md|workflow.research.md]

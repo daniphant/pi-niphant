@@ -18,14 +18,14 @@ function assertMatches(file, pattern, label = String(pattern)) {
 
 // Command routing smoke checks.
 assertIncludes("index.ts", 'pi.registerCommand("workflow"', "workflow command registration");
-assertIncludes("index.ts", "sendSlugSelection", "unnamed /workflow slug-selection routing");
-assertIncludes("index.ts", "pendingSlugSelectionByCwd", "recursion guard state");
-assertIncludes("index.ts", "/workflow --name <slug> --", "explicit generated follow-up");
+assertIncludes("index.ts", "inferWorkflowSlug", "unnamed /workflow auto slug inference");
+assertIncludes("index.ts", "Inferred workflow slug", "unnamed /workflow frictionless slug notification");
+assertIncludes("index.ts", "/workflow --name <slug> --", "explicit slug override usage");
 assertIncludes("index.ts", 'pi.registerCommand("workflow-execute"', "workflow-execute command registration");
 assertIncludes("index.ts", 'pi.registerCommand("workflow-implement"', "workflow-implement alias registration");
 assertIncludes("index.ts", "Deprecated alias for /workflow-execute", "deprecated implement description");
 assertMatches("index.ts", /\^\[a-z0-9\]\(\?:\[a-z0-9-\]\{0,30\}\[a-z0-9\]\)\?\$/, "strict slug validation regex");
-assertIncludes("index.ts", "Refusing repeated unnamed /workflow", "repeated unnamed refusal");
+assertIncludes("index.ts", "sendStageOnePrompt", "direct Stage 1 start after bundle creation");
 assertIncludes("index.ts", "Browser review: skipped_for_trivial", "trivial execution marker checks");
 assertIncludes("index.ts", "stageContextGuard", "generated prompt context hygiene helper");
 assertIncludes("index.ts", "Do not read unrelated SKILL.md files", "generated prompt unrelated skill guard");
