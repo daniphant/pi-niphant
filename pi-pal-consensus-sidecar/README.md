@@ -4,6 +4,8 @@ Local HTTP/SSE dashboard sidecar that drives [PAL MCP](https://github.com/Beehiv
 
 It gives Pi a browser dashboard for plan-file consensus reviews without replacing PAL's provider/model routing.
 
+See [`ROADMAP.md`](./ROADMAP.md) for the milestone plan.
+
 ## What it does
 
 - starts a local HTTP server
