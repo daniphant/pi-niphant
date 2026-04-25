@@ -3,9 +3,9 @@ import { Type } from "@sinclair/typebox";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
@@ -57,7 +57,7 @@ interface CompactFinding {
 
 interface RunState {
   id: string;
-  status: "queued" | "running" | "complete" | "failed";
+  status: "queued" | "running" | "complete" | "failed" | "cancelled";
   startedAt: string;
   completedAt?: string;
   planFile: string;
@@ -76,12 +76,15 @@ interface SidecarState {
   runs: Map<string, RunState>;
   clients: Map<string, Set<ServerResponse>>;
   activePalClients: Set<Client>;
+  runClosers: Map<string, () => Promise<void>>;
+  cancelledRuns: Set<string>;
+  csrfToken: string;
 }
 
 const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));
 const STATE_KEY = Symbol.for("pi-pal-consensus-sidecar.state");
 const globalWithState = globalThis as typeof globalThis & { [STATE_KEY]?: SidecarState };
-const state: SidecarState = globalWithState[STATE_KEY] ?? { cwd: process.cwd(), runs: new Map(), clients: new Map(), activePalClients: new Set() };
+const state: SidecarState = globalWithState[STATE_KEY] ?? { cwd: process.cwd(), runs: new Map(), clients: new Map(), activePalClients: new Set(), runClosers: new Map(), cancelledRuns: new Set(), csrfToken: randomUUID() };
 globalWithState[STATE_KEY] = state;
 
 function splitShellish(input: string): string[] {
@@ -153,21 +156,86 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
   return text ? JSON.parse(text) : {};
 }
 
+function isAllowedHost(value: string | undefined): boolean {
+  if (!value) return true;
+  const host = value.split(":")[0]?.toLowerCase();
+  return host === "127.0.0.1" || host === "localhost" || host === "[::1]" || host === "::1";
+}
+
+function isAllowedOrigin(value: string | undefined): boolean {
+  if (!value) return true;
+  try {
+    const url = new URL(value);
+    return isAllowedHost(url.host);
+  } catch {
+    return false;
+  }
+}
+
+function requestToken(req: IncomingMessage, url: URL): string | undefined {
+  const header = req.headers["x-pal-sidecar-token"];
+  return (Array.isArray(header) ? header[0] : header) || url.searchParams.get("token") || undefined;
+}
+
+function requireCsrf(req: IncomingMessage, url: URL) {
+  if (requestToken(req, url) !== state.csrfToken) throw new Error("Invalid or missing sidecar CSRF token.");
+}
+
+function assertLocalRequest(req: IncomingMessage) {
+  if (!isAllowedHost(req.headers.host)) throw new Error("Rejected non-local Host header.");
+  const origin = Array.isArray(req.headers.origin) ? req.headers.origin[0] : req.headers.origin;
+  if (!isAllowedOrigin(origin)) throw new Error("Rejected non-local Origin header.");
+}
+
+function sanitizeId(value: string, fallback: string): string {
+  const cleaned = value.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48);
+  return cleaned || fallback;
+}
+
 function normalizeReviewer(input: Partial<ReviewerConfig>, index: number): ReviewerConfig {
-  const id = String(input.id || input.label || `reviewer-${index + 1}`).toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
+  const id = sanitizeId(String(input.id || input.label || `reviewer-${index + 1}`), `reviewer-${index + 1}`);
   return {
     id,
-    label: String(input.label || input.id || `Reviewer ${index + 1}`),
-    model: String(input.model || "pro"),
+    label: String(input.label || input.id || `Reviewer ${index + 1}`).slice(0, 96),
+    model: String(input.model || "flash").slice(0, 128),
     stance: input.stance || "neutral",
-    prompt: String(input.prompt || "Review the plan for correctness, risks, and actionable improvements."),
+    prompt: String(input.prompt || "Review the plan for correctness, risks, and actionable improvements.").slice(0, 4000),
   };
 }
 
-function validateRunRequest(raw: unknown, cwd: string): RunRequest {
+function splitCsv(value?: string): string[] {
+  return (value ?? "").split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+async function allowedPlanRoots(cwd: string): Promise<string[]> {
+  const candidates = [cwd, join(homedir(), ".pi"), ...splitCsv(process.env.PAL_SIDECAR_ALLOWED_ROOTS)].map((item) => resolve(item));
+  const roots: string[] = [];
+  for (const candidate of candidates) {
+    if (!existsSync(candidate)) continue;
+    roots.push(await realpath(candidate));
+  }
+  return Array.from(new Set(roots));
+}
+
+function isPathInside(file: string, root: string): boolean {
+  return file === root || file.startsWith(root.endsWith(sep) ? root : `${root}${sep}`);
+}
+
+async function validatePlanFile(path: string, cwd: string): Promise<string> {
+  const resolved = resolve(cwd, path);
+  if (!existsSync(resolved)) throw new Error(`Plan file not found: ${path || "(empty)"}`);
+  const realFile = await realpath(resolved);
+  const roots = await allowedPlanRoots(cwd);
+  if (!roots.some((root) => isPathInside(realFile, root))) {
+    throw new Error(`Plan file must be inside a trusted root (${roots.join(", ")}). Add roots with PAL_SIDECAR_ALLOWED_ROOTS.`);
+  }
+  return realFile;
+}
+
+async function validateRunRequest(raw: unknown, cwd: string): Promise<RunRequest> {
   const obj = (raw ?? {}) as Record<string, unknown>;
-  const planFile = resolve(cwd, String(obj.planFile || ""));
-  if (!obj.planFile || !existsSync(planFile)) throw new Error(`Plan file not found: ${obj.planFile || "(empty)"}`);
+  if (!obj.planFile) throw new Error("Plan file is required.");
+  const planFile = await validatePlanFile(String(obj.planFile), cwd);
   const reviewers = Array.isArray(obj.reviewers) ? obj.reviewers.map((r, i) => normalizeReviewer(r as Partial<ReviewerConfig>, i)) : [];
   if (reviewers.length < 2) throw new Error("PAL consensus requires at least two reviewers/models.");
   const requestedMin = Number(obj.minSuccessfulReviewers ?? Math.min(2, reviewers.length));
@@ -179,6 +247,10 @@ function validateRunRequest(raw: unknown, cwd: string): RunRequest {
     palArgs: Array.isArray(obj.palArgs) ? obj.palArgs.map(String) : undefined,
     minSuccessfulReviewers: Number.isFinite(requestedMin) && requestedMin > 0 ? Math.min(Math.floor(requestedMin), reviewers.length) : Math.min(2, reviewers.length),
   };
+}
+
+function assertNotCancelled(run: RunState) {
+  if (state.cancelledRuns.has(run.id)) throw new Error("Run cancelled.");
 }
 
 function addEvent(run: RunState, type: string, data: Record<string, unknown> = {}) {
@@ -352,9 +424,14 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
     void writeFile(stderrPath, text, { flag: "a" }).catch(() => undefined);
   });
   state.activePalClients.add(client);
+  state.runClosers.set(run.id, async () => {
+    state.cancelledRuns.add(run.id);
+    await client.close();
+  });
   await client.connect(transport);
 
   try {
+    assertNotCancelled(run);
     const tools = await client.listTools();
     const toolNames = (tools.tools ?? []).map((tool: any) => tool.name);
     addEvent(run, "pal_connected", { tools: toolNames });
@@ -379,6 +456,7 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
     let successfulReviewers = 0;
 
     for (let i = 0; i < req.reviewers.length; i++) {
+      assertNotCancelled(run);
       const reviewer = req.reviewers[i];
       addEvent(run, "reviewer_started", { reviewer: reviewer.id, label: reviewer.label, model: reviewer.model });
       const args: Record<string, unknown> = {
@@ -393,6 +471,7 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
       if (i === 0) args.models = models;
 
       const result = await client.callTool({ name: "consensus", arguments: args });
+      assertNotCancelled(run);
       const text = textFromToolResult(result);
       const parsed = safeJson(text);
       rawResponses.push(parsed ?? { text });
@@ -428,6 +507,7 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
       throw new Error(`Only ${successfulReviewers}/${req.reviewers.length} reviewers succeeded; required ${req.minSuccessfulReviewers}. Check reviewer artifacts and pal-stderr.log.`);
     }
   } finally {
+    state.runClosers.delete(run.id);
     state.activePalClients.delete(client);
     await client.close();
   }
@@ -436,8 +516,9 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
 async function startRun(req: RunRequest, cwd: string): Promise<RunState> {
   const runId = `pal-${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`;
   const artifactRoot = resolve(cwd, req.artifactRoot ?? join(".pi", "pal-consensus-runs"));
-  const artifactDir = join(artifactRoot, runId);
-  await mkdir(artifactDir, { recursive: true });
+  await mkdir(artifactRoot, { recursive: true, mode: 0o700 });
+  const artifactDir = await mkdtemp(join(artifactRoot, `${runId}-`));
+  await chmod(artifactDir, 0o700);
   const run: RunState = {
     id: runId,
     status: "queued",
@@ -449,20 +530,31 @@ async function startRun(req: RunRequest, cwd: string): Promise<RunState> {
     rawArtifacts: [],
   };
   state.runs.set(runId, run);
+  state.cancelledRuns.delete(runId);
   addEvent(run, "run_queued", { runId, artifactDir, planFile: req.planFile });
   void (async () => {
+    const timeoutMs = Number(process.env.PAL_SIDECAR_RUN_TIMEOUT_MS || 10 * 60_000);
+    const timeout = setTimeout(() => {
+      state.cancelledRuns.add(runId);
+      addEvent(run, "run_timeout", { runId, timeoutMs });
+      void state.runClosers.get(runId)?.();
+    }, timeoutMs);
     try {
       run.status = "running";
-      addEvent(run, "run_started", { runId });
+      addEvent(run, "run_started", { runId, timeoutMs });
       await callPalConsensus(run, req);
       run.status = "complete";
       run.completedAt = new Date().toISOString();
       addEvent(run, "run_completed", { runId, findingsPath: run.findingsPath });
     } catch (error) {
-      run.status = "failed";
+      run.status = state.cancelledRuns.has(runId) ? "cancelled" : "failed";
       run.completedAt = new Date().toISOString();
       run.error = error instanceof Error ? error.message : String(error);
-      addEvent(run, "run_failed", { runId, error: run.error });
+      addEvent(run, run.status === "cancelled" ? "run_cancelled" : "run_failed", { runId, error: run.error });
+    } finally {
+      clearTimeout(timeout);
+      state.cancelledRuns.delete(runId);
+      state.runClosers.delete(runId);
     }
   })();
   return run;
@@ -501,14 +593,16 @@ const html = String.raw`<!doctype html>
 </head>
 <body><div class="wrap"><section class="hero"><div class="panel"><div class="kicker">PAL MCP × Local SSE</div><h1>Consensus run room</h1><p class="lede">Submit a markdown plan, assign reviewer roles, and watch PAL MCP consult each model while raw artifacts land on disk.</p><p class="small">Default PAL command comes from <code>PAL_MCP_COMMAND</code>/<code>PAL_MCP_ARGS</code> or uvx.</p></div><form id="form" class="panel"><label>Plan file path</label><input id="planFile" placeholder="/tmp/pal-test-plan.md" required /><div id="reviewers"></div><div class="btns"><button type="button" class="secondary" id="addReviewer">Add reviewer</button><button type="submit">Start PAL run</button></div></form></section><section class="runs"><div><h2>Runs</h2><div id="runList" class="run-list"></div></div><div><h2>Event stream</h2><div id="events" class="events">No run selected.</div></div></section></div><script>
 const reviewersEl=document.getElementById('reviewers'), runList=document.getElementById('runList'), eventsEl=document.getElementById('events');
-const defaults=[['security','Security Reviewer','o3','Focus on abuse cases, key handling, prompt injection, local server exposure.'],['architecture','Architecture Reviewer','pro','Focus on clean boundaries, implementation complexity, and OpenCode Zen/Go compatibility.'],['budget','Cost Reviewer','flash','Focus on model-call count, token budget, OpenRouter cost risk, and ways to cap spend.']];
+const CSRF='__CSRF_TOKEN__';
+const defaults=[['security','Security Reviewer','o3','Focus on abuse cases, key handling, prompt injection, local server exposure.'],['architecture','Architecture Reviewer','flash','Focus on clean boundaries, implementation complexity, and OpenCode Zen/Go compatibility.'],['budget','Cost Reviewer','flash','Focus on model-call count, token budget, OpenRouter cost risk, and ways to cap spend.']];
 let reviewerCount=0, selectedRun=null, sources={};
-function addReviewer(d){const i=reviewerCount++; const v=d||['reviewer-'+i,'Reviewer '+(i+1),'pro','Review for correctness and risks.']; const div=document.createElement('div'); div.className='reviewer'; div.innerHTML='<div class="grid"><div><label>ID</label><input name="id" value="'+v[0]+'"></div><div><label>Label</label><input name="label" value="'+v[1]+'"></div><div><label>PAL model</label><input name="model" value="'+v[2]+'"></div></div><label>Role prompt</label><textarea name="prompt">'+v[3]+'</textarea>'; reviewersEl.appendChild(div)}
+function addReviewer(d){const i=reviewerCount++; const v=d||['reviewer-'+i,'Reviewer '+(i+1),'flash','Review for correctness and risks.']; const div=document.createElement('div'); div.className='reviewer'; div.innerHTML='<div class="grid"><div><label>ID</label><input name="id" value="'+v[0]+'"></div><div><label>Label</label><input name="label" value="'+v[1]+'"></div><div><label>PAL model</label><input name="model" value="'+v[2]+'"></div></div><label>Role prompt</label><textarea name="prompt">'+v[3]+'</textarea>'; reviewersEl.appendChild(div)}
 defaults.forEach(addReviewer); document.getElementById('addReviewer').onclick=()=>addReviewer();
 function collectReviewers(){return [...document.querySelectorAll('.reviewer')].map(r=>({id:r.querySelector('[name=id]').value,label:r.querySelector('[name=label]').value,model:r.querySelector('[name=model]').value,stance:'neutral',prompt:r.querySelector('[name=prompt]').value}))}
-document.getElementById('form').onsubmit=async e=>{e.preventDefault(); const reviewers=collectReviewers(); const body={planFile:document.getElementById('planFile').value,reviewers,minSuccessfulReviewers:Math.min(2,reviewers.length)}; const res=await fetch('/api/runs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}); const json=await res.json(); if(!res.ok){alert(json.error||'failed');return} await refreshRuns(); selectRun(json.run.id)};
-async function refreshRuns(){const res=await fetch('/api/runs'); const data=await res.json(); runList.innerHTML=''; data.runs.forEach(run=>{const div=document.createElement('div'); div.className='run-card '+(run.id===selectedRun?'active':''); div.onclick=()=>selectRun(run.id); div.innerHTML='<span class="status '+run.status+'">'+run.status+'</span><h3>'+run.id+'</h3><div class="small path">'+run.artifactDir+'</div>'; runList.appendChild(div)})}
-function selectRun(id){selectedRun=id; refreshRuns(); eventsEl.innerHTML=''; if(sources[id]) sources[id].close(); const es=new EventSource('/api/runs/'+id+'/events'); sources[id]=es; ['run_queued','run_started','pal_starting','pal_connected','reviewer_started','reviewer_completed','reviewer_failed','synthesis_completed','synthesis_skipped','run_completed','run_failed'].forEach(t=>es.addEventListener(t,e=>append(t,JSON.parse(e.data))));}
+document.getElementById('form').onsubmit=async e=>{e.preventDefault(); const reviewers=collectReviewers(); const body={planFile:document.getElementById('planFile').value,reviewers,minSuccessfulReviewers:Math.min(2,reviewers.length)}; const res=await fetch('/api/runs',{method:'POST',headers:{'content-type':'application/json','x-pal-sidecar-token':CSRF},body:JSON.stringify(body)}); const json=await res.json(); if(!res.ok){alert(json.error||'failed');return} await refreshRuns(); selectRun(json.run.id)};
+async function refreshRuns(){const res=await fetch('/api/runs'); const data=await res.json(); runList.innerHTML=''; data.runs.forEach(run=>{const div=document.createElement('div'); div.className='run-card '+(run.id===selectedRun?'active':''); div.onclick=()=>selectRun(run.id); div.innerHTML='<span class="status '+run.status+'">'+run.status+'</span><h3>'+run.id+'</h3><div class="small path">'+run.artifactDir+'</div>'+(run.status==='running'?'<button onclick="event.stopPropagation();cancelRun(\''+run.id+'\')">Cancel</button>':''); runList.appendChild(div)})}
+async function cancelRun(id){await fetch('/api/runs/'+id+'/cancel',{method:'POST',headers:{'x-pal-sidecar-token':CSRF}}); await refreshRuns()}
+function selectRun(id){selectedRun=id; refreshRuns(); eventsEl.innerHTML=''; if(sources[id]) sources[id].close(); const es=new EventSource('/api/runs/'+id+'/events?token='+encodeURIComponent(CSRF)); sources[id]=es; ['run_queued','run_started','pal_starting','pal_connected','reviewer_started','reviewer_completed','reviewer_failed','synthesis_completed','synthesis_skipped','run_completed','run_failed','run_timeout','run_cancelled'].forEach(t=>es.addEventListener(t,e=>append(t,JSON.parse(e.data))));}
 function append(type,data){const div=document.createElement('div'); div.className='event'; div.innerHTML='<b>'+type+'</b> <span class="small">'+(data.at||'')+'</span><br><span class="path">'+escapeHtml(JSON.stringify(data,null,2))+'</span>'; eventsEl.appendChild(div); eventsEl.scrollTop=eventsEl.scrollHeight; refreshRuns();}
 function escapeHtml(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
 refreshRuns(); setInterval(refreshRuns,5000);
@@ -516,10 +610,11 @@ refreshRuns(); setInterval(refreshRuns,5000);
 
 async function handle(req: IncomingMessage, res: ServerResponse) {
   try {
+    assertLocalRequest(req);
     const url = new URL(req.url || "/", `http://${req.headers.host || "127.0.0.1"}`);
     if (req.method === "GET" && url.pathname === "/") {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-      res.end(html);
+      res.end(html.replace(/__CSRF_TOKEN__/g, state.csrfToken));
       return;
     }
     if (req.method === "GET" && url.pathname === "/api/health") return json(res, 200, { ok: true, port: state.port });
@@ -527,16 +622,28 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       return json(res, 200, { runs: [...state.runs.values()].map((r) => ({ id: r.id, status: r.status, startedAt: r.startedAt, completedAt: r.completedAt, planFile: r.planFile, artifactDir: r.artifactDir, error: r.error, findingsPath: r.findingsPath })) });
     }
     if (req.method === "POST" && url.pathname === "/api/runs") {
-      const runReq = validateRunRequest(await readBody(req), state.cwd);
+      requireCsrf(req, url);
+      const runReq = await validateRunRequest(await readBody(req), state.cwd);
       const run = await startRun(runReq, state.cwd);
       return json(res, 202, { run });
     }
     const eventsMatch = url.pathname.match(/^\/api\/runs\/([^/]+)\/events$/);
     if (req.method === "GET" && eventsMatch) {
+      requireCsrf(req, url);
       const run = state.runs.get(eventsMatch[1]);
       if (!run) return json(res, 404, { error: "run not found" });
       serveEvents(run, res);
       return;
+    }
+    const cancelMatch = url.pathname.match(/^\/api\/runs\/([^/]+)\/cancel$/);
+    if (req.method === "POST" && cancelMatch) {
+      requireCsrf(req, url);
+      const run = state.runs.get(cancelMatch[1]);
+      if (!run) return json(res, 404, { error: "run not found" });
+      state.cancelledRuns.add(run.id);
+      await state.runClosers.get(run.id)?.();
+      addEvent(run, "run_cancel_requested", { runId: run.id });
+      return json(res, 202, { ok: true, runId: run.id });
     }
     const runMatch = url.pathname.match(/^\/api\/runs\/([^/]+)$/);
     if (req.method === "GET" && runMatch) {
@@ -555,6 +662,8 @@ async function stopServer(): Promise<void> {
     for (const res of clients) res.end();
   }
   state.clients.clear();
+  await Promise.allSettled([...state.runClosers.values()].map((close) => close()));
+  state.runClosers.clear();
   await Promise.allSettled([...state.activePalClients].map((client) => client.close()));
   state.activePalClients.clear();
   if (state.server) {

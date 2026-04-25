@@ -9,6 +9,8 @@ It gives Pi a browser dashboard for plan-file consensus reviews without replacin
 - starts a local HTTP server
 - serves a dashboard at `http://127.0.0.1:<port>`
 - accepts a markdown plan file plus reviewer roles
+- restricts plan files to trusted roots (`cwd`, `~/.pi`, and `PAL_SIDECAR_ALLOWED_ROOTS`)
+- protects local POST/SSE endpoints with a per-sidecar CSRF token and localhost Host/Origin checks
 - launches PAL MCP as a stdio subprocess using the MCP SDK
 - calls PAL's `consensus` tool step-by-step
 - streams reviewer status over SSE
@@ -41,6 +43,12 @@ start_pal_consensus_sidecar({ port: 8787 })
 
 Then open the returned dashboard URL.
 
+Plan files are allowed from the current project, `~/.pi`, and optional extra roots:
+
+```bash
+export PAL_SIDECAR_ALLOWED_ROOTS="$HOME/Projects/plans,$HOME/Documents/plans"
+```
+
 ## PAL configuration
 
 By default the sidecar launches PAL with:
@@ -57,6 +65,8 @@ export PAL_MCP_COMMAND=uvx
 export PAL_MCP_ARGS="--from git+https://github.com/BeehiveInnovations/pal-mcp-server.git pal-mcp-server"
 # Optional: run PAL from a local checkout so its repo-local .env is visible.
 export PAL_MCP_CWD="$HOME/src/pal-mcp-server"
+# Optional: cancel long runs automatically after this many milliseconds (default 10 minutes).
+export PAL_SIDECAR_RUN_TIMEOUT_MS=600000
 ```
 
 The sidecar also loads provider keys from these files when the Pi process did not inherit shell exports:
@@ -77,7 +87,7 @@ Example:
 printf 'OPENROUTER_API_KEY=%s\n' 'sk-or-v1-...' > pi-pal-consensus-sidecar/.env
 ```
 
-Artifacts are written to `.pi/pal-consensus-runs/<run-id>/` by default.
+Artifacts are written to `.pi/pal-consensus-runs/<run-id>/` by default. Run directories are created with `mkdtemp` and chmod `0700`.
 
 `findings.json` is normalized deterministically from reviewer Markdown. It contains:
 
@@ -89,3 +99,10 @@ Artifacts are written to `.pi/pal-consensus-runs/<run-id>/` by default.
 - raw artifact paths and PAL response payloads
 
 PAL subprocess stderr is captured to `.pi/pal-consensus-runs/<run-id>/pal-stderr.log` so PAL logs do not corrupt the Pi TUI.
+
+## Safety notes
+
+- The HTTP server binds to `127.0.0.1` only.
+- Requests with non-local `Host` or `Origin` headers are rejected.
+- `POST /api/runs`, `POST /api/runs/:id/cancel`, and run SSE streams require the dashboard-injected CSRF token.
+- The dashboard includes a Cancel button for running jobs; timeout cancellation is controlled by `PAL_SIDECAR_RUN_TIMEOUT_MS`.
