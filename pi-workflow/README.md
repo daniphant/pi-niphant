@@ -16,7 +16,7 @@ A durable Research → Spec → Implementation Plan → Implement workflow for [
   - `workflow-plan`
   - `workflow-implement`
 - browser annotation review UI for specs/plans
-- automatic consensus-review before user/browser review for spec and implementation-plan stages
+- automatic PAL sidecar consensus-review before user/browser review for spec and implementation-plan stages
 - split research/spec/plan Markdown artifacts that survive `/clear`
 - TOML execution state for task progress, dependencies, timestamps, errors, and commits
 - task graph with dependencies, blockers, validation, rollback, and parallel-safe groups
@@ -105,7 +105,7 @@ The assistant writes a product/engineering spec with scope posture:
 - Selective Expansion
 - Expansion
 
-The spec stage should run multi-model consensus first, apply required changes, and then ask for browser/user annotation review before the spec is considered finalized.
+The spec stage should run PAL sidecar multi-model consensus first, record the run id, artifact directory, findings path, recommendation, warnings, and failed reviewers in `## Consensus Feedback`, apply required changes, and then ask for browser/user annotation review before the spec is considered finalized.
 
 ### Stage 3 — Implementation Plan
 
@@ -118,7 +118,7 @@ The assistant creates a task graph an implementer can follow without guessing:
 - rollback plan
 - risks and assumptions
 
-The plan should guide implementation, not dump huge code blocks.
+The plan should guide implementation, not dump huge code blocks. Before browser/user annotation review, the plan stage should run PAL sidecar consensus and record the run id, artifact directory, findings path, recommendation, warnings, failed reviewers, and required revisions in `## Consensus Feedback`.
 
 ### Stage 4 — Implement
 

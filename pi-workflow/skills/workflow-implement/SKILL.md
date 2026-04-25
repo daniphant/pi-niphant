@@ -79,3 +79,16 @@ error = ""
 ## Post-execution review
 
 If user asks for final consensus or independent review, use `run_pal_consensus_review` on a frozen diff/summary. Do not ask reviewers to explore the repo; pass the exact frozen context as `planText` or a reviewed artifact as `planFile`.
+
+When PAL sidecar review is run, summarize:
+
+- `run_id`
+- `artifactDir`
+- `findingsPath`
+- `recommendation`
+- reviewer success count
+- warnings
+- failed reviewers
+- required follow-up changes
+
+If the sidecar returns structured errors or insufficient successful reviewers, report that explicitly and do not claim independent review passed.

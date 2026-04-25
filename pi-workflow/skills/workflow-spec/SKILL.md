@@ -52,7 +52,18 @@ run_pal_consensus_review({
 })
 ```
 
-Use the returned `findings.json` and reviewer artifacts. Apply all required changes to `workflow.spec.md`. Summarize consensus feedback in `## Consensus Feedback` without adding gate/state checkboxes.
+Use the returned PAL sidecar details, especially `details.findings` when available. Record the sidecar evidence in `## Consensus Feedback` with:
+
+- `run_id`
+- `artifactDir`
+- `findingsPath`
+- `recommendation`
+- reviewer success count
+- warnings
+- failed reviewers
+- concise required revisions
+
+If `recommendation` is `revise`, update `workflow.spec.md` before browser review. If the run status is failed, partial below threshold, or structured errors indicate missing provider/model/tool issues, stop and report the sidecar error instead of proceeding as if consensus passed. Do not add gate/state checkboxes, and do not store consensus state in `workflow.toml`.
 
 ## Automatic browser annotation / user review
 

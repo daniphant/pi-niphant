@@ -1417,12 +1417,24 @@ export default function palConsensusSidecarExtension(pi: ExtensionAPI) {
       if (finalRun.findingsPath && existsSync(finalRun.findingsPath)) {
         findings = JSON.parse(await readFile(finalRun.findingsPath, "utf8"));
       }
+      const findingsRecord = findings && typeof findings === "object" ? findings as Record<string, any> : undefined;
+      const findingCount = Array.isArray(findingsRecord?.findings) ? findingsRecord.findings.length : undefined;
+      const failedReviewerCount = Array.isArray(findingsRecord?.failed_reviewers) ? findingsRecord.failed_reviewers.length : undefined;
+      const warningCount = Array.isArray(finalRun.warnings) ? finalRun.warnings.length : 0;
+      const successfulReviewers = findingsRecord?.successful_reviewers;
+      const totalReviewers = finalRun.reviewers.length;
       const summary = [
         `PAL consensus run ${finalRun.status}: ${finalRun.id}`,
+        `Recommendation: ${findingsRecord?.recommendation ?? "unavailable"}`,
+        `Reviewer success: ${successfulReviewers ?? "?"}/${totalReviewers}`,
+        `Findings: ${findingCount ?? "unavailable"}`,
+        `Warnings: ${warningCount}`,
+        `Failed reviewers: ${failedReviewerCount ?? "unavailable"}`,
         `Plan: ${finalRun.planFile}`,
         `Stack: ${runReq.stackId ?? "custom"}${runReq.stackCostTier ? ` (${runReq.stackCostTier})` : ""}`,
         `Artifacts: ${finalRun.artifactDir}`,
-        finalRun.findingsPath ? `Findings: ${finalRun.findingsPath}` : undefined,
+        finalRun.findingsPath ? `Findings path: ${finalRun.findingsPath}` : undefined,
+        finalRun.structuredError ? `Structured error: ${finalRun.structuredError.code} (retryable=${finalRun.structuredError.retryable})` : undefined,
         finalRun.error ? `Error: ${finalRun.error}` : undefined,
       ].filter(Boolean).join("\n");
       return { content: [{ type: "text", text: summary }], details: { run: finalRun, findings } };
