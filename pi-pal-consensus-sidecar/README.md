@@ -28,6 +28,12 @@ npm install
 npm run check --workspace pi-pal-consensus-sidecar
 ```
 
+`check` typechecks the sidecar and builds the Vite dashboard into:
+
+```text
+pi-pal-consensus-sidecar/dashboard-build/
+```
+
 Symlink/install extensions with the repo install script, then `/reload` in Pi.
 
 ## Usage
@@ -67,6 +73,24 @@ run_pal_consensus_review({
 ```
 
 The direct tool uses the same sidecar engine, PAL MCP subprocess, config validation, trusted roots, artifacts, and deterministic `findings.json` as the dashboard.
+
+## Dashboard frontend
+
+The dashboard is a Vite + React + TypeScript static app served by the sidecar. Runtime API behavior remains under `/api/*`; the frontend has no direct PAL/provider access.
+
+Important safety properties:
+
+- built assets are served only from `dashboard-build`
+- static paths are resolved and checked against the dashboard asset root
+- dashboard responses include a strict CSP
+- no external CDN/runtime assets are required
+- legacy inline dashboard fallback is temporarily available with:
+
+```bash
+export PAL_SIDECAR_LEGACY_DASHBOARD=1
+```
+
+Use the fallback only for rollback/debugging while the framework migration stabilizes.
 
 ## Reviewer model configuration
 

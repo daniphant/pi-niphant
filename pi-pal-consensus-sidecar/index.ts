@@ -114,6 +114,7 @@ interface SidecarState {
 }
 
 const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));
+const DASHBOARD_DIR = resolve(EXTENSION_DIR, "dashboard-build");
 const STATE_KEY = Symbol.for("pi-pal-consensus-sidecar.state");
 const globalWithState = globalThis as typeof globalThis & { [STATE_KEY]?: SidecarState };
 const state: SidecarState = globalWithState[STATE_KEY] ?? { cwd: process.cwd(), runs: new Map(), clients: new Map(), activePalClients: new Set(), runClosers: new Map(), cancelledRuns: new Set(), csrfToken: randomUUID() };
@@ -334,6 +335,35 @@ async function loadSidecarConfig(cwd: string): Promise<SidecarConfig> {
 function json(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
   res.end(JSON.stringify(body, null, 2));
+}
+
+const dashboardCsp = "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+
+function contentType(path: string): string {
+  if (path.endsWith(".html")) return "text/html; charset=utf-8";
+  if (path.endsWith(".js")) return "text/javascript; charset=utf-8";
+  if (path.endsWith(".css")) return "text/css; charset=utf-8";
+  if (path.endsWith(".svg")) return "image/svg+xml";
+  if (path.endsWith(".png")) return "image/png";
+  if (path.endsWith(".ico")) return "image/x-icon";
+  if (path.endsWith(".json")) return "application/json; charset=utf-8";
+  return "application/octet-stream";
+}
+
+async function serveDashboardAsset(urlPath: string, res: ServerResponse, csrfToken: string): Promise<boolean> {
+  const relative = urlPath === "/" ? "index.html" : decodeURIComponent(urlPath.replace(/^\/+/, ""));
+  const candidate = resolve(DASHBOARD_DIR, relative);
+  if (!isPathInside(candidate, DASHBOARD_DIR) || !existsSync(candidate)) return false;
+  const bytes = await readFile(candidate);
+  res.writeHead(200, {
+    "content-type": contentType(candidate),
+    "cache-control": candidate.endsWith("index.html") ? "no-store" : "public, max-age=31536000, immutable",
+    "content-security-policy": dashboardCsp,
+    "x-content-type-options": "nosniff",
+    "set-cookie": `pal_sidecar_token=${encodeURIComponent(csrfToken)}; Path=/; SameSite=Strict`,
+  });
+  res.end(bytes);
+  return true;
 }
 
 async function readBody(req: IncomingMessage): Promise<unknown> {
@@ -943,17 +973,22 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
   try {
     assertLocalRequest(req);
     const url = new URL(req.url || "/", `http://${req.headers.host || "127.0.0.1"}`);
-    if (req.method === "GET" && url.pathname === "/") {
-      const config = await loadSidecarConfig(state.cwd);
-      res.writeHead(200, {
-        "content-type": "text/html; charset=utf-8",
-        "cache-control": "no-store",
-        "set-cookie": `pal_sidecar_token=${encodeURIComponent(state.csrfToken)}; Path=/; SameSite=Strict`,
-      });
-      res.end(html.replace(/__CSRF_TOKEN__/g, state.csrfToken).replace("__SIDECAR_CONFIG__", JSON.stringify(config)));
-      return;
+    if (req.method === "GET" && (url.pathname === "/" || url.pathname.startsWith("/assets/"))) {
+      if (process.env.PAL_SIDECAR_LEGACY_DASHBOARD === "1") {
+        const config = await loadSidecarConfig(state.cwd);
+        res.writeHead(200, {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-store",
+          "set-cookie": `pal_sidecar_token=${encodeURIComponent(state.csrfToken)}; Path=/; SameSite=Strict`,
+        });
+        res.end(html.replace(/__CSRF_TOKEN__/g, state.csrfToken).replace("__SIDECAR_CONFIG__", JSON.stringify(config)));
+        return;
+      }
+      if (await serveDashboardAsset(url.pathname, res, state.csrfToken)) return;
+      return json(res, 500, { error: `Dashboard assets are missing. Run 'npm run build --workspace pi-pal-consensus-sidecar' or set PAL_SIDECAR_LEGACY_DASHBOARD=1 temporarily.` });
     }
     if (req.method === "GET" && url.pathname === "/api/health") return json(res, 200, { ok: true, port: state.port });
+    if (req.method === "GET" && url.pathname === "/api/session") return json(res, 200, { csrfToken: state.csrfToken });
     if (req.method === "GET" && url.pathname === "/api/config") return json(res, 200, await loadSidecarConfig(state.cwd));
     if (req.method === "POST" && url.pathname === "/api/recommend-stack") {
       requireCsrf(req, url);
