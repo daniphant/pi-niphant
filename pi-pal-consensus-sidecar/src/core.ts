@@ -38,10 +38,35 @@ export interface ConfigLike {
   stacks: Record<string, StackLike>;
 }
 
+export type ArtifactKind = "findings" | "reviewer_markdown" | "reviewer_json" | "log" | "text" | "unknown";
+
 export const SIDECAR_VERSION = "0.1.0";
 export const FINDINGS_SCHEMA_VERSION = "2026-04-25.1";
 export const FINDINGS_PARSER_VERSION = "deterministic-markdown-v1";
 export const REVIEW_PROMPT_VERSION = "plan-review-v1";
+
+export function artifactKind(name: string): ArtifactKind {
+  if (name === "findings.json") return "findings";
+  if (name === "pal-stderr.log" || name.endsWith(".log")) return "log";
+  if (name.endsWith(".md")) return "reviewer_markdown";
+  if (name.endsWith(".json")) return "reviewer_json";
+  if (name.endsWith(".txt")) return "text";
+  return "unknown";
+}
+
+export function artifactMediaType(name: string): string {
+  if (name.endsWith(".json")) return "application/json; charset=utf-8";
+  if (name.endsWith(".md")) return "text/markdown; charset=utf-8";
+  if (name.endsWith(".log") || name.endsWith(".txt")) return "text/plain; charset=utf-8";
+  return "application/octet-stream";
+}
+
+export function isSafeArtifactName(name: string): boolean {
+  if (!name || name.length > 160) return false;
+  if (name.includes("/") || name.includes("\\") || name.includes("..")) return false;
+  if (name.startsWith(".")) return false;
+  return /\.(json|md|log|txt)$/i.test(name);
+}
 
 export function classifyError(error: unknown, details?: unknown): StructuredError {
   const message = error instanceof Error ? error.message : String(error);

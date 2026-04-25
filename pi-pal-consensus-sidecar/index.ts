@@ -3,13 +3,13 @@ import { Type } from "@sinclair/typebox";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { chmod, mkdir, mkdtemp, readFile, realpath, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, open, readFile, realpath, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { classifyError, collectModelInfos, FINDINGS_PARSER_VERSION, FINDINGS_SCHEMA_VERSION, REVIEW_PROMPT_VERSION, SIDECAR_VERSION, stackAvailability, type PalModelInfo, type StackAvailability, type StructuredError } from "./src/core.js";
+import { artifactKind, artifactMediaType, classifyError, collectModelInfos, FINDINGS_PARSER_VERSION, FINDINGS_SCHEMA_VERSION, isSafeArtifactName, REVIEW_PROMPT_VERSION, SIDECAR_VERSION, stackAvailability, type PalModelInfo, type StackAvailability, type StructuredError } from "./src/core.js";
 
 interface ReviewerConfig {
   id: string;
@@ -266,6 +266,10 @@ function assertConcurrentRunCapacity() {
   const active = activeRunCount();
   const max = maxConcurrentRuns();
   if (active >= max) throw new Error(`Concurrent run limit exceeded: ${active} active run(s), max ${max}. Set PAL_SIDECAR_MAX_CONCURRENT_RUNS to adjust.`);
+}
+
+function maxArtifactReadBytes(): number {
+  return positiveIntEnv("PAL_SIDECAR_MAX_ARTIFACT_READ_BYTES", 1024 * 1024);
 }
 
 async function readJsonFile(path: string): Promise<Record<string, unknown> | undefined> {
@@ -1176,6 +1180,58 @@ async function startRun(req: RunRequest, cwd: string): Promise<RunState> {
   return run;
 }
 
+async function artifactManifest(run: RunState) {
+  const dir = await realpath(run.artifactDir);
+  const entries = await readdir(dir, { withFileTypes: true });
+  const artifacts = [];
+  for (const entry of entries) {
+    if (!entry.isFile() || !isSafeArtifactName(entry.name)) continue;
+    const path = resolve(dir, entry.name);
+    const realFile = await realpath(path).catch(() => undefined);
+    if (!realFile || !isPathInside(realFile, dir)) continue;
+    const info = await stat(realFile);
+    artifacts.push({
+      name: entry.name,
+      path: realFile,
+      kind: artifactKind(entry.name),
+      mediaType: artifactMediaType(entry.name),
+      bytes: info.size,
+      modifiedAt: info.mtime.toISOString(),
+    });
+  }
+  artifacts.sort((a, b) => a.name.localeCompare(b.name));
+  return { runId: run.id, artifactDir: dir, artifacts };
+}
+
+async function readArtifact(run: RunState, name: string) {
+  if (!isSafeArtifactName(name)) throw new Error("Invalid artifact name. Use a file name ending in .json, .md, .log, or .txt with no path separators.");
+  const dir = await realpath(run.artifactDir);
+  const file = resolve(dir, name);
+  const realFile = await realpath(file);
+  if (!isPathInside(realFile, dir)) throw new Error("Artifact path escapes the run artifact directory.");
+  const info = await stat(realFile);
+  if (!info.isFile()) throw new Error("Artifact is not a file.");
+  const maxBytes = maxArtifactReadBytes();
+  const readBytes = Math.min(info.size, maxBytes);
+  const handle = await open(realFile, "r");
+  try {
+    const buffer = Buffer.alloc(readBytes);
+    await handle.read(buffer, 0, readBytes, 0);
+    return {
+      name,
+      path: realFile,
+      kind: artifactKind(name),
+      mediaType: artifactMediaType(name),
+      bytes: info.size,
+      readBytes,
+      truncated: info.size > readBytes,
+      content: buffer.toString("utf8"),
+    };
+  } finally {
+    await handle.close();
+  }
+}
+
 function serveEvents(run: RunState, res: ServerResponse) {
   res.writeHead(200, {
     "content-type": "text/event-stream; charset=utf-8",
@@ -1216,6 +1272,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
         maxRuns: maxRuns(),
         retentionDays: retentionDays(),
         cleanArtifacts: shouldCleanArtifacts(),
+        maxArtifactReadBytes: maxArtifactReadBytes(),
       },
     });
     if (req.method === "GET" && url.pathname === "/api/session") return json(res, 200, { csrfToken: state.csrfToken });
@@ -1238,6 +1295,19 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       const runReq = await validateRunRequest(await readBody(req), state.cwd);
       const run = await startRun(runReq, state.cwd);
       return json(res, 202, { run });
+    }
+    const artifactsMatch = url.pathname.match(/^\/api\/runs\/([^/]+)\/artifacts$/);
+    if (req.method === "GET" && artifactsMatch) {
+      const run = state.runs.get(artifactsMatch[1]);
+      if (!run) return json(res, 404, { error: "run not found" });
+      return json(res, 200, await artifactManifest(run));
+    }
+    const artifactReadMatch = url.pathname.match(/^\/api\/runs\/([^/]+)\/artifacts\/read$/);
+    if (req.method === "GET" && artifactReadMatch) {
+      const run = state.runs.get(artifactReadMatch[1]);
+      if (!run) return json(res, 404, { error: "run not found" });
+      const name = url.searchParams.get("name") || "";
+      return json(res, 200, await readArtifact(run, name));
     }
     const eventsMatch = url.pathname.match(/^\/api\/runs\/([^/]+)\/events$/);
     if (req.method === "GET" && eventsMatch) {

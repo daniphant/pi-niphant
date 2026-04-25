@@ -47,6 +47,24 @@ type Run = {
 
 type EventLine = { type: string; data: Record<string, unknown> };
 
+type Artifact = {
+  name: string;
+  kind: string;
+  mediaType: string;
+  bytes: number;
+  modifiedAt: string;
+};
+
+type ArtifactContent = {
+  name: string;
+  kind: string;
+  mediaType: string;
+  bytes: number;
+  readBytes: number;
+  truncated: boolean;
+  content: string;
+};
+
 const emptyReviewer = (index: number): Reviewer => ({
   id: `reviewer-${index + 1}`,
   label: `Reviewer ${index + 1}`,
@@ -89,6 +107,8 @@ function App() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [selectedRun, setSelectedRun] = useState<string | null>(() => location.hash.replace(/^#run=/, "") || null);
   const [events, setEvents] = useState<EventLine[]>([]);
+  const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [artifactContent, setArtifactContent] = useState<ArtifactContent | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -122,12 +142,16 @@ function App() {
     if (!selectedRun || !sessionToken) return;
     location.hash = `run=${selectedRun}`;
     setEvents([]);
+    setArtifacts([]);
+    setArtifactContent(null);
+    void api<{ artifacts: Artifact[] }>(`/api/runs/${selectedRun}/artifacts`).then((data) => setArtifacts(data.artifacts)).catch(() => undefined);
     const source = new EventSource(`/api/runs/${selectedRun}/events?token=${encodeURIComponent(sessionToken)}`);
     const eventTypes = ["run_queued", "model_availability_warning", "model_discovery_warning", "run_started", "pal_starting", "pal_connected", "reviewer_started", "reviewer_completed", "reviewer_failed", "synthesis_completed", "synthesis_skipped", "run_completed", "run_failed", "run_timeout", "run_cancelled", "run_cancel_requested"];
     for (const type of eventTypes) {
       source.addEventListener(type, (event) => {
         setEvents((current) => [...current, { type, data: JSON.parse((event as MessageEvent).data) }]);
         void refreshRuns();
+        void api<{ artifacts: Artifact[] }>(`/api/runs/${selectedRun}/artifacts`).then((data) => setArtifacts(data.artifacts)).catch(() => undefined);
       });
     }
     source.onerror = () => void refreshRuns();
@@ -173,6 +197,12 @@ function App() {
   async function cancelRun(id: string) {
     await api(`/api/runs/${id}/cancel`, { method: "POST", headers: { "x-pal-sidecar-token": sessionToken } });
     await refreshRuns();
+  }
+
+  async function openArtifact(name: string) {
+    if (!selectedRun) return;
+    const data = await api<ArtifactContent>(`/api/runs/${selectedRun}/artifacts/read?name=${encodeURIComponent(name)}`);
+    setArtifactContent(data);
   }
 
   return <main className="shell">
@@ -244,7 +274,20 @@ function App() {
     </section>
 
     <section className="panel event-panel">
-      <div className="event-head"><h2>Event stream</h2>{activeRun?.findingsPath && <code>{activeRun.findingsPath}</code>}</div>
+      <div className="event-head"><h2>Artifacts</h2>{activeRun?.findingsPath && <code>{activeRun.findingsPath}</code>}</div>
+      <div className="artifact-list">
+        {artifacts.length === 0 ? <p className="hint">No artifacts yet.</p> : artifacts.map((artifact) => <button type="button" className="artifact-chip" key={artifact.name} onClick={() => void openArtifact(artifact.name)}>
+          {artifact.name}<small>{artifact.kind} · {artifact.bytes} bytes</small>
+        </button>)}
+      </div>
+      {artifactContent && <div className="artifact-content">
+        <h3>{artifactContent.name}{artifactContent.truncated ? " · truncated" : ""}</h3>
+        <pre>{artifactContent.content}</pre>
+      </div>}
+    </section>
+
+    <section className="panel event-panel">
+      <div className="event-head"><h2>Event stream</h2></div>
       <div className="events">
         {events.length === 0 ? <p>No run selected.</p> : events.map((event, index) => <div className="event" key={`${event.type}-${index}`}>
           <b>{event.type}</b><pre>{JSON.stringify(event.data, null, 2)}</pre>

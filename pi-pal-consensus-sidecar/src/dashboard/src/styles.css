@@ -71,6 +71,12 @@ button:active { transform: translate(2px,2px); box-shadow: 2px 2px 0 var(--line)
 .event-panel { margin-top: 18px; }
 .event-head { display: flex; gap: 12px; justify-content: space-between; align-items: baseline; flex-wrap: wrap; }
 .event-head code { color: var(--teal); word-break: break-all; }
+.artifact-list { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.artifact-chip { border-radius: 14px; text-transform: none; display: grid; gap: 4px; text-align: left; background: #fff5e4; }
+.artifact-chip small { color: var(--muted); }
+.artifact-content { background: #17120e; color: #f8ead6; border-radius: 20px; border: 2px solid var(--line); padding: 18px; margin-top: 12px; }
+.artifact-content h3 { margin: 0 0 12px; color: #ffd27d; font-family: ui-monospace, monospace; }
+.artifact-content pre { margin: 0; max-height: 620px; overflow: auto; white-space: pre-wrap; word-break: break-word; color: #90e0d6; font: 13px/1.45 ui-monospace, monospace; }
 .events { min-height: 360px; max-height: 620px; overflow: auto; background: #17120e; color: #f8ead6; border-radius: 20px; border: 2px solid var(--line); padding: 18px; font: 13px/1.45 ui-monospace, monospace; }
 .event { border-bottom: 1px solid #4f4034; padding: 10px 0; }
 .event b { color: #ffd27d; }

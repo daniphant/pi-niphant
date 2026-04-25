@@ -1,13 +1,40 @@
 import { describe, expect, it } from "vitest";
 import {
+  artifactKind,
+  artifactMediaType,
   classifyError,
   collectModelInfos,
   FINDINGS_PARSER_VERSION,
   FINDINGS_SCHEMA_VERSION,
   REVIEW_PROMPT_VERSION,
   SIDECAR_VERSION,
+  isSafeArtifactName,
   stackAvailability,
 } from "../src/core.js";
+
+describe("artifact helpers", () => {
+  it("classifies artifact names", () => {
+    expect(artifactKind("findings.json")).toBe("findings");
+    expect(artifactKind("security.md")).toBe("reviewer_markdown");
+    expect(artifactKind("security.json")).toBe("reviewer_json");
+    expect(artifactKind("pal-stderr.log")).toBe("log");
+    expect(artifactKind("notes.txt")).toBe("text");
+  });
+
+  it("validates safe artifact filenames", () => {
+    expect(isSafeArtifactName("findings.json")).toBe(true);
+    expect(isSafeArtifactName("../secret.json")).toBe(false);
+    expect(isSafeArtifactName("nested/file.md")).toBe(false);
+    expect(isSafeArtifactName(".env")).toBe(false);
+    expect(isSafeArtifactName("image.png")).toBe(false);
+  });
+
+  it("returns text media types for known artifact extensions", () => {
+    expect(artifactMediaType("findings.json")).toContain("application/json");
+    expect(artifactMediaType("review.md")).toContain("text/markdown");
+    expect(artifactMediaType("pal-stderr.log")).toContain("text/plain");
+  });
+});
 
 describe("collectModelInfos", () => {
   it("parses model ids from common JSON shapes", () => {

@@ -136,6 +136,41 @@ When the policy is `warn`, unavailable stack models produce run warnings and `mo
 
 Discovery never returns provider environment variables or API keys. Failures are isolated to discovery/model-availability warnings and do not disable normal consensus runs by default.
 
+## Run artifact APIs
+
+Run artifacts are exposed through safe per-run APIs. They only read files inside the selected run's artifact directory and only allow simple artifact file names with known text extensions.
+
+```text
+GET /api/runs/:id/artifacts
+GET /api/runs/:id/artifacts/read?name=findings.json
+```
+
+The manifest endpoint returns file metadata:
+
+```json
+{
+  "runId": "pal-...",
+  "artifactDir": "...",
+  "artifacts": [
+    {
+      "name": "findings.json",
+      "kind": "findings",
+      "mediaType": "application/json; charset=utf-8",
+      "bytes": 12345,
+      "modifiedAt": "..."
+    }
+  ]
+}
+```
+
+The read endpoint returns UTF-8 content and truncates large artifacts:
+
+```bash
+export PAL_SIDECAR_MAX_ARTIFACT_READ_BYTES=1048576
+```
+
+Traversal attempts, nested paths, hidden files, and unknown extensions are rejected.
+
 ## Operational limits and retention
 
 The sidecar applies conservative local safety limits before PAL starts:
