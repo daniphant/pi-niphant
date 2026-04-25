@@ -52,9 +52,13 @@ interface SidecarState {
   port?: number;
   runs: Map<string, RunState>;
   clients: Map<string, Set<ServerResponse>>;
+  activePalClients: Set<Client>;
 }
 
-const state: SidecarState = { cwd: process.cwd(), runs: new Map(), clients: new Map() };
+const STATE_KEY = Symbol.for("pi-pal-consensus-sidecar.state");
+const globalWithState = globalThis as typeof globalThis & { [STATE_KEY]?: SidecarState };
+const state: SidecarState = globalWithState[STATE_KEY] ?? { cwd: process.cwd(), runs: new Map(), clients: new Map(), activePalClients: new Set() };
+globalWithState[STATE_KEY] = state;
 
 function splitShellish(input: string): string[] {
   return (input.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? []).map((part) => part.replace(/^['"]|['"]$/g, ""));
@@ -64,6 +68,10 @@ function defaultPalCommand(): { command: string; args: string[] } {
   const command = process.env.PAL_MCP_COMMAND?.trim() || "uvx";
   const args = process.env.PAL_MCP_ARGS ? splitShellish(process.env.PAL_MCP_ARGS) : ["--from", "git+https://github.com/BeehiveInnovations/pal-mcp-server.git", "pal-mcp-server"];
   return { command, args };
+}
+
+function palCwd(): string | undefined {
+  return process.env.PAL_MCP_CWD ? resolve(process.env.PAL_MCP_CWD) : undefined;
 }
 
 async function parseDotenv(path: string): Promise<Record<string, string>> {
@@ -186,8 +194,14 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
     throw new Error("PAL needs at least one provider key. Set OPENROUTER_API_KEY in your Pi shell environment, project .env, project .pal.env, ~/.pal/.env, or ~/.claude/.env.");
   }
 
+  const stderrPath = join(run.artifactDir, "pal-stderr.log");
   const client = new Client({ name: "pi-pal-consensus-sidecar", version: "0.1.0" }, { capabilities: {} });
-  const transport = new StdioClientTransport({ command: pal.command, args: pal.args, env });
+  const transport = new StdioClientTransport({ command: pal.command, args: pal.args, env, cwd: palCwd(), stderr: "pipe" });
+  transport.stderr?.on("data", (chunk) => {
+    const text = Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk);
+    void writeFile(stderrPath, text, { flag: "a" }).catch(() => undefined);
+  });
+  state.activePalClients.add(client);
   await client.connect(transport);
 
   try {
@@ -256,6 +270,7 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
     run.findingsPath = findingsPath;
     addEvent(run, "synthesis_completed", { findingsPath });
   } finally {
+    state.activePalClients.delete(client);
     await client.close();
   }
 }
@@ -377,26 +392,54 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
   }
 }
 
-async function startServer(opts: { cwd: string; port?: number }): Promise<{ url: string; port: number }> {
+async function stopServer(): Promise<void> {
+  for (const clients of state.clients.values()) {
+    for (const res of clients) res.end();
+  }
+  state.clients.clear();
+  await Promise.allSettled([...state.activePalClients].map((client) => client.close()));
+  state.activePalClients.clear();
+  if (state.server) {
+    const server = state.server;
+    state.server = undefined;
+    state.port = undefined;
+    await new Promise<void>((resolvePromise) => server.close(() => resolvePromise()));
+  }
+}
+
+async function startServer(opts: { cwd: string; port?: number }): Promise<{ url: string; port: number; reused?: boolean; warning?: string }> {
   state.cwd = opts.cwd;
-  if (state.server && state.port) return { url: `http://127.0.0.1:${state.port}`, port: state.port };
+  if (state.server && state.port) return { url: `http://127.0.0.1:${state.port}`, port: state.port, reused: true };
   const port = opts.port ?? Number(process.env.PAL_SIDECAR_PORT || 8787);
-  state.server = createServer((req, res) => void handle(req, res));
-  await new Promise<void>((resolvePromise, reject) => {
-    state.server!.once("error", reject);
-    state.server!.listen(port, "127.0.0.1", () => resolvePromise());
-  });
+  const server = createServer((req, res) => void handle(req, res));
+  try {
+    await new Promise<void>((resolvePromise, reject) => {
+      server.once("error", reject);
+      server.listen(port, "127.0.0.1", () => resolvePromise());
+    });
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException;
+    if (nodeError.code === "EADDRINUSE") {
+      return { url: `http://127.0.0.1:${port}`, port, reused: true, warning: `Port ${port} is already in use; leaving the existing dashboard server in place.` };
+    }
+    throw error;
+  }
+  state.server = server;
   state.port = port;
   return { url: `http://127.0.0.1:${port}`, port };
 }
 
 export default function palConsensusSidecarExtension(pi: ExtensionAPI) {
+  pi.on("session_shutdown", async () => {
+    await stopServer();
+  });
+
   pi.registerCommand("pal-sidecar", {
     description: "Start the PAL consensus dashboard sidecar: /pal-sidecar [port]",
     handler: async (args, ctx) => {
       const port = args.trim() ? Number(args.trim()) : undefined;
       const result = await startServer({ cwd: ctx.cwd, port });
-      ctx.ui.notify(`PAL consensus sidecar running: ${result.url}`, "info");
+      ctx.ui.notify(`PAL consensus sidecar running: ${result.url}${result.warning ? `\n${result.warning}` : ""}`, result.warning ? "warning" : "info");
     },
   });
 
@@ -410,7 +453,7 @@ export default function palConsensusSidecarExtension(pi: ExtensionAPI) {
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = await startServer({ cwd: ctx.cwd, port: params.port });
-      return { content: [{ type: "text", text: `PAL consensus sidecar running: ${result.url}` }], details: result };
+      return { content: [{ type: "text", text: `PAL consensus sidecar running: ${result.url}${result.warning ? `\n${result.warning}` : ""}` }], details: result };
     },
   });
 }

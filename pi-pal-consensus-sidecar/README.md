@@ -55,6 +55,8 @@ Configure via env if needed:
 export OPENROUTER_API_KEY=sk-or-v1-...
 export PAL_MCP_COMMAND=uvx
 export PAL_MCP_ARGS="--from git+https://github.com/BeehiveInnovations/pal-mcp-server.git pal-mcp-server"
+# Optional: run PAL from a local checkout so its repo-local .env is visible.
+export PAL_MCP_CWD="$HOME/src/pal-mcp-server"
 ```
 
 The sidecar also loads provider keys from these files when the Pi process did not inherit shell exports:
@@ -71,3 +73,5 @@ printf 'OPENROUTER_API_KEY=%s\n' 'sk-or-v1-...' > .pal.env
 ```
 
 Artifacts are written to `.pi/pal-consensus-runs/<run-id>/` by default.
+
+PAL subprocess stderr is captured to `.pi/pal-consensus-runs/<run-id>/pal-stderr.log` so PAL logs do not corrupt the Pi TUI.
