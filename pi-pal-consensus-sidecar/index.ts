@@ -3,7 +3,7 @@ import { Type } from "@sinclair/typebox";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { chmod, mkdir, mkdtemp, open, readFile, realpath, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, open, readFile, realpath, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
@@ -137,6 +137,7 @@ interface SidecarState {
   csrfToken: string;
   modelDiscoveryCache?: { expiresAt: number; response: PalModelsResponse };
   modelRuntimeHealth: Map<string, ModelRuntimeHealth>;
+  modelRuntimeHealthLoadedFrom?: string;
 }
 
 const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));
@@ -225,6 +226,12 @@ function modelAvailabilityPolicy(): "off" | "warn" | "block" {
 
 function modelRuntimeHealthTtlMs(): number {
   return positiveIntEnv("PAL_SIDECAR_MODEL_HEALTH_TTL_MS", 60 * 60_000);
+}
+
+function modelRuntimeHealthFile(cwd: string): string {
+  const configured = process.env.PAL_SIDECAR_MODEL_HEALTH_FILE?.trim();
+  if (configured) return resolve(cwd, configured);
+  return resolve(cwd, ".pi", "pal-consensus-runs", "model-health.json");
 }
 
 function positiveIntEnv(name: string, fallback: number): number {
@@ -585,6 +592,46 @@ function assertUniqueModelStances(reviewers: ReviewerConfig[]) {
   }
 }
 
+function isModelRuntimeHealth(value: unknown): value is ModelRuntimeHealth {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.model === "string"
+    && (record.status === "unhealthy" || record.status === "degraded")
+    && typeof record.code === "string"
+    && typeof record.message === "string"
+    && typeof record.retryable === "boolean"
+    && typeof record.failedAt === "string"
+    && typeof record.expiresAt === "string";
+}
+
+async function ensureModelRuntimeHealthLoaded(cwd: string) {
+  const file = modelRuntimeHealthFile(cwd);
+  if (state.modelRuntimeHealthLoadedFrom === file) return;
+  state.modelRuntimeHealth.clear();
+  state.modelRuntimeHealthLoadedFrom = file;
+  const raw = await readFile(file, "utf8").catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (!raw) return;
+  const parsed = safeJson(raw);
+  const parsedRecord = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined;
+  const records: unknown[] = Array.isArray(parsed) ? parsed : Array.isArray(parsedRecord?.models) ? parsedRecord.models : [];
+  for (const record of records) {
+    if (isModelRuntimeHealth(record)) state.modelRuntimeHealth.set(record.model, record);
+  }
+  await persistModelRuntimeHealth(cwd);
+}
+
+async function persistModelRuntimeHealth(cwd: string) {
+  const file = modelRuntimeHealthFile(cwd);
+  const active = activeModelRuntimeHealth();
+  await mkdir(dirname(file), { recursive: true, mode: 0o700 });
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(tmp, JSON.stringify({ schema_version: 1, generated_at: new Date().toISOString(), ttl_ms: modelRuntimeHealthTtlMs(), models: Object.values(active).sort((a, b) => a.model.localeCompare(b.model)) }, null, 2), { mode: 0o600 });
+  await rename(tmp, file);
+}
+
 function activeModelRuntimeHealth(): Record<string, ModelRuntimeHealth> {
   const now = Date.now();
   const active: Record<string, ModelRuntimeHealth> = {};
@@ -604,7 +651,8 @@ function runtimeHealthStatus(error: StructuredError): ModelRuntimeHealth["status
   return undefined;
 }
 
-function recordModelRuntimeFailure(model: string, error: StructuredError, context: { runId?: string; reviewer?: string }) {
+async function recordModelRuntimeFailure(cwd: string, model: string, error: StructuredError, context: { runId?: string; reviewer?: string }) {
+  await ensureModelRuntimeHealthLoaded(cwd);
   const status = runtimeHealthStatus(error);
   if (!status) return;
   const failedAt = new Date();
@@ -622,10 +670,15 @@ function recordModelRuntimeFailure(model: string, error: StructuredError, contex
     reviewer: context.reviewer,
   });
   state.modelDiscoveryCache = undefined;
+  await persistModelRuntimeHealth(cwd);
 }
 
-function clearModelRuntimeHealth(model: string) {
-  if (state.modelRuntimeHealth.delete(model)) state.modelDiscoveryCache = undefined;
+async function clearModelRuntimeHealth(cwd: string, model: string) {
+  await ensureModelRuntimeHealthLoaded(cwd);
+  if (state.modelRuntimeHealth.delete(model)) {
+    state.modelDiscoveryCache = undefined;
+    await persistModelRuntimeHealth(cwd);
+  }
 }
 
 async function modelAvailabilityWarnings(cwd: string, stackId: string): Promise<RunWarning[]> {
@@ -791,6 +844,7 @@ async function inspectPalContract(cwd: string): Promise<PalContract> {
 }
 
 async function discoverPalModels(cwd: string, refresh = false): Promise<PalModelsResponse> {
+  await ensureModelRuntimeHealthLoaded(cwd);
   if (!modelDiscoveryEnabled()) {
     const pal = defaultPalCommand();
     const now = new Date().toISOString();
@@ -1005,11 +1059,11 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
       reviewerArtifacts.push({ reviewer, status: responseStatus === "error" ? "error" : "success", markdown: String(markdown), jsonPath, mdPath, error: responseError });
       if (responseStatus === "error") {
         const structuredError = classifyError(responseError || "Unknown PAL/model error", { reviewer: reviewer.id, model: reviewer.model, runId: run.id });
-        recordModelRuntimeFailure(reviewer.model, structuredError, { runId: run.id, reviewer: reviewer.id });
+        await recordModelRuntimeFailure(state.cwd, reviewer.model, structuredError, { runId: run.id, reviewer: reviewer.id });
         addEvent(run, "reviewer_failed", { reviewer: reviewer.id, label: reviewer.label, model: reviewer.model, error: responseError || "Unknown PAL/model error", structuredError, jsonPath, mdPath });
       } else {
         successfulReviewers += 1;
-        clearModelRuntimeHealth(reviewer.model);
+        await clearModelRuntimeHealth(state.cwd, reviewer.model);
         addEvent(run, "reviewer_completed", { reviewer: reviewer.id, label: reviewer.label, model: reviewer.model, jsonPath, mdPath });
       }
     }
@@ -1257,13 +1311,17 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       modelRuntimeHealth: {
         ttlMs: modelRuntimeHealthTtlMs(),
         activeCount: Object.keys(activeModelRuntimeHealth()).length,
+        file: modelRuntimeHealthFile(state.cwd),
       },
     });
     if (req.method === "GET" && url.pathname === "/api/session") return json(res, 200, { csrfToken: state.csrfToken });
     if (req.method === "GET" && url.pathname === "/api/config") return json(res, 200, await loadSidecarConfig(state.cwd));
     if (req.method === "GET" && url.pathname === "/api/pal/contract") return json(res, 200, await inspectPalContract(state.cwd));
     if (req.method === "GET" && url.pathname === "/api/pal/models") return json(res, 200, await discoverPalModels(state.cwd, url.searchParams.get("refresh") === "1"));
-    if (req.method === "GET" && url.pathname === "/api/model-health") return json(res, 200, { generated_at: new Date().toISOString(), ttl_ms: modelRuntimeHealthTtlMs(), models: Object.values(activeModelRuntimeHealth()).sort((a, b) => a.model.localeCompare(b.model)) });
+    if (req.method === "GET" && url.pathname === "/api/model-health") {
+      await ensureModelRuntimeHealthLoaded(state.cwd);
+      return json(res, 200, { generated_at: new Date().toISOString(), ttl_ms: modelRuntimeHealthTtlMs(), file: modelRuntimeHealthFile(state.cwd), models: Object.values(activeModelRuntimeHealth()).sort((a, b) => a.model.localeCompare(b.model)) });
+    }
     if (req.method === "POST" && url.pathname === "/api/recommend-stack") {
       requireCsrf(req, url);
       const body = (await readBody(req)) as Record<string, unknown>;
@@ -1345,6 +1403,7 @@ async function stopServer(): Promise<void> {
 
 async function startServer(opts: { cwd: string; port?: number }): Promise<{ url: string; port: number; reused?: boolean; warning?: string }> {
   state.cwd = opts.cwd;
+  await ensureModelRuntimeHealthLoaded(opts.cwd);
   if (state.server && state.port) return { url: `http://127.0.0.1:${state.port}`, port: state.port, reused: true };
   const port = opts.port ?? Number(process.env.PAL_SIDECAR_PORT || 8787);
   const server = createServer((req, res) => void handle(req, res));

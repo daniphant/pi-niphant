@@ -136,11 +136,15 @@ export PAL_SIDECAR_MODEL_AVAILABILITY_POLICY=warn # off | warn | block
 
 # Remember recent model runtime failures for 1 hour by default.
 export PAL_SIDECAR_MODEL_HEALTH_TTL_MS=3600000
+
+# Persist model runtime health across Pi reloads/invocations.
+# Default: .pi/pal-consensus-runs/model-health.json
+export PAL_SIDECAR_MODEL_HEALTH_FILE=.pi/pal-consensus-runs/model-health.json
 ```
 
 When the policy is `warn`, unavailable stack models produce run warnings and recent runtime failures produce `model_runtime_health_warning` warnings, but they do not block the run. When the policy is `block`, the sidecar rejects the run before PAL consensus starts if PAL `listmodels` does not report one or more selected stack models or the selected stack contains recently unhealthy/degraded reviewer models.
 
-Runtime model health is in-memory and local to the sidecar process. Reviewer failures with model/provider-specific structured errors such as `pal_model_no_endpoint`, `pal_model_not_found`, `pal_rate_limited`, `pal_quota_exceeded`, `pal_provider_auth_failed`, or transient provider/network failures are recorded by model id until their TTL expires. Successful reviewer calls clear that model's runtime health. `GET /api/model-health` returns active records without provider environment variables or API keys.
+Runtime model health is persisted locally by default at `.pi/pal-consensus-runs/model-health.json`, so workflow stages that run across Pi reloads/back-to-back invocations can reuse recent provider/model health signals. Reviewer failures with model/provider-specific structured errors such as `pal_model_no_endpoint`, `pal_model_not_found`, `pal_rate_limited`, `pal_quota_exceeded`, `pal_provider_auth_failed`, or transient provider/network failures are recorded by model id until their TTL expires. Expired records are pruned when the sidecar loads or writes the health file. Successful reviewer calls clear that model's runtime health and update the file. `GET /api/model-health` returns active records and the backing file path without provider environment variables or API keys.
 
 Discovery never returns provider environment variables or API keys. Failures are isolated to discovery/model-availability warnings and do not disable normal consensus runs by default.
 
