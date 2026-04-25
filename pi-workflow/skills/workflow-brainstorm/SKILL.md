@@ -46,6 +46,7 @@ Operate like a relentless design interview, not a one-shot questionnaire: interv
 - Do not dump a list of questions. Pick the single highest-leverage unresolved decision, ask it, and wait.
 - For every question, include your recommended answer and a short reason.
 - If a question can be answered by reading/exploring the codebase, answer it yourself instead of asking the user.
+- For non-trivial product/API/architecture/UX work, do not finalize Stage 1 in the same turn as the initial `/workflow` kickoff unless there are truly no user-preference decisions left. Usually ask at least one question before the final handoff.
 - Do not copy all research into `workflow.spec.md` or `workflow.plan.md`.
 - Do not automatically invoke spec, plan, execute, or implementation. Stop with a handoff.
 
@@ -71,11 +72,13 @@ Operate like a relentless design interview, not a one-shot questionnaire: interv
    - sequencing and dependencies
 5. Interview loop for unresolved decisions:
    - Identify dependencies between decisions and choose the next blocking branch.
+   - Treat product intent, UX preference, scope boundaries, risk tolerance, security/privacy defaults, and API compatibility as user-preference decisions unless the request already states them clearly.
    - If code/docs can resolve the branch, explore them directly and record the finding.
    - Otherwise ask exactly one targeted question.
    - Include your recommended answer and why.
+   - Stop the turn after the question. Do not append a Stage 2/plan handoff in the same response.
    - Wait for the user's answer before asking the next question or finalizing research.
-   - Continue the loop until the remaining unknowns are non-blocking or explicitly deferred.
+   - Continue the loop until the remaining unknowns are non-blocking or explicitly deferred by the user.
 6. Update `workflow.research.md` throughout with:
    - problem/opportunity
    - motivation
@@ -145,7 +148,9 @@ Rules:
 
 ## Exit / Handoff
 
-Only exit research after the interview loop has converged: the important design branches are resolved, answered from code/docs, or intentionally deferred. Do not end a brainstorm turn by both listing multiple open questions and telling the user to continue to spec/plan; if important questions remain, ask the next one instead.
+Only exit research after the interview loop has converged: the important design branches are resolved, answered from code/docs, or intentionally deferred by the user. Do not end a brainstorm turn by both listing multiple open questions and telling the user to continue to spec/plan; if important questions remain, ask the next one instead.
+
+Before producing the final handoff, verify that `## Open Questions` contains no blocking user-preference decisions. If it does, ask the next single question instead of handing off. Do not mark a large/moderate workflow complete merely because you have a plausible recommendation; get confirmation for at least the highest-impact recommendation unless the original request already answered it.
 
 When research is complete, stop and ask the user to choose the next step. Use natural prose and put only actual commands in code blocks. Do not wrap the whole handoff in one code block.
 
