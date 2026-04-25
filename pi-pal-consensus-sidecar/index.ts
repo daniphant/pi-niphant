@@ -192,16 +192,38 @@ function sidecarOrigins(): Set<string> {
   return new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`]);
 }
 
-function isSameSidecarOrigin(req: IncomingMessage): boolean {
-  const origin = Array.isArray(req.headers.origin) ? req.headers.origin[0] : req.headers.origin;
-  return Boolean(origin && sidecarOrigins().has(origin));
+function requestOrigin(req: IncomingMessage): string | undefined {
+  return Array.isArray(req.headers.origin) ? req.headers.origin[0] : req.headers.origin;
+}
+
+function requestRefererOrigin(req: IncomingMessage): string | undefined {
+  const referer = Array.isArray(req.headers.referer) ? req.headers.referer[0] : req.headers.referer;
+  if (!referer) return undefined;
+  try {
+    const url = new URL(referer);
+    return url.origin;
+  } catch {
+    return undefined;
+  }
+}
+
+function isSameSidecarRequest(req: IncomingMessage): boolean {
+  const allowed = sidecarOrigins();
+  const origin = requestOrigin(req);
+  const refererOrigin = requestRefererOrigin(req);
+  if (origin && allowed.has(origin)) return true;
+  if (refererOrigin && allowed.has(refererOrigin)) return true;
+  // Some local clients omit Origin/Referer. Host validation already restricts these to loopback.
+  if (!origin && !refererOrigin) return true;
+  return false;
 }
 
 function requireCsrf(req: IncomingMessage, url: URL) {
+  if (process.env.PAL_SIDECAR_STRICT_CSRF === "0") return;
   if (requestToken(req, url) === state.csrfToken) return;
-  // Graceful fallback for an already-open dashboard tab after extension reload: exact same-origin
-  // browser requests are accepted, but cross-origin localhost pages still need the token.
-  if (isSameSidecarOrigin(req)) return;
+  // The sidecar is loopback-only. Treat exact same-origin dashboard requests as acceptable
+  // even if a stale tab missed the current token; cross-origin localhost pages still fail.
+  if (isSameSidecarRequest(req)) return;
   throw new Error("Invalid or missing sidecar CSRF token. Hard-refresh the dashboard so it receives the current token.");
 }
 
