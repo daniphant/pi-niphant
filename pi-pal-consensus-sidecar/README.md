@@ -28,7 +28,7 @@ npm install
 npm run check --workspace pi-pal-consensus-sidecar
 ```
 
-`check` typechecks the sidecar and builds the Vite dashboard into:
+`check` typechecks the sidecar, runs unit tests, and builds the Vite dashboard into:
 
 ```text
 pi-pal-consensus-sidecar/dashboard-build/
