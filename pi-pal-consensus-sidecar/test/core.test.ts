@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   artifactKind,
   artifactMediaType,
@@ -12,6 +14,8 @@ import {
   REVIEW_PROMPT_VERSION,
   SIDECAR_VERSION,
   isSafeArtifactName,
+  markdownSection,
+  parseReviewerFindings,
   renderFindingsSummaryMarkdown,
   stackAvailability,
 } from "../src/core.js";
@@ -87,6 +91,47 @@ describe("stackAvailability", () => {
     expect(availability.available).toBe(0);
     expect(availability.unavailable).toBe(0);
     expect(availability.unknown).toBe(3);
+  });
+});
+
+describe("reviewer markdown parser", () => {
+  const fixture = (name: string) => readFileSync(resolve(process.cwd(), "test/fixtures/reviewer-markdown", name), "utf8");
+  const artifact = (markdown: string) => ({ reviewer: { id: "qa", label: "QA Reviewer", model: "openai/o3-mini" }, status: "success" as const, markdown, mdPath: "/tmp/qa.md" });
+
+  it("extracts sections without leaking later headings", () => {
+    const text = fixture("structured-list.md");
+    const findings = markdownSection(text, "Findings");
+    expect(findings).toContain("Direct production deploy");
+    expect(findings).not.toContain("Raw Concerns");
+  });
+
+  it("parses numbered structured findings cleanly", () => {
+    const findings = parseReviewerFindings(artifact(fixture("structured-list.md")));
+    expect(findings).toHaveLength(2);
+    expect(findings[0]).toMatchObject({ severity: "major", location: "Lines 10-12", issue: "Direct production deploy skips staging and can break auth.", recommendation: "Add staging and canary gates." });
+    expect(findings[0].issue).not.toMatch(/^##/);
+  });
+
+  it("splits ### Severity blocks into multiple findings", () => {
+    const findings = parseReviewerFindings(artifact(fixture("heading-blocks.md")));
+    expect(findings).toHaveLength(2);
+    expect(findings.map((finding) => finding.severity)).toEqual(["major", "minor"]);
+    expect(findings[0].recommendation).toBe("Define reversible migration steps and a tested restore path.");
+  });
+
+  it("splits Finding N labels into multiple findings", () => {
+    const findings = parseReviewerFindings(artifact(fixture("finding-labels.md")));
+    expect(findings).toHaveLength(2);
+    expect(findings[0].severity).toBe("critical");
+    expect(findings[1].issue).toBe("Validation relies on manual smoke tests only.");
+  });
+
+  it("strips raw concerns and approval recommendation contamination", () => {
+    const findings = parseReviewerFindings(artifact(fixture("contaminated-fields.md")));
+    expect(findings.length).toBeGreaterThanOrEqual(2);
+    expect(findings[0].recommendation).toBe("Reassess downtime and data consistency risks.");
+    expect(findings[0].recommendation).not.toContain("Raw Concerns");
+    expect(findings[0].recommendation).not.toContain("Approval Recommendation");
   });
 });
 

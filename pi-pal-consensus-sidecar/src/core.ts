@@ -58,7 +58,15 @@ export interface FindingLike {
   location?: string;
   issue: string;
   recommendation?: string;
+  confidence?: "high" | "medium" | "low" | "unknown";
   artifact?: string;
+}
+
+export interface ReviewerArtifactLike {
+  reviewer: { id: string; label: string; model: string };
+  status: "success" | "error";
+  markdown: string;
+  mdPath: string;
 }
 
 export interface CompactFindingsSummary {
@@ -90,6 +98,105 @@ export const SIDECAR_VERSION = "0.1.0";
 export const FINDINGS_SCHEMA_VERSION = "2026-04-25.1";
 export const FINDINGS_PARSER_VERSION = "deterministic-markdown-v1";
 export const REVIEW_PROMPT_VERSION = "plan-review-v1";
+
+export function markdownSection(markdown: string, heading: string): string {
+  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = markdown.match(new RegExp(`^#{1,6}\\s+${escaped}\\s*$([\\s\\S]*?)(?=^#{1,6}\\s+|(?![\\s\\S]))`, "im"));
+  return (match?.[1] ?? "").trim();
+}
+
+export function normalizeFindingSeverity(text: string): "critical" | "major" | "minor" | "nit" | "unknown" {
+  const lower = text.toLowerCase();
+  if (/\b(critical|blocker|severe|approval-blocking|catastrophic)\b/.test(lower)) return "critical";
+  if (/\b(major|high|urgent)\b/.test(lower)) return "major";
+  if (/\b(moderate|medium|minor)\b/.test(lower)) return "minor";
+  if (/\b(low|nit|info|informational)\b/.test(lower)) return lower.includes("nit") ? "nit" : "minor";
+  return "unknown";
+}
+
+export function confidenceFromFindingSeverity(severity: FindingLike["severity"]): "high" | "medium" | "low" | "unknown" {
+  if (severity === "critical" || severity === "major") return "high";
+  if (severity === "minor") return "medium";
+  if (severity === "nit") return "low";
+  return "unknown";
+}
+
+function stripInlineContamination(text: string): string {
+  return text
+    .replace(/\s+#{1,6}\s+(Verdict|Analysis|Findings|Raw Concerns|Approval Recommendation|Confidence Score|Key Takeaways)[\s\S]*$/i, "")
+    .replace(/\s+\b(Finding\s+\d+\s*:)\s*$/i, "")
+    .trim();
+}
+
+export function cleanupFindingText(text: string, maxLength = 800): string {
+  const cleaned = stripInlineContamination(text)
+    .replace(/^#{1,6}\s+.*$/gm, "")
+    .replace(/^\s*[•*-]\s*/gm, "")
+    .replace(/^\s*\d+[.)]\s*/gm, "")
+    .replace(/\*\*(Severity|Location|Issue|Recommendation|Confidence)\*\*\s*[:：]/gi, "$1:")
+    .replace(/\*(Severity|Location|Issue|Recommendation|Confidence)\*\s*[:：]/gi, "$1:")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned.length > maxLength ? `${cleaned.slice(0, maxLength).trim()}…` : cleaned;
+}
+
+export function extractFindingField(block: string, labels: string[]): string | undefined {
+  for (const label of labels) {
+    const pattern = new RegExp(`(?:^|\\n)\\s*(?:[-*]\\s*)?(?:\\*\\*)?${label}(?:\\*\\*)?\\s*[:：]\\s*([\\s\\S]*?)(?=\\n\\s*(?:[-*]\\s*)?(?:\\*\\*)?(?:Severity|Location|Issue|Recommendation|Confidence)(?:\\*\\*)?\\s*[:：]|\\n\\s*(?:Finding\\s+\\d+|#{1,6})\\b|$)`, "i");
+    const match = block.match(pattern);
+    if (match?.[1]) return cleanupFindingText(match[1]);
+  }
+  return undefined;
+}
+
+export function splitFindingBlocks(findingsText: string): string[] {
+  const normalized = findingsText.replace(/\r\n/g, "\n");
+  const headingBlocks = normalized.split(/(?=^#{3,6}\s+(?:Severity|Finding|Issue|High|Major|Critical|Medium|Minor)\b.*$)/gim).map((block) => block.trim()).filter(Boolean);
+  if (headingBlocks.length > 1) return headingBlocks;
+  const labelBlocks = normalized.split(/(?=^\s*Finding\s+\d+\s*[:.-])/gim).map((block) => block.trim()).filter(Boolean);
+  if (labelBlocks.length > 1) return labelBlocks;
+  const lines = normalized.split("\n");
+  const blocks: string[] = [];
+  let current: string[] = [];
+  const startsBlock = (line: string) => /^\s*\d+[.)]\s+/.test(line) || (/^\s*[-*]\s+/.test(line) && /\b(severity|critical|major|high|moderate|medium|minor|low|nit|issue)\b/i.test(line));
+  for (const line of lines) {
+    if (startsBlock(line) && current.join("\n").trim()) {
+      blocks.push(current.join("\n").trim());
+      current = [line];
+    } else current.push(line);
+  }
+  if (current.join("\n").trim()) blocks.push(current.join("\n").trim());
+  return blocks.length ? blocks : normalized.split(/\n\s*\n/).map((block) => block.trim()).filter(Boolean);
+}
+
+export function parseReviewerFindings(artifact: ReviewerArtifactLike): FindingLike[] {
+  if (artifact.status !== "success") return [];
+  const findingsText = markdownSection(artifact.markdown, "Findings") || artifact.markdown;
+  const blocks = splitFindingBlocks(findingsText);
+  const parsed: FindingLike[] = [];
+  for (const block of blocks) {
+    if (!/\b(issue|recommendation|risk|missing|should|must|severity|major|high|medium|low|critical|rollback|validation)\b/i.test(block)) continue;
+    const severity = normalizeFindingSeverity(extractFindingField(block, ["Severity"]) || block);
+    const location = extractFindingField(block, ["Location"]) || block.match(/\b(?:Lines?|Plan lines?)\s+\d+(?:\s*-\s*\d+)?\b/i)?.[0];
+    const rawIssue = extractFindingField(block, ["Issue"])
+      || cleanupFindingText(block.split(/Recommendation\s*[:：]/i)[0] || block);
+    const issue = rawIssue.replace(/^Finding\s+\d+\s*[:.-]\s*/i, "").replace(/^Severity\s*[:：]\s*\w+\s*/i, "").trim();
+    const recommendation = extractFindingField(block, ["Recommendation"]);
+    if (!issue) continue;
+    parsed.push({
+      severity,
+      reviewer: artifact.reviewer.id,
+      reviewer_label: artifact.reviewer.label,
+      model: artifact.reviewer.model,
+      location,
+      issue: cleanupFindingText(issue),
+      recommendation,
+      confidence: confidenceFromFindingSeverity(severity),
+      artifact: artifact.mdPath,
+    });
+  }
+  return parsed;
+}
 
 export function extractCompactFindingsSummary(value: unknown): CompactFindingsSummary | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;

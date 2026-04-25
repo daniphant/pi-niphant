@@ -9,7 +9,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { artifactKind, artifactMediaType, buildFindingsHotspots, classifyError, classifyFindingBucket, collectModelInfos, extractCompactFindingsSummary, FINDINGS_PARSER_VERSION, FINDINGS_SCHEMA_VERSION, isSafeArtifactName, recommendStack, renderFindingsSummaryMarkdown, REVIEW_PROMPT_VERSION, SIDECAR_VERSION, stackAvailability, type FindingLike, type PalModelInfo, type StackAvailability, type StructuredError } from "./src/core.js";
+import { artifactKind, artifactMediaType, buildFindingsHotspots, classifyError, classifyFindingBucket, collectModelInfos, extractCompactFindingsSummary, FINDINGS_PARSER_VERSION, FINDINGS_SCHEMA_VERSION, isSafeArtifactName, markdownSection, parseReviewerFindings, recommendStack, renderFindingsSummaryMarkdown, REVIEW_PROMPT_VERSION, SIDECAR_VERSION, stackAvailability, type FindingLike, type PalModelInfo, type StackAvailability, type StructuredError } from "./src/core.js";
 
 interface ReviewerConfig {
   id: string;
@@ -81,18 +81,6 @@ interface ReviewerArtifact {
   jsonPath: string;
   mdPath: string;
   error?: string;
-}
-
-interface CompactFinding {
-  severity: "critical" | "major" | "minor" | "nit" | "unknown";
-  reviewer: string;
-  reviewer_label: string;
-  model: string;
-  location?: string;
-  issue: string;
-  recommendation?: string;
-  confidence: "high" | "medium" | "low" | "unknown";
-  artifact: string;
 }
 
 interface RunState {
@@ -725,83 +713,6 @@ function reviewerPrompt(reviewer: ReviewerConfig): string {
   ].join("\n");
 }
 
-function section(markdown: string, heading: string): string {
-  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = markdown.match(new RegExp(`^##\\s+${escaped}\\s*$([\\s\\S]*?)(?=^##\\s+|(?![\\s\\S]))`, "im"));
-  return (match?.[1] ?? "").trim();
-}
-
-function normalizeSeverity(text: string): CompactFinding["severity"] {
-  const lower = text.toLowerCase();
-  if (/\b(critical|blocker|severe)\b/.test(lower)) return "critical";
-  if (/\b(major|high)\b/.test(lower)) return "major";
-  if (/\b(moderate|medium|minor)\b/.test(lower)) return "minor";
-  if (/\b(low|nit|info|informational)\b/.test(lower)) return lower.includes("nit") ? "nit" : "minor";
-  return "unknown";
-}
-
-function confidenceFromSeverity(severity: CompactFinding["severity"]): CompactFinding["confidence"] {
-  if (severity === "critical" || severity === "major") return "high";
-  if (severity === "minor") return "medium";
-  if (severity === "nit") return "low";
-  return "unknown";
-}
-
-function cleanupText(text: string): string {
-  return text.replace(/^\s*[•*-]\s*/gm, "").replace(/\s+/g, " ").trim();
-}
-
-function extractField(block: string, labels: string[]): string | undefined {
-  for (const label of labels) {
-    const match = block.match(new RegExp(`${label}\\s*[:：]\\s*([\\s\\S]*?)(?=\\n\\s*(?:[*-]?\\s*)?(?:Severity|Location|Issue|Recommendation|Confidence)\\s*[:：]|$)`, "i"));
-    if (match?.[1]) return cleanupText(match[1]);
-  }
-  return undefined;
-}
-
-function splitFindingBlocks(findingsText: string): string[] {
-  const lines = findingsText.split(/\r?\n/);
-  const blocks: string[] = [];
-  let current: string[] = [];
-  const startsBlock = (line: string) => /^\s*\d+[.)]\s+/.test(line) || (/^\s*[-*]\s+/.test(line) && /\b(severity|critical|major|high|moderate|medium|minor|low|nit)\b/i.test(line));
-  for (const line of lines) {
-    if (startsBlock(line) && current.length) {
-      blocks.push(current.join("\n").trim());
-      current = [line];
-    } else {
-      current.push(line);
-    }
-  }
-  if (current.join("\n").trim()) blocks.push(current.join("\n").trim());
-  return blocks.length ? blocks : findingsText.split(/\n\s*\n/).map((block) => block.trim()).filter(Boolean);
-}
-
-function parseFindings(artifact: ReviewerArtifact): CompactFinding[] {
-  if (artifact.status !== "success") return [];
-  const findingsText = section(artifact.markdown, "Findings") || artifact.markdown;
-  const blocks = splitFindingBlocks(findingsText);
-  const parsed: CompactFinding[] = [];
-  for (const block of blocks) {
-    if (!/\b(issue|recommendation|risk|missing|should|must|severity|major|high|medium|low|critical)\b/i.test(block)) continue;
-    const severity = normalizeSeverity(extractField(block, ["Severity"]) || block);
-    const location = extractField(block, ["Location"]) || block.match(/\bLines?\s+\d+(?:\s*-\s*\d+)?\b/i)?.[0];
-    const issue = extractField(block, ["Issue"]) || cleanupText(block.split(/Recommendation\s*[:：]/i)[0] || block).slice(0, 600);
-    const recommendation = extractField(block, ["Recommendation"]);
-    parsed.push({
-      severity,
-      reviewer: artifact.reviewer.id,
-      reviewer_label: artifact.reviewer.label,
-      model: artifact.reviewer.model,
-      location,
-      issue,
-      recommendation,
-      confidence: confidenceFromSeverity(severity),
-      artifact: artifact.mdPath,
-    });
-  }
-  return parsed;
-}
-
 async function withPalClient<T>(cwd: string, operation: (client: Client, pal: { command: string; args: string[] }, env: Record<string, string>) => Promise<T>): Promise<T> {
   const pal = defaultPalCommand();
   const env = await palEnv(cwd);
@@ -902,7 +813,7 @@ async function discoverPalModels(cwd: string, refresh = false): Promise<PalModel
 }
 
 function deterministicNormalize(run: RunState, req: RunRequest, artifacts: ReviewerArtifact[], rawResponses: any[]) {
-  const findings = artifacts.flatMap(parseFindings);
+  const findings = artifacts.flatMap(parseReviewerFindings);
   const failed = artifacts.filter((artifact) => artifact.status === "error");
   const blocking_findings = findings.filter((finding) => classifyFindingBucket(finding as FindingLike) === "blocking");
   const suggestion_findings = findings.filter((finding) => classifyFindingBucket(finding as FindingLike) === "suggestion");
@@ -946,8 +857,8 @@ function deterministicNormalize(run: RunState, req: RunRequest, artifacts: Revie
     raw: {
       artifacts: run.rawArtifacts,
       pal_responses: rawResponses,
-      concerns: artifacts.map((artifact) => section(artifact.markdown, "Raw Concerns")).filter(Boolean),
-      approval_recommendations: artifacts.map((artifact) => section(artifact.markdown, "Approval Recommendation")).filter(Boolean),
+      concerns: artifacts.map((artifact) => markdownSection(artifact.markdown, "Raw Concerns")).filter(Boolean),
+      approval_recommendations: artifacts.map((artifact) => markdownSection(artifact.markdown, "Approval Recommendation")).filter(Boolean),
     },
   };
 }
