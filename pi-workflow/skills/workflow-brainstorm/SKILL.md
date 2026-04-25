@@ -33,6 +33,8 @@ Refuse to run if the prompt does not include concrete workflow file paths and no
 
 Reach shared understanding, classify complexity, and record the next route before any spec, plan, or implementation work.
 
+Operate like a relentless design interview, not a one-shot questionnaire: interview the user about every unresolved aspect of the request until there is shared understanding. Walk the design tree branch-by-branch, resolving dependencies between decisions one at a time. For each question, provide your recommended answer so the user can accept, reject, or refine it quickly.
+
 ## Rules
 
 - Do not implement code.
@@ -40,7 +42,10 @@ Reach shared understanding, classify complexity, and record the next route befor
 - You may read code, search files, inspect docs, and update `workflow.research.md`.
 - Do not update `workflow.toml` during research except to fix broken file references; it is for execution/task state only.
 - Do exploration yourself in the main context. Do not delegate ordinary code exploration.
-- Ask questions aggressively, but do not ask what you can answer by reading code.
+- Ask questions aggressively, but ask them one at a time.
+- Do not dump a list of questions. Pick the single highest-leverage unresolved decision, ask it, and wait.
+- For every question, include your recommended answer and a short reason.
+- If a question can be answered by reading/exploring the codebase, answer it yourself instead of asking the user.
 - Do not copy all research into `workflow.spec.md` or `workflow.plan.md`.
 - Do not automatically invoke spec, plan, execute, or implementation. Stop with a handoff.
 
@@ -64,8 +69,14 @@ Reach shared understanding, classify complexity, and record the next route befor
    - edge cases
    - consistency implications
    - sequencing and dependencies
-5. Ask targeted questions for unresolved decisions.
-6. Update `workflow.research.md` with:
+5. Interview loop for unresolved decisions:
+   - Identify dependencies between decisions and choose the next blocking branch.
+   - If code/docs can resolve the branch, explore them directly and record the finding.
+   - Otherwise ask exactly one targeted question.
+   - Include your recommended answer and why.
+   - Wait for the user's answer before asking the next question or finalizing research.
+   - Continue the loop until the remaining unknowns are non-blocking or explicitly deferred.
+6. Update `workflow.research.md` throughout with:
    - problem/opportunity
    - motivation
    - goals/non-goals
@@ -133,6 +144,8 @@ Rules:
 - Pass it down as `/workflow --name <slug> -- <full user request>` only for explicit name overrides.
 
 ## Exit / Handoff
+
+Only exit research after the interview loop has converged: the important design branches are resolved, answered from code/docs, or intentionally deferred. Do not end a brainstorm turn by both listing multiple open questions and telling the user to continue to spec/plan; if important questions remain, ask the next one instead.
 
 When research is complete, stop and ask the user to choose the next step. Use natural prose and put only actual commands in code blocks. Do not wrap the whole handoff in one code block.
 
