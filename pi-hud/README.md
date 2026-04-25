@@ -5,7 +5,8 @@
 A custom Pi footer/HUD extension inspired by [Claude HUD](https://github.com/jarrodwatts/claude-hud) and [CodexBar](https://github.com/steipete/codexbar).
 
 It adds a compact Catppuccin-friendly status line with screenshot-style uppercase segments:
-- `MODEL`, `CTX`, `REPO`, `BRANCH`, `USAGE`, and `RESET`
+- `MODEL`, `⏱️`, `CTX`, `REPO`, `BRANCH`, `USAGE`, and `RESET`
+- current TUI session duration in claude-hud style, e.g. `⏱️ < 1m`, `⏱️ 1h 5m`
 - no duplicate agent, latency, or idle status segments
 - relative project path + git branch
 - context usage bar
@@ -19,6 +20,7 @@ Early but real. This repo was extracted from a working local Pi extension and is
 ## Features
 
 - Model segment like `MODEL GPT 5.4 medium (400k)`
+- Stopwatch segment like `⏱️ < 1m` or `⏱️ 1h 5m`
 - Project and branch segments like `REPO ~/projects/pi-hud | BRANCH git:(main)`
 - Colored context usage meter
 - Quota-aware usage meter for Codex and z.ai / GLM

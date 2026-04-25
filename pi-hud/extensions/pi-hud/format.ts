@@ -72,6 +72,18 @@ export const getAdaptiveLabel = (long: string, short: string, terminalWidth: num
   return terminalWidth >= 85 ? long : short;
 };
 
+export const formatSessionDuration = (durationMs: number) => {
+  if (!Number.isFinite(durationMs) || durationMs < 60_000) return "< 1m";
+  const totalMinutes = Math.floor(durationMs / 60_000);
+  if (totalMinutes < 60) return `${totalMinutes}m`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours < 24) return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+};
+
 export const formatResetCountdown = (epochMs: number | null, nowMs = Date.now()) => {
   if (!epochMs) return null;
   const diffMs = epochMs - nowMs;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clampPercent, formatCompactNumber, formatContextWindow, formatResetCountdown, getAdaptiveLabel, getAdaptiveMeterWidth, getAdaptiveProjectLabel, getProjectLabel, normalizeResetAt, normalizeZaiLimitLabel } from "../extensions/pi-hud/format.js";
+import { clampPercent, formatCompactNumber, formatContextWindow, formatResetCountdown, formatSessionDuration, getAdaptiveLabel, getAdaptiveMeterWidth, getAdaptiveProjectLabel, getProjectLabel, normalizeResetAt, normalizeZaiLimitLabel } from "../extensions/pi-hud/format.js";
 
 describe("format helpers", () => {
   it("clamps percentages", () => {
@@ -28,6 +28,14 @@ describe("format helpers", () => {
     expect(formatResetCountdown(now + 2 * 60 * 60_000 + 10 * 60_000, now)).toBe("2h 10m");
     expect(formatResetCountdown(now + 2 * 24 * 60 * 60_000 + 3 * 60 * 60_000, now)).toBe("2d 3h");
     expect(formatResetCountdown(now - 1, now)).toBe("now");
+  });
+
+  it("formats TUI session durations like claude-hud", () => {
+    expect(formatSessionDuration(0)).toBe("< 1m");
+    expect(formatSessionDuration(59_999)).toBe("< 1m");
+    expect(formatSessionDuration(7 * 60_000 + 30_000)).toBe("7m");
+    expect(formatSessionDuration(65 * 60_000)).toBe("1h 5m");
+    expect(formatSessionDuration((2 * 24 + 3) * 60 * 60_000 + 59 * 60_000)).toBe("2d 3h");
   });
 
   it("formats project paths relative to home", () => {

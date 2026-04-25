@@ -6,7 +6,7 @@ pi-hud is intentionally small.
 
 - `extensions/pi-hud/index.ts` wires Pi lifecycle events, footer registration, command handling, and quota refresh flow.
 - `extensions/pi-hud/providers/` contains provider detection plus Codex and z.ai fetch/parse logic.
-- `extensions/pi-hud/format.ts` contains pure formatting helpers.
+- `extensions/pi-hud/format.ts` contains pure formatting helpers, including the claude-hud-style TUI duration formatter.
 - `extensions/pi-hud/render.ts` contains pure quota rendering helpers.
 - `extensions/pi-hud/settings.ts` owns persistence.
 - `extensions/pi-hud/session.ts` computes session totals for `/hud status`.

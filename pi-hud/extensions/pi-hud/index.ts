@@ -2,7 +2,7 @@ import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 
 import { QUOTA_TTL_MS } from "./constants.js";
-import { formatCompactNumber, getAdaptiveMeterWidth, getAdaptiveProjectLabel } from "./format.js";
+import { formatCompactNumber, formatSessionDuration, getAdaptiveMeterWidth, getAdaptiveProjectLabel } from "./format.js";
 import { getGitStatus } from "./git.js";
 import { getModelLabel } from "./model.js";
 import { fetchCodexQuota } from "./providers/codex.js";
@@ -17,6 +17,7 @@ import type { CachedQuotaEntry, GitStatus, HudSettings, PiExtensionContext, Prov
 const GIT_STATUS_TTL_MS = 5_000;
 
 export default function piHudExtension(pi: ExtensionAPI) {
+  const tuiStartedAtMs = Date.now() - process.uptime() * 1000;
   let enabled = true;
   let showWeeklyLimits = false;
   let latestCtx: PiExtensionContext | null = null;
@@ -205,6 +206,7 @@ export default function piHudExtension(pi: ExtensionAPI) {
               : null);
 
           const modelLabel = renderHudField(theme as ThemeLike, "Model", theme.fg("text", getModelLabel(pi, activeCtx)), "accent");
+          const sessionDuration = renderHudField(theme as ThemeLike, "⏱️", theme.fg("text", formatSessionDuration(Date.now() - tuiStartedAtMs)), "accent");
           const projectPath = theme.fg("text", getAdaptiveProjectLabel(activeCtx.cwd, renderWidth));
           const repoLabel = renderHudField(theme as ThemeLike, "Repo", projectPath, "customMessageLabel");
           const gitSegment = formatGitBranch(theme as ThemeLike, effectiveGitStatus);
@@ -217,7 +219,7 @@ export default function piHudExtension(pi: ExtensionAPI) {
           const quotaBlock = renderQuotaBlock(theme as ThemeLike, quotaSnapshot, showWeeklyLimits, quotaError, quotaProviderKey, meterWidth, renderWidth);
           const quotaResetBlock = renderQuotaResetBlock(theme as ThemeLike, quotaSnapshot, quotaProviderKey);
           const niphantBlock = formatNiphantWorkspace(theme as ThemeLike, getNiphantWorkspace(activeCtx.cwd));
-          const pieces = [modelLabel, contextBlock, repoLabel, branchLabel, niphantBlock, quotaBlock, quotaResetBlock].filter(Boolean) as string[];
+          const pieces = [modelLabel, contextBlock, repoLabel, branchLabel, niphantBlock, quotaBlock, quotaResetBlock, sessionDuration].filter(Boolean) as string[];
           const separator = theme.fg("dim", " | ");
 
           // Happy path: everything fits on one row.
@@ -369,7 +371,7 @@ export default function piHudExtension(pi: ExtensionAPI) {
           const totals = getSessionTotals(ctx);
           const quota = quotaProviderKey ? `; quota backend: ${quotaProviderKey}` : "";
           ctx.ui.notify(
-            `PI HUD is ${enabled ? "enabled" : "disabled"}; weekly ${showWeeklyLimits ? "on" : "off"}; session ↑${formatCompactNumber(totals.input)} ↓${formatCompactNumber(totals.output)} $${totals.cost.toFixed(3)}${quota}`,
+            `PI HUD is ${enabled ? "enabled" : "disabled"}; ⏱️ ${formatSessionDuration(Date.now() - tuiStartedAtMs)}; weekly ${showWeeklyLimits ? "on" : "off"}; session ↑${formatCompactNumber(totals.input)} ↓${formatCompactNumber(totals.output)} $${totals.cost.toFixed(3)}${quota}`,
             "info",
           );
           return;
