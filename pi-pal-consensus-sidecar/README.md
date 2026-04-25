@@ -44,6 +44,60 @@ start_pal_consensus_sidecar({ port: 8787 })
 
 Then open the returned dashboard URL.
 
+## Reviewer model configuration
+
+Default reviewer/model configuration lives in:
+
+```text
+pi-pal-consensus-sidecar/pal-sidecar.config.json
+```
+
+Project overrides can be committed per repo as either:
+
+```text
+.pal-sidecar.json
+.pi/pal-sidecar.json
+```
+
+Or point to any config file with:
+
+```bash
+export PAL_SIDECAR_CONFIG=/path/to/pal-sidecar.json
+```
+
+Later files override earlier files. The common shape is:
+
+```json
+{
+  "reviewers": [
+    {
+      "id": "security",
+      "label": "Security Reviewer",
+      "model": "o3",
+      "stance": "neutral",
+      "prompt": "Focus on abuse cases, key handling, prompt injection, local server exposure."
+    },
+    {
+      "id": "architecture",
+      "label": "Architecture Reviewer",
+      "model": "flash",
+      "stance": "neutral",
+      "prompt": "Focus on clean boundaries and implementation complexity."
+    },
+    {
+      "id": "budget",
+      "label": "Cost Reviewer",
+      "model": "5.1",
+      "stance": "neutral",
+      "prompt": "Focus on token budget, OpenRouter cost risk, and ways to cap spend."
+    }
+  ],
+  "minSuccessfulReviewers": 2
+}
+```
+
+PAL requires each reviewer to have a unique `model:stance` pair. If you want the same model twice, give the reviewers different stances such as `neutral` and `against`.
+
 Plan files are allowed from the current project, `~/.pi`, and optional extra roots:
 
 ```bash

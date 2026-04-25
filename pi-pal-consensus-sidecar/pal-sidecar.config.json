@@ -1,0 +1,26 @@
+{
+  "reviewers": [
+    {
+      "id": "security",
+      "label": "Security Reviewer",
+      "model": "o3",
+      "stance": "neutral",
+      "prompt": "Focus on abuse cases, key handling, prompt injection, local server exposure."
+    },
+    {
+      "id": "architecture",
+      "label": "Architecture Reviewer",
+      "model": "flash",
+      "stance": "neutral",
+      "prompt": "Focus on clean boundaries, implementation complexity, and OpenCode Zen/Go compatibility."
+    },
+    {
+      "id": "budget",
+      "label": "Cost Reviewer",
+      "model": "5.1",
+      "stance": "neutral",
+      "prompt": "Focus on model-call count, token budget, OpenRouter cost risk, and ways to cap spend."
+    }
+  ],
+  "minSuccessfulReviewers": 2
+}

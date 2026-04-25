@@ -27,6 +27,11 @@ interface RunRequest {
   minSuccessfulReviewers: number;
 }
 
+interface SidecarConfig {
+  reviewers: ReviewerConfig[];
+  minSuccessfulReviewers: number;
+}
+
 interface RunEvent {
   id: number;
   type: string;
@@ -142,6 +147,35 @@ async function palEnv(cwd: string): Promise<Record<string, string>> {
 
 function hasProviderKey(env: Record<string, string>): boolean {
   return Boolean(env.OPENROUTER_API_KEY || env.OPENAI_API_KEY || env.GEMINI_API_KEY || env.XAI_API_KEY || env.DIAL_API_KEY || env.CUSTOM_API_URL);
+}
+
+async function readJsonFile(path: string): Promise<Record<string, unknown> | undefined> {
+  if (!existsSync(path)) return undefined;
+  return JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+}
+
+async function loadSidecarConfig(cwd: string): Promise<SidecarConfig> {
+  const configPaths = [
+    resolve(EXTENSION_DIR, "pal-sidecar.config.json"),
+    resolve(cwd, ".pal-sidecar.json"),
+    resolve(cwd, ".pi", "pal-sidecar.json"),
+    process.env.PAL_SIDECAR_CONFIG ? resolve(process.env.PAL_SIDECAR_CONFIG) : undefined,
+  ].filter((path): path is string => Boolean(path));
+
+  let merged: Record<string, unknown> = {};
+  for (const path of configPaths) {
+    const config = await readJsonFile(path);
+    if (config) merged = { ...merged, ...config };
+  }
+
+  const reviewers = Array.isArray(merged.reviewers)
+    ? merged.reviewers.map((reviewer, index) => normalizeReviewer(reviewer as Partial<ReviewerConfig>, index))
+    : [];
+  const minSuccessfulReviewers = Number(merged.minSuccessfulReviewers ?? Math.min(2, reviewers.length));
+  return {
+    reviewers,
+    minSuccessfulReviewers: Number.isFinite(minSuccessfulReviewers) && minSuccessfulReviewers > 0 ? Math.min(Math.floor(minSuccessfulReviewers), Math.max(reviewers.length, 1)) : Math.min(2, reviewers.length),
+  };
 }
 
 function json(res: ServerResponse, status: number, body: unknown) {
@@ -654,13 +688,14 @@ const html = String.raw`<!doctype html>
 <body><div class="wrap"><section class="hero"><div class="panel"><div class="kicker">PAL MCP × Local SSE</div><h1>Consensus run room</h1><p class="lede">Submit a markdown plan, assign reviewer roles, and watch PAL MCP consult each model while raw artifacts land on disk.</p><p class="small">Default PAL command comes from <code>PAL_MCP_COMMAND</code>/<code>PAL_MCP_ARGS</code> or uvx.</p></div><form id="form" class="panel"><label>Plan file path</label><input id="planFile" placeholder="/tmp/pal-test-plan.md" required /><div id="reviewers"></div><div class="btns"><button type="button" class="secondary" id="addReviewer">Add reviewer</button><button type="submit">Start PAL run</button></div></form></section><section class="runs"><div><h2>Runs</h2><div id="runList" class="run-list"></div></div><div><h2>Event stream</h2><div id="events" class="events">No run selected.</div></div></section></div><script>
 const reviewersEl=document.getElementById('reviewers'), runList=document.getElementById('runList'), eventsEl=document.getElementById('events');
 const CSRF='__CSRF_TOKEN__';
-const defaults=[['security','Security Reviewer','o3','Focus on abuse cases, key handling, prompt injection, local server exposure.'],['architecture','Architecture Reviewer','flash','Focus on clean boundaries, implementation complexity, and OpenCode Zen/Go compatibility.'],['budget','Cost Reviewer','5.1','Focus on model-call count, token budget, OpenRouter cost risk, and ways to cap spend.']];
+const CONFIG=__SIDECAR_CONFIG__;
+const defaults=(CONFIG.reviewers||[]).map(r=>[r.id,r.label,r.model,r.prompt,r.stance||'neutral']);
 let reviewerCount=0, selectedRun=null, sources={};
-function addReviewer(d){const i=reviewerCount++; const v=d||['reviewer-'+i,'Reviewer '+(i+1),'flash','Review for correctness and risks.']; const div=document.createElement('div'); div.className='reviewer'; div.innerHTML='<div class="grid"><div><label>ID</label><input name="id" value="'+v[0]+'"></div><div><label>Label</label><input name="label" value="'+v[1]+'"></div><div><label>PAL model</label><input name="model" value="'+v[2]+'"></div></div><label>Role prompt</label><textarea name="prompt">'+v[3]+'</textarea>'; reviewersEl.appendChild(div)}
+function addReviewer(d){const i=reviewerCount++; const v=d||['reviewer-'+i,'Reviewer '+(i+1),'flash','Review for correctness and risks.','neutral']; const div=document.createElement('div'); div.className='reviewer'; div.innerHTML='<div class="grid"><div><label>ID</label><input name="id" value="'+v[0]+'"></div><div><label>Label</label><input name="label" value="'+v[1]+'"></div><div><label>PAL model</label><input name="model" value="'+v[2]+'"></div></div><label>Stance</label><select name="stance"><option value="neutral">neutral</option><option value="for">for</option><option value="against">against</option></select><label>Role prompt</label><textarea name="prompt">'+v[3]+'</textarea>'; reviewersEl.appendChild(div); div.querySelector('[name=stance]').value=v[4]||'neutral'}
 defaults.forEach(addReviewer); document.getElementById('addReviewer').onclick=()=>addReviewer();
-function collectReviewers(){return [...document.querySelectorAll('.reviewer')].map(r=>({id:r.querySelector('[name=id]').value,label:r.querySelector('[name=label]').value,model:r.querySelector('[name=model]').value,stance:'neutral',prompt:r.querySelector('[name=prompt]').value}))}
+function collectReviewers(){return [...document.querySelectorAll('.reviewer')].map(r=>({id:r.querySelector('[name=id]').value,label:r.querySelector('[name=label]').value,model:r.querySelector('[name=model]').value,stance:r.querySelector('[name=stance]').value,prompt:r.querySelector('[name=prompt]').value}))}
 function duplicatePair(reviewers){const seen=new Set(); for(const r of reviewers){const key=r.model+':'+(r.stance||'neutral'); if(seen.has(key)) return key; seen.add(key)} return null}
-document.getElementById('form').onsubmit=async e=>{e.preventDefault(); const reviewers=collectReviewers(); const dup=duplicatePair(reviewers); if(dup){alert('PAL requires unique model+stance pairs. Duplicate: '+dup+'\nChange one reviewer model, e.g. use flashlite for budget.');return} const body={planFile:document.getElementById('planFile').value,reviewers,minSuccessfulReviewers:Math.min(2,reviewers.length)}; const res=await fetch('/api/runs',{method:'POST',headers:{'content-type':'application/json','x-pal-sidecar-token':CSRF},body:JSON.stringify(body)}); const json=await res.json(); if(!res.ok){alert(json.error||'failed');return} await refreshRuns(); selectRun(json.run.id)};
+document.getElementById('form').onsubmit=async e=>{e.preventDefault(); const reviewers=collectReviewers(); const dup=duplicatePair(reviewers); if(dup){alert('PAL requires unique model+stance pairs. Duplicate: '+dup+'\nChange one reviewer model or stance.');return} const body={planFile:document.getElementById('planFile').value,reviewers,minSuccessfulReviewers:CONFIG.minSuccessfulReviewers||Math.min(2,reviewers.length)}; const res=await fetch('/api/runs',{method:'POST',headers:{'content-type':'application/json','x-pal-sidecar-token':CSRF},body:JSON.stringify(body)}); const json=await res.json(); if(!res.ok){alert(json.error||'failed');return} await refreshRuns(); selectRun(json.run.id)};
 async function refreshRuns(){const res=await fetch('/api/runs'); const data=await res.json(); runList.innerHTML=''; data.runs.forEach(run=>{const div=document.createElement('div'); div.className='run-card '+(run.id===selectedRun?'active':''); div.onclick=()=>selectRun(run.id); div.innerHTML='<span class="status '+run.status+'">'+run.status+'</span><h3>'+run.id+'</h3><div class="small path">'+run.artifactDir+'</div>'+(run.status==='running'?'<button onclick="event.stopPropagation();cancelRun(\''+run.id+'\')">Cancel</button>':''); runList.appendChild(div)})}
 async function cancelRun(id){await fetch('/api/runs/'+id+'/cancel',{method:'POST',headers:{'x-pal-sidecar-token':CSRF}}); await refreshRuns()}
 function selectRun(id){selectedRun=id; refreshRuns(); eventsEl.innerHTML=''; if(sources[id]) sources[id].close(); const es=new EventSource('/api/runs/'+id+'/events?token='+encodeURIComponent(CSRF)); sources[id]=es; ['run_queued','run_started','pal_starting','pal_connected','reviewer_started','reviewer_completed','reviewer_failed','synthesis_completed','synthesis_skipped','run_completed','run_failed','run_timeout','run_cancelled'].forEach(t=>es.addEventListener(t,e=>append(t,JSON.parse(e.data))));}
@@ -674,15 +709,17 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     assertLocalRequest(req);
     const url = new URL(req.url || "/", `http://${req.headers.host || "127.0.0.1"}`);
     if (req.method === "GET" && url.pathname === "/") {
+      const config = await loadSidecarConfig(state.cwd);
       res.writeHead(200, {
         "content-type": "text/html; charset=utf-8",
         "cache-control": "no-store",
         "set-cookie": `pal_sidecar_token=${encodeURIComponent(state.csrfToken)}; Path=/; SameSite=Strict`,
       });
-      res.end(html.replace(/__CSRF_TOKEN__/g, state.csrfToken));
+      res.end(html.replace(/__CSRF_TOKEN__/g, state.csrfToken).replace("__SIDECAR_CONFIG__", JSON.stringify(config)));
       return;
     }
     if (req.method === "GET" && url.pathname === "/api/health") return json(res, 200, { ok: true, port: state.port });
+    if (req.method === "GET" && url.pathname === "/api/config") return json(res, 200, await loadSidecarConfig(state.cwd));
     if (req.method === "GET" && url.pathname === "/api/runs") {
       return json(res, 200, { runs: [...state.runs.values()].map((r) => ({ id: r.id, status: r.status, startedAt: r.startedAt, completedAt: r.completedAt, planFile: r.planFile, artifactDir: r.artifactDir, error: r.error, findingsPath: r.findingsPath })) });
     }
