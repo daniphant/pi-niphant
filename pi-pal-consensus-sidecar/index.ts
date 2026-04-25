@@ -172,13 +172,37 @@ function isAllowedOrigin(value: string | undefined): boolean {
   }
 }
 
+function cookieValue(req: IncomingMessage, name: string): string | undefined {
+  const cookie = Array.isArray(req.headers.cookie) ? req.headers.cookie.join("; ") : req.headers.cookie;
+  if (!cookie) return undefined;
+  for (const part of cookie.split(";")) {
+    const [key, ...rest] = part.trim().split("=");
+    if (key === name) return decodeURIComponent(rest.join("="));
+  }
+  return undefined;
+}
+
 function requestToken(req: IncomingMessage, url: URL): string | undefined {
   const header = req.headers["x-pal-sidecar-token"];
-  return (Array.isArray(header) ? header[0] : header) || url.searchParams.get("token") || undefined;
+  return (Array.isArray(header) ? header[0] : header) || url.searchParams.get("token") || cookieValue(req, "pal_sidecar_token") || undefined;
+}
+
+function sidecarOrigins(): Set<string> {
+  const port = state.port ?? Number(process.env.PAL_SIDECAR_PORT || 8787);
+  return new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`]);
+}
+
+function isSameSidecarOrigin(req: IncomingMessage): boolean {
+  const origin = Array.isArray(req.headers.origin) ? req.headers.origin[0] : req.headers.origin;
+  return Boolean(origin && sidecarOrigins().has(origin));
 }
 
 function requireCsrf(req: IncomingMessage, url: URL) {
-  if (requestToken(req, url) !== state.csrfToken) throw new Error("Invalid or missing sidecar CSRF token.");
+  if (requestToken(req, url) === state.csrfToken) return;
+  // Graceful fallback for an already-open dashboard tab after extension reload: exact same-origin
+  // browser requests are accepted, but cross-origin localhost pages still need the token.
+  if (isSameSidecarOrigin(req)) return;
+  throw new Error("Invalid or missing sidecar CSRF token. Hard-refresh the dashboard so it receives the current token.");
 }
 
 function assertLocalRequest(req: IncomingMessage) {
@@ -613,7 +637,11 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     assertLocalRequest(req);
     const url = new URL(req.url || "/", `http://${req.headers.host || "127.0.0.1"}`);
     if (req.method === "GET" && url.pathname === "/") {
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      res.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+        "set-cookie": `pal_sidecar_token=${encodeURIComponent(state.csrfToken)}; Path=/; SameSite=Strict`,
+      });
       res.end(html.replace(/__CSRF_TOKEN__/g, state.csrfToken));
       return;
     }
