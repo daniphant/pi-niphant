@@ -163,6 +163,7 @@ describe("classifyError", () => {
     ["OpenRouter returned 429 rate limit exceeded", "pal_rate_limited", true],
     ["Quota exceeded: insufficient credits", "pal_quota_exceeded", false],
     ["Provider returned 401 invalid API key", "pal_provider_auth_failed", false],
+    ["No endpoints found for meta-llama/llama-3-70b", "pal_model_no_endpoint", false],
     ["Model not found: openai/missing-model", "pal_model_not_found", false],
     ["Maximum context length exceeded: too many tokens", "pal_context_length_exceeded", false],
     ["Request blocked by content policy", "pal_content_policy_block", false],

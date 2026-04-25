@@ -76,7 +76,7 @@
     {
       "id": "dx_maintainer",
       "label": "DX / Maintainer Reviewer",
-      "model": "meta-llama/llama-3-70b",
+      "model": "openai/o3-mini",
       "stance": "neutral",
       "prompt": "Focus on maintainability, local development ergonomics, configuration, documentation, contributor experience, debugging, and future extension points."
     }

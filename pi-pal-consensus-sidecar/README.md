@@ -232,7 +232,7 @@ Run failures also include a structured error with retryability and operator guid
 }
 ```
 
-Known error codes include `plan_file_not_found`, `plan_file_too_large`, `concurrency_limit_exceeded`, `plan_file_untrusted_root`, `pal_provider_key_missing`, `pal_provider_auth_failed`, `pal_contract_mismatch`, `pal_timeout`, `pal_rate_limited`, `pal_quota_exceeded`, `pal_model_not_found`, `pal_context_length_exceeded`, `pal_content_policy_block`, `pal_upstream_unavailable`, `pal_network_error`, `pal_malformed_response`, `pal_subprocess_failed`, `run_cancelled`, `invalid_reviewer_config`, `no_reviewers_configured`, `duplicate_model_stance`, `model_unavailable`, `insufficient_successful_reviewers`, and `unknown_error`.
+Known error codes include `plan_file_not_found`, `plan_file_too_large`, `concurrency_limit_exceeded`, `plan_file_untrusted_root`, `pal_provider_key_missing`, `pal_provider_auth_failed`, `pal_contract_mismatch`, `pal_timeout`, `pal_rate_limited`, `pal_quota_exceeded`, `pal_model_no_endpoint`, `pal_model_not_found`, `pal_context_length_exceeded`, `pal_content_policy_block`, `pal_upstream_unavailable`, `pal_network_error`, `pal_malformed_response`, `pal_subprocess_failed`, `run_cancelled`, `invalid_reviewer_config`, `no_reviewers_configured`, `duplicate_model_stance`, `model_unavailable`, `insufficient_successful_reviewers`, and `unknown_error`.
 
 ## Dashboard frontend
 

@@ -20,7 +20,7 @@
     {
       "id": "qa",
       "label": "QA / Test Reviewer",
-      "model": "meta-llama/llama-3-70b",
+      "model": "openai/o3-mini",
       "stance": "neutral",
       "prompt": "Focus on tests, acceptance criteria, regression risk, integration coverage, UI/server testability, and the cheapest useful proof of correctness."
     },

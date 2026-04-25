@@ -20,7 +20,7 @@
     {
       "id": "qa",
       "label": "QA / Test Reviewer",
-      "model": "meta-llama/llama-3-70b",
+      "model": "openai/o3-mini",
       "stance": "neutral",
       "prompt": "Focus on test gaps, acceptance criteria, regression risks, integration tests, and observable proof that the plan worked."
     },
