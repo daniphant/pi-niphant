@@ -165,12 +165,25 @@ function classifyCommitType(files: string[], promptText: string, assistantText: 
   return "chore";
 }
 
-function normalizeSubjectPhrase(text: string) {
+function splitIdentifierWords(text: string) {
   return text
-    .replace(/[`*_#]/g, "")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+}
+
+function stripSubjectSyntax(text: string) {
+  return splitIdentifierWords(text)
+    .replace(/\b([A-Za-z_$][\w$]*)\s*\([^)]*\)/g, "$1")
+    .replace(/\b([A-Za-z_$][\w$]*)\s*\([^)]*$/g, "$1")
+    .replace(/[`*_#"'“”‘’]/g, "")
+    .replace(/[()[\]{}<>]/g, " ")
     .replace(/\s+/g, " ")
-    .replace(/[.!?:;]+$/g, "")
-    .trim()
+    .replace(/[\s.!?,:;/\\-]+$/g, "")
+    .trim();
+}
+
+export function normalizeSubjectPhrase(text: string) {
+  return stripSubjectSyntax(text)
     .replace(/^(i('|’)ll|i will|i can|we can|let('|’)s|please|cool,?|okay,?|alright,?)\s+/i, "")
     .replace(/^(implemented|implements|implementing)\s+/i, "implement ")
     .replace(/^(added|adds|adding)\s+/i, "add ")
@@ -179,10 +192,13 @@ function normalizeSubjectPhrase(text: string) {
     .replace(/^(moved|moves|moving)\s+/i, "move ")
     .replace(/^(removed|removes|removing)\s+/i, "remove ")
     .replace(/^(documented|documents|documenting)\s+/i, "document ")
-    .replace(/^(changed|changes|changing)\s+/i, "change ");
+    .replace(/^(changed|changes|changing)\s+/i, "change ")
+    .replace(/\s+/g, " ")
+    .replace(/[\s.!?,:;/\\-]+$/g, "")
+    .trim();
 }
 
-function inferSubjectPhrase(files: string[], promptText: string, assistantText: string) {
+export function inferSubjectPhrase(files: string[], promptText: string, assistantText: string) {
   const combined = `${assistantText}\n${promptText}`;
   const completionMatch = combined.match(/\b(implemented|added|updated|fixed|moved|removed|documented|changed|renamed|refactored)\s+([^\n.]{6,90})/i);
   if (completionMatch) return normalizeSubjectPhrase(`${completionMatch[1]} ${completionMatch[2]}`).toLowerCase();
@@ -204,7 +220,7 @@ function inferSubjectPhrase(files: string[], promptText: string, assistantText: 
   return topLevel ? `update ${topLevel}` : "update working tree";
 }
 
-function buildCommitSubject(status: string, messages?: unknown[]) {
+export function buildCommitSubject(status: string, messages?: unknown[]) {
   const summary = summarizeStatus(status);
   const files = summary.allFiles;
   const scope = scopeForFiles(files);

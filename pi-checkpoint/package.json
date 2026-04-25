@@ -3,10 +3,24 @@
   "version": "0.1.0",
   "description": "Git diff checkpoints and quick revert commands for Pi sessions.",
   "type": "module",
+  "scripts": {
+    "check": "node scripts/subject-check.mjs"
+  },
   "private": false,
   "license": "MIT",
-  "keywords": ["pi", "pi-package", "extension", "checkpoint", "diff"],
+  "keywords": [
+    "pi",
+    "pi-package",
+    "extension",
+    "checkpoint",
+    "diff"
+  ],
   "pi": {
-    "extensions": ["."]
+    "extensions": [
+      "."
+    ]
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.7"
   }
 }
