@@ -11,6 +11,7 @@ It gives Pi a browser dashboard for plan-file consensus reviews without replacin
 - accepts a markdown plan file plus reviewer roles
 - restricts plan files to trusted roots (`cwd`, `~/.pi`, and `PAL_SIDECAR_ALLOWED_ROOTS`)
 - protects local POST/SSE endpoints with a per-sidecar CSRF token and localhost Host/Origin checks
+- validates PAL's unique model+stance requirement before starting a run
 - launches PAL MCP as a stdio subprocess using the MCP SDK
 - calls PAL's `consensus` tool step-by-step
 - streams reviewer status over SSE
@@ -105,4 +106,5 @@ PAL subprocess stderr is captured to `.pi/pal-consensus-runs/<run-id>/pal-stderr
 - The HTTP server binds to `127.0.0.1` only.
 - Requests with non-local `Host` or `Origin` headers are rejected.
 - `POST /api/runs`, `POST /api/runs/:id/cancel`, and run SSE streams require the dashboard-injected CSRF token.
+- PAL requires each reviewer to use a unique `model:stance` pair; duplicate pairs are rejected before the run starts.
 - The dashboard includes a Cancel button for running jobs; timeout cancellation is controlled by `PAL_SIDECAR_RUN_TIMEOUT_MS`.

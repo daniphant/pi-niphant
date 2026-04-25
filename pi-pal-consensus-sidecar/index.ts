@@ -284,6 +284,12 @@ async function validateRunRequest(raw: unknown, cwd: string): Promise<RunRequest
   const planFile = await validatePlanFile(String(obj.planFile), cwd);
   const reviewers = Array.isArray(obj.reviewers) ? obj.reviewers.map((r, i) => normalizeReviewer(r as Partial<ReviewerConfig>, i)) : [];
   if (reviewers.length < 2) throw new Error("PAL consensus requires at least two reviewers/models.");
+  const seenModelStances = new Set<string>();
+  for (const reviewer of reviewers) {
+    const key = `${reviewer.model}:${reviewer.stance ?? "neutral"}`;
+    if (seenModelStances.has(key)) throw new Error(`Duplicate PAL model+stance pair '${key}'. PAL consensus requires each reviewer to use a unique model+stance combination.`);
+    seenModelStances.add(key);
+  }
   const requestedMin = Number(obj.minSuccessfulReviewers ?? Math.min(2, reviewers.length));
   return {
     planFile,
@@ -324,6 +330,12 @@ function safeJson(text: string): any {
   } catch {
     return undefined;
   }
+}
+
+function palToolFailure(text: string): string | undefined {
+  if (/validation error for ConsensusRequest/i.test(text)) return text;
+  if (/\b(error|exception|traceback)\b/i.test(text) && !text.trim().startsWith("{")) return text;
+  return undefined;
 }
 
 function reviewerPrompt(reviewer: ReviewerConfig): string {
@@ -520,13 +532,15 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
       assertNotCancelled(run);
       const text = textFromToolResult(result);
       const parsed = safeJson(text);
+      const toolFailure = palToolFailure(text);
       rawResponses.push(parsed ?? { text });
 
       const jsonPath = join(run.artifactDir, `${reviewer.id}.json`);
       const mdPath = join(run.artifactDir, `${reviewer.id}.md`);
-      const modelResponse = parsed?.model_response ?? parsed;
-      const responseStatus = modelResponse?.status || parsed?.status;
-      const responseError = modelResponse?.error || parsed?.error;
+      const modelResponse = parsed?.model_response ?? (parsed?.model_consulted ? parsed : undefined);
+      const missingExpectedModelResponse = !modelResponse;
+      const responseStatus = toolFailure || missingExpectedModelResponse ? "error" : (modelResponse?.status || parsed?.status);
+      const responseError = toolFailure || modelResponse?.error || parsed?.error || (missingExpectedModelResponse ? "PAL did not return a model_response for this reviewer." : undefined);
       const markdown = responseStatus === "error"
         ? `# ${reviewer.label} failed\n\nModel: ${reviewer.model}\n\n${responseError || "Unknown PAL/model error"}\n`
         : modelResponse?.verdict || modelResponse?.content || modelResponse?.text || text;
@@ -640,7 +654,7 @@ const html = String.raw`<!doctype html>
 <body><div class="wrap"><section class="hero"><div class="panel"><div class="kicker">PAL MCP × Local SSE</div><h1>Consensus run room</h1><p class="lede">Submit a markdown plan, assign reviewer roles, and watch PAL MCP consult each model while raw artifacts land on disk.</p><p class="small">Default PAL command comes from <code>PAL_MCP_COMMAND</code>/<code>PAL_MCP_ARGS</code> or uvx.</p></div><form id="form" class="panel"><label>Plan file path</label><input id="planFile" placeholder="/tmp/pal-test-plan.md" required /><div id="reviewers"></div><div class="btns"><button type="button" class="secondary" id="addReviewer">Add reviewer</button><button type="submit">Start PAL run</button></div></form></section><section class="runs"><div><h2>Runs</h2><div id="runList" class="run-list"></div></div><div><h2>Event stream</h2><div id="events" class="events">No run selected.</div></div></section></div><script>
 const reviewersEl=document.getElementById('reviewers'), runList=document.getElementById('runList'), eventsEl=document.getElementById('events');
 const CSRF='__CSRF_TOKEN__';
-const defaults=[['security','Security Reviewer','o3','Focus on abuse cases, key handling, prompt injection, local server exposure.'],['architecture','Architecture Reviewer','flash','Focus on clean boundaries, implementation complexity, and OpenCode Zen/Go compatibility.'],['budget','Cost Reviewer','flash','Focus on model-call count, token budget, OpenRouter cost risk, and ways to cap spend.']];
+const defaults=[['security','Security Reviewer','o3','Focus on abuse cases, key handling, prompt injection, local server exposure.'],['architecture','Architecture Reviewer','flash','Focus on clean boundaries, implementation complexity, and OpenCode Zen/Go compatibility.'],['budget','Cost Reviewer','flashlite','Focus on model-call count, token budget, OpenRouter cost risk, and ways to cap spend.']];
 let reviewerCount=0, selectedRun=null, sources={};
 function addReviewer(d){const i=reviewerCount++; const v=d||['reviewer-'+i,'Reviewer '+(i+1),'flash','Review for correctness and risks.']; const div=document.createElement('div'); div.className='reviewer'; div.innerHTML='<div class="grid"><div><label>ID</label><input name="id" value="'+v[0]+'"></div><div><label>Label</label><input name="label" value="'+v[1]+'"></div><div><label>PAL model</label><input name="model" value="'+v[2]+'"></div></div><label>Role prompt</label><textarea name="prompt">'+v[3]+'</textarea>'; reviewersEl.appendChild(div)}
 defaults.forEach(addReviewer); document.getElementById('addReviewer').onclick=()=>addReviewer();
