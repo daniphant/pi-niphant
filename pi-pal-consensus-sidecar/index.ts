@@ -1435,6 +1435,7 @@ export default function palConsensusSidecarExtension(pi: ExtensionAPI) {
         `Artifacts: ${finalRun.artifactDir}`,
         finalRun.findingsPath ? `Findings path: ${finalRun.findingsPath}` : undefined,
         finalRun.structuredError ? `Structured error: ${finalRun.structuredError.code} (retryable=${finalRun.structuredError.retryable})` : undefined,
+        finalRun.structuredError?.guidance ? `Guidance: ${finalRun.structuredError.guidance}` : undefined,
         finalRun.error ? `Error: ${finalRun.error}` : undefined,
       ].filter(Boolean).join("\n");
       return { content: [{ type: "text", text: summary }], details: { run: finalRun, findings } };

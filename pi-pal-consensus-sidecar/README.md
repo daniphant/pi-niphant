@@ -205,17 +205,18 @@ Every generated `findings.json` includes stable version metadata so downstream w
 }
 ```
 
-Run failures also include a structured error where possible:
+Run failures also include a structured error with retryability and operator guidance where possible:
 
 ```json
 {
   "code": "pal_timeout",
   "message": "...",
-  "retryable": true
+  "retryable": true,
+  "guidance": "Retry later, use fewer reviewers, or raise PAL_SIDECAR_TOOL_WAIT_TIMEOUT_MS for long reviews."
 }
 ```
 
-Known error codes include `plan_file_not_found`, `plan_file_too_large`, `concurrency_limit_exceeded`, `plan_file_untrusted_root`, `pal_provider_key_missing`, `pal_contract_mismatch`, `pal_timeout`, `run_cancelled`, `invalid_reviewer_config`, `model_unavailable`, `insufficient_successful_reviewers`, and `unknown_error`.
+Known error codes include `plan_file_not_found`, `plan_file_too_large`, `concurrency_limit_exceeded`, `plan_file_untrusted_root`, `pal_provider_key_missing`, `pal_provider_auth_failed`, `pal_contract_mismatch`, `pal_timeout`, `pal_rate_limited`, `pal_quota_exceeded`, `pal_model_not_found`, `pal_context_length_exceeded`, `pal_content_policy_block`, `pal_upstream_unavailable`, `pal_network_error`, `pal_malformed_response`, `pal_subprocess_failed`, `run_cancelled`, `invalid_reviewer_config`, `no_reviewers_configured`, `duplicate_model_stance`, `model_unavailable`, `insufficient_successful_reviewers`, and `unknown_error`.
 
 ## Dashboard frontend
 

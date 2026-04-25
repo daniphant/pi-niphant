@@ -95,12 +95,26 @@ describe("classifyError", () => {
     ["PAL MCP did not expose a consensus tool", "pal_contract_mismatch", false],
     ["Timed out waiting for PAL consensus", "pal_timeout", true],
     ["Run cancelled.", "run_cancelled", true],
-    ["Duplicate PAL model+stance pair", "invalid_reviewer_config", false],
+    ["Duplicate PAL model+stance pair", "duplicate_model_stance", false],
+    ["No reviewers configured for run", "no_reviewers_configured", false],
     ["Selected stack has 1 reviewer model(s) not reported by PAL listmodels.", "model_unavailable", false],
+    ["OpenRouter returned 429 rate limit exceeded", "pal_rate_limited", true],
+    ["Quota exceeded: insufficient credits", "pal_quota_exceeded", false],
+    ["Provider returned 401 invalid API key", "pal_provider_auth_failed", false],
+    ["Model not found: openai/missing-model", "pal_model_not_found", false],
+    ["Maximum context length exceeded: too many tokens", "pal_context_length_exceeded", false],
+    ["Request blocked by content policy", "pal_content_policy_block", false],
+    ["Provider returned 503 service unavailable", "pal_upstream_unavailable", true],
+    ["Network ECONNRESET while calling provider", "pal_network_error", true],
+    ["Malformed provider response: invalid JSON", "pal_malformed_response", true],
+    ["PAL subprocess exited with exit code 1", "pal_subprocess_failed", true],
     ["Only 2/5 reviewers succeeded; required 4.", "insufficient_successful_reviewers", true],
+    ["Invalid sidecar config: bad reviewer", "invalid_reviewer_config", false],
     ["Something else", "unknown_error", true],
   ])("maps %s", (message, code, retryable) => {
-    expect(classifyError(message)).toMatchObject({ code, retryable });
+    const classified = classifyError(message);
+    expect(classified).toMatchObject({ code, retryable });
+    expect(classified.guidance).toBeTruthy();
   });
 });
 
