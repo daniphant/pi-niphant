@@ -162,6 +162,11 @@ function hasProviderKey(env: Record<string, string>): boolean {
   return Boolean(env.OPENROUTER_API_KEY || env.OPENAI_API_KEY || env.GEMINI_API_KEY || env.XAI_API_KEY || env.DIAL_API_KEY || env.CUSTOM_API_URL);
 }
 
+function mcpRequestTimeoutMs(): number {
+  const value = Number(process.env.PAL_SIDECAR_MCP_REQUEST_TIMEOUT_MS || 9 * 60_000);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 9 * 60_000;
+}
+
 async function readJsonFile(path: string): Promise<Record<string, unknown> | undefined> {
   if (!existsSync(path)) return undefined;
   return JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
@@ -634,7 +639,8 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
 
   try {
     assertNotCancelled(run);
-    const tools = await client.listTools();
+    const requestTimeoutMs = mcpRequestTimeoutMs();
+    const tools = await client.listTools(undefined, { timeout: requestTimeoutMs });
     const toolNames = (tools.tools ?? []).map((tool: any) => tool.name);
     addEvent(run, "pal_connected", { tools: toolNames });
     if (!toolNames.includes("consensus")) throw new Error(`PAL MCP did not expose a consensus tool. Tools: ${toolNames.join(", ")}`);
@@ -672,23 +678,36 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
       };
       if (i === 0) args.models = models;
 
-      const result = await client.callTool({ name: "consensus", arguments: args });
-      assertNotCancelled(run);
-      const text = textFromToolResult(result);
-      const parsed = safeJson(text);
-      const toolFailure = palToolFailure(text);
-      rawResponses.push(parsed ?? { text });
-
       const jsonPath = join(run.artifactDir, `${reviewer.id}.json`);
       const mdPath = join(run.artifactDir, `${reviewer.id}.md`);
-      const modelResponse = parsed?.model_response ?? (parsed?.model_consulted ? parsed : undefined);
-      const missingExpectedModelResponse = !modelResponse;
-      const responseStatus = toolFailure || missingExpectedModelResponse ? "error" : (modelResponse?.status || parsed?.status);
-      const responseError = toolFailure || modelResponse?.error || parsed?.error || (missingExpectedModelResponse ? "PAL did not return a model_response for this reviewer." : undefined);
-      const markdown = responseStatus === "error"
-        ? `# ${reviewer.label} failed\n\nModel: ${reviewer.model}\n\n${responseError || "Unknown PAL/model error"}\n`
-        : modelResponse?.verdict || modelResponse?.content || modelResponse?.text || text;
-      await writeFile(jsonPath, JSON.stringify(parsed ?? { text }, null, 2));
+      let parsed: any;
+      let markdown = "";
+      let responseStatus: unknown;
+      let responseError: string | undefined;
+      try {
+        const result = await client.callTool({ name: "consensus", arguments: args }, undefined, { timeout: requestTimeoutMs });
+        assertNotCancelled(run);
+        const text = textFromToolResult(result);
+        parsed = safeJson(text);
+        const toolFailure = palToolFailure(text);
+        rawResponses.push(parsed ?? { text });
+
+        const modelResponse = parsed?.model_response ?? (parsed?.model_consulted ? parsed : undefined);
+        const missingExpectedModelResponse = !modelResponse;
+        responseStatus = toolFailure || missingExpectedModelResponse ? "error" : (modelResponse?.status || parsed?.status);
+        responseError = toolFailure || modelResponse?.error || parsed?.error || (missingExpectedModelResponse ? "PAL did not return a model_response for this reviewer." : undefined);
+        markdown = responseStatus === "error"
+          ? `# ${reviewer.label} failed\n\nModel: ${reviewer.model}\n\n${responseError || "Unknown PAL/model error"}\n`
+          : modelResponse?.verdict || modelResponse?.content || modelResponse?.text || text;
+      } catch (error) {
+        assertNotCancelled(run);
+        responseStatus = "error";
+        responseError = error instanceof Error ? error.message : String(error);
+        parsed = { error: responseError, reviewer: reviewer.id, model: reviewer.model };
+        rawResponses.push(parsed);
+        markdown = `# ${reviewer.label} failed\n\nModel: ${reviewer.model}\n\n${responseError}\n`;
+      }
+      await writeFile(jsonPath, JSON.stringify(parsed, null, 2));
       await writeFile(mdPath, String(markdown));
       run.rawArtifacts.push(jsonPath, mdPath);
       reviewerArtifacts.push({ reviewer, status: responseStatus === "error" ? "error" : "success", markdown: String(markdown), jsonPath, mdPath, error: responseError });

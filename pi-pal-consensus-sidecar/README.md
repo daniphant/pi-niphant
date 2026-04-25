@@ -160,6 +160,8 @@ export PAL_MCP_ARGS="--from git+https://github.com/BeehiveInnovations/pal-mcp-se
 export PAL_MCP_CWD="$HOME/src/pal-mcp-server"
 # Optional: cancel long runs automatically after this many milliseconds (default 10 minutes).
 export PAL_SIDECAR_RUN_TIMEOUT_MS=600000
+# Optional: per MCP request/tool-call timeout in milliseconds (default 9 minutes).
+export PAL_SIDECAR_MCP_REQUEST_TIMEOUT_MS=540000
 ```
 
 The sidecar also loads provider keys from these files when the Pi process did not inherit shell exports:
@@ -199,4 +201,4 @@ PAL subprocess stderr is captured to `.pi/pal-consensus-runs/<run-id>/pal-stderr
 - Requests with non-local `Host` or `Origin` headers are rejected.
 - `POST /api/runs`, `POST /api/runs/:id/cancel`, and run SSE streams require the dashboard-injected CSRF token.
 - PAL requires each reviewer to use a unique `model:stance` pair; duplicate pairs are rejected before the run starts.
-- The dashboard includes a Cancel button for running jobs; timeout cancellation is controlled by `PAL_SIDECAR_RUN_TIMEOUT_MS`.
+- The dashboard includes a Cancel button for running jobs; whole-run timeout cancellation is controlled by `PAL_SIDECAR_RUN_TIMEOUT_MS`; individual PAL MCP request timeout is controlled by `PAL_SIDECAR_MCP_REQUEST_TIMEOUT_MS`.
