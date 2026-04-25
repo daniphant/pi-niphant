@@ -17,6 +17,7 @@ import {
   markdownSection,
   parseReviewerFindings,
   renderFindingsSummaryMarkdown,
+  sanitizeErrorMessage,
   stackAvailability,
 } from "../src/core.js";
 
@@ -225,6 +226,13 @@ describe("findings normalization helpers", () => {
 });
 
 describe("classifyError", () => {
+  it("sanitizes provider metadata in structured messages", () => {
+    const message = "OpenRouter error {'user_id': 'user_38Utdy8H2nXUBp87Bji661qO9pY'} with sk-or-v1-abcdefghijklmnopqrstuvwxyz";
+    expect(sanitizeErrorMessage(message)).not.toContain("user_38Utdy8H2nXUBp87Bji661qO9pY");
+    expect(sanitizeErrorMessage(message)).not.toContain("sk-or-v1-abcdefghijklmnopqrstuvwxyz");
+    expect(classifyError(message).message).toContain("[redacted]");
+  });
+
   it.each([
     ["Plan file not found: nope.md", "plan_file_not_found", false],
     ["Plan file is too large: 999 bytes exceeds PAL_SIDECAR_MAX_PLAN_BYTES=10.", "plan_file_too_large", false],
@@ -242,6 +250,7 @@ describe("classifyError", () => {
     ["Provider returned 401 invalid API key", "pal_provider_auth_failed", false],
     ["No endpoints found for meta-llama/llama-3-70b", "pal_model_no_endpoint", false],
     ["Model not found: openai/missing-model", "pal_model_not_found", false],
+    ["openai/not-real is not a valid model ID", "pal_model_not_found", false],
     ["Maximum context length exceeded: too many tokens", "pal_context_length_exceeded", false],
     ["Request blocked by content policy", "pal_content_policy_block", false],
     ["Provider returned 503 service unavailable", "pal_upstream_unavailable", true],

@@ -346,8 +346,16 @@ export function isSafeArtifactName(name: string): boolean {
   return /\.(json|md|log|txt)$/i.test(name);
 }
 
+export function sanitizeErrorMessage(message: string): string {
+  return message
+    .replace(/(['"]?user_id['"]?\s*:\s*)['"][^'"]+['"]/gi, "$1'[redacted]'")
+    .replace(/\b(user_[A-Za-z0-9_-]{8,})\b/g, "[redacted-user-id]")
+    .replace(/\b(sk-or-v1-[A-Za-z0-9_-]{16,})\b/g, "[redacted-api-key]")
+    .replace(/\b(sk-[A-Za-z0-9_-]{16,})\b/g, "[redacted-api-key]");
+}
+
 function structuredError(code: string, message: string, retryable: boolean, guidance: string, details?: unknown): StructuredError {
-  return { code, message, retryable, guidance, details };
+  return { code, message: sanitizeErrorMessage(message), retryable, guidance, details };
 }
 
 export function classifyError(error: unknown, details?: unknown): StructuredError {
@@ -367,7 +375,7 @@ export function classifyError(error: unknown, details?: unknown): StructuredErro
   if (lower.includes("quota") || lower.includes("insufficient credits") || lower.includes("credit balance") || lower.includes("billing hard limit")) return structuredError("pal_quota_exceeded", message, false, "Add provider credits, raise quota, or switch to a stack/provider with available quota.", details);
   if (/\b(401|403)\b/.test(lower) || lower.includes("unauthorized") || lower.includes("forbidden") || lower.includes("invalid api key") || lower.includes("invalid_api_key") || lower.includes("permission denied")) return structuredError("pal_provider_auth_failed", message, false, "Verify provider credentials, account permissions, and PAL/OpenRouter API key configuration.", details);
   if (lower.includes("no endpoints found") || lower.includes("no endpoint found") || lower.includes("no available endpoints")) return structuredError("pal_model_no_endpoint", message, false, "PAL/OpenRouter lists the model but has no serving endpoint for it. Replace the model in the stack and rerun discovery.", details);
-  if (lower.includes("model not found") || lower.includes("model_not_found") || lower.includes("does not exist") || lower.includes("unknown model") || lower.includes("invalid model")) return structuredError("pal_model_not_found", message, false, "Run PAL model discovery and replace unavailable model IDs in the selected stack.", details);
+  if (lower.includes("model not found") || lower.includes("model_not_found") || lower.includes("does not exist") || lower.includes("unknown model") || lower.includes("invalid model") || lower.includes("not a valid model id")) return structuredError("pal_model_not_found", message, false, "Run PAL model discovery and replace unavailable model IDs in the selected stack.", details);
   if (lower.includes("context length") || lower.includes("maximum context") || lower.includes("token limit") || lower.includes("too many tokens") || lower.includes("context window")) return structuredError("pal_context_length_exceeded", message, false, "Shorten planText, review a smaller artifact, or choose models with a larger context window.", details);
   if (lower.includes("content policy") || lower.includes("safety policy") || lower.includes("policy violation") || lower.includes("blocked by policy") || lower.includes("moderation")) return structuredError("pal_content_policy_block", message, false, "Remove or redact policy-triggering content from the reviewed artifact before retrying.", details);
   if (/\b(500|502|503|504)\b/.test(lower) || lower.includes("service unavailable") || lower.includes("bad gateway") || lower.includes("gateway timeout") || lower.includes("upstream") || lower.includes("overloaded")) return structuredError("pal_upstream_unavailable", message, true, "Retry later, or switch stacks/providers if the upstream provider remains unavailable.", details);
