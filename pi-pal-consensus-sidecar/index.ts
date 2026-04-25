@@ -5,8 +5,9 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 interface ReviewerConfig {
@@ -55,6 +56,7 @@ interface SidecarState {
   activePalClients: Set<Client>;
 }
 
+const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));
 const STATE_KEY = Symbol.for("pi-pal-consensus-sidecar.state");
 const globalWithState = globalThis as typeof globalThis & { [STATE_KEY]?: SidecarState };
 const state: SidecarState = globalWithState[STATE_KEY] ?? { cwd: process.cwd(), runs: new Map(), clients: new Map(), activePalClients: new Set() };
@@ -95,6 +97,8 @@ async function palEnv(cwd: string): Promise<Record<string, string>> {
   const configuredPalCwd = palCwd();
   const dotenvPaths = [
     process.env.PAL_ENV_FILE ? resolve(process.env.PAL_ENV_FILE) : undefined,
+    resolve(EXTENSION_DIR, ".env"),
+    resolve(EXTENSION_DIR, ".pal.env"),
     resolve(cwd, ".env"),
     resolve(cwd, ".pal.env"),
     configuredPalCwd ? resolve(configuredPalCwd, ".env") : undefined,

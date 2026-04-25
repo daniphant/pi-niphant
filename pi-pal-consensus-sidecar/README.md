@@ -62,6 +62,8 @@ export PAL_MCP_CWD="$HOME/src/pal-mcp-server"
 The sidecar also loads provider keys from these files when the Pi process did not inherit shell exports:
 
 - `PAL_ENV_FILE` if set
+- `pi-pal-consensus-sidecar/.env`
+- `pi-pal-consensus-sidecar/.pal.env`
 - `<repo>/.env`
 - `<repo>/.pal.env`
 - `$PAL_MCP_CWD/.env` if `PAL_MCP_CWD` is set
@@ -72,7 +74,7 @@ The sidecar also loads provider keys from these files when the Pi process did no
 Example:
 
 ```bash
-printf 'OPENROUTER_API_KEY=%s\n' 'sk-or-v1-...' > .pal.env
+printf 'OPENROUTER_API_KEY=%s\n' 'sk-or-v1-...' > pi-pal-consensus-sidecar/.env
 ```
 
 Artifacts are written to `.pi/pal-consensus-runs/<run-id>/` by default.
