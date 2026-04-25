@@ -136,6 +136,31 @@ When the policy is `warn`, unavailable stack models produce run warnings and `mo
 
 Discovery never returns provider environment variables or API keys. Failures are isolated to discovery/model-availability warnings and do not disable normal consensus runs by default.
 
+## Findings schema and structured errors
+
+Every generated `findings.json` includes stable version metadata so downstream workflow steps can detect parser/prompt/schema changes:
+
+```json
+{
+  "schema_version": "2026-04-25.1",
+  "parser_version": "deterministic-markdown-v1",
+  "prompt_version": "plan-review-v1",
+  "sidecar_version": "0.1.0"
+}
+```
+
+Run failures also include a structured error where possible:
+
+```json
+{
+  "code": "pal_timeout",
+  "message": "...",
+  "retryable": true
+}
+```
+
+Known error codes include `plan_file_not_found`, `plan_file_untrusted_root`, `pal_provider_key_missing`, `pal_contract_mismatch`, `pal_timeout`, `run_cancelled`, `invalid_reviewer_config`, `model_unavailable`, `insufficient_successful_reviewers`, and `unknown_error`.
+
 ## Dashboard frontend
 
 The dashboard is a Vite + React + TypeScript static app served by the sidecar. Runtime API behavior remains under `/api/*`; the frontend has no direct PAL/provider access.

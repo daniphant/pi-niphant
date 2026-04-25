@@ -65,7 +65,9 @@ button:active { transform: translate(2px,2px); box-shadow: 2px 2px 0 var(--line)
 .status.failed, .status.cancelled { background: #ffd8d2; }
 .status.running, .status.queued { background: #fff0bd; }
 .cancel { justify-self: start; color: var(--red); font-weight: 900; }
-.warning-pill { justify-self: start; border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px; background: #fff0bd; color: #7a4d00; font: 800 11px ui-monospace, monospace; text-transform: uppercase; }
+.warning-pill, .error-pill { justify-self: start; border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px; font: 800 11px ui-monospace, monospace; text-transform: uppercase; }
+.warning-pill { background: #fff0bd; color: #7a4d00; }
+.error-pill { background: #ffd8d2; color: #8d2118; }
 .event-panel { margin-top: 18px; }
 .event-head { display: flex; gap: 12px; justify-content: space-between; align-items: baseline; flex-wrap: wrap; }
 .event-head code { color: var(--teal); word-break: break-all; }

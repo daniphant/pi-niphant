@@ -40,6 +40,7 @@ type Run = {
   planFile: string;
   artifactDir: string;
   error?: string;
+  structuredError?: { code: string; message: string; retryable: boolean; details?: unknown };
   findingsPath?: string;
   warnings?: Array<{ code: string; message: string; details?: unknown }>;
 };
@@ -235,6 +236,7 @@ function App() {
             <small>{duration(run)} · {run.planFile}</small>
             <code>{run.artifactDir}</code>
             {Boolean(run.warnings?.length) && <span className="warning-pill">{run.warnings?.length} warning{run.warnings?.length === 1 ? "" : "s"}</span>}
+            {run.structuredError && <span className="error-pill">{run.structuredError.code}</span>}
             {run.status === "running" && <span className="cancel" onClick={(event) => { event.stopPropagation(); void cancelRun(run.id); }}>Cancel</span>}
           </button>)}
         </div>

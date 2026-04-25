@@ -24,6 +24,13 @@ interface RunWarning {
   details?: unknown;
 }
 
+interface StructuredError {
+  code: string;
+  message: string;
+  retryable: boolean;
+  details?: unknown;
+}
+
 interface RunRequest {
   planFile: string;
   reviewers: ReviewerConfig[];
@@ -105,6 +112,7 @@ interface RunState {
   warnings: RunWarning[];
   events: RunEvent[];
   error?: string;
+  structuredError?: StructuredError;
   findingsPath?: string;
   rawArtifacts: string[];
 }
@@ -169,6 +177,10 @@ interface SidecarState {
 
 const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));
 const DASHBOARD_DIR = resolve(EXTENSION_DIR, "dashboard-build");
+const SIDECAR_VERSION = "0.1.0";
+const FINDINGS_SCHEMA_VERSION = "2026-04-25.1";
+const FINDINGS_PARSER_VERSION = "deterministic-markdown-v1";
+const REVIEW_PROMPT_VERSION = "plan-review-v1";
 const STATE_KEY = Symbol.for("pi-pal-consensus-sidecar.state");
 const globalWithState = globalThis as typeof globalThis & { [STATE_KEY]?: SidecarState };
 const state: SidecarState = globalWithState[STATE_KEY] ?? { cwd: process.cwd(), runs: new Map(), clients: new Map(), activePalClients: new Set(), runClosers: new Map(), cancelledRuns: new Set(), csrfToken: randomUUID() };
@@ -774,9 +786,25 @@ function palToolFailure(text: string): string | undefined {
   return undefined;
 }
 
+function classifyError(error: unknown, details?: unknown): StructuredError {
+  const message = error instanceof Error ? error.message : String(error);
+  const lower = message.toLowerCase();
+  if (lower.includes("plan file not found")) return { code: "plan_file_not_found", message, retryable: false, details };
+  if (lower.includes("trusted root") || lower.includes("allowed roots")) return { code: "plan_file_untrusted_root", message, retryable: false, details };
+  if (lower.includes("provider key") || lower.includes("api_key")) return { code: "pal_provider_key_missing", message, retryable: false, details };
+  if (lower.includes("did not expose") && lower.includes("tool")) return { code: "pal_contract_mismatch", message, retryable: false, details };
+  if (lower.includes("timed out") || lower.includes("timeout")) return { code: "pal_timeout", message, retryable: true, details };
+  if (lower.includes("cancelled")) return { code: "run_cancelled", message, retryable: true, details };
+  if (lower.includes("duplicate") && lower.includes("model+stance")) return { code: "invalid_reviewer_config", message, retryable: false, details };
+  if (lower.includes("not reported by pal listmodels")) return { code: "model_unavailable", message, retryable: false, details };
+  if (lower.includes("only") && lower.includes("reviewers succeeded")) return { code: "insufficient_successful_reviewers", message, retryable: true, details };
+  return { code: "unknown_error", message, retryable: true, details };
+}
+
 function reviewerPrompt(reviewer: ReviewerConfig): string {
   return [
     `Act as the ${reviewer.label}.`,
+    `Prompt version: ${REVIEW_PROMPT_VERSION}.`,
     reviewer.prompt,
     "",
     "Return compact, actionable feedback with these sections:",
@@ -868,7 +896,7 @@ function parseFindings(artifact: ReviewerArtifact): CompactFinding[] {
 async function withPalClient<T>(cwd: string, operation: (client: Client, pal: { command: string; args: string[] }, env: Record<string, string>) => Promise<T>): Promise<T> {
   const pal = defaultPalCommand();
   const env = await palEnv(cwd);
-  const client = new Client({ name: "pi-pal-consensus-sidecar", version: "0.1.0" }, { capabilities: {} });
+  const client = new Client({ name: "pi-pal-consensus-sidecar", version: SIDECAR_VERSION }, { capabilities: {} });
   const transport = new StdioClientTransport({ command: pal.command, args: pal.args, env, cwd: palCwd(), stderr: "pipe" });
   state.activePalClients.add(client);
   await client.connect(transport);
@@ -981,6 +1009,10 @@ function deterministicNormalize(run: RunState, req: RunRequest, artifacts: Revie
     return "Secrets and raw logs must be scrubbed before display or persistence.";
   })));
   return {
+    schema_version: FINDINGS_SCHEMA_VERSION,
+    parser_version: FINDINGS_PARSER_VERSION,
+    prompt_version: REVIEW_PROMPT_VERSION,
+    sidecar_version: SIDECAR_VERSION,
     run_id: run.id,
     status: failed.length ? "partial" : "complete",
     plan_file: req.planFile,
@@ -993,7 +1025,7 @@ function deterministicNormalize(run: RunState, req: RunRequest, artifacts: Revie
     recommendation,
     summary: `${artifacts.length - failed.length}/${artifacts.length} reviewers succeeded; ${findings.length} deterministic findings extracted.`,
     successful_reviewers: artifacts.length - failed.length,
-    failed_reviewers: failed.map((artifact) => ({ reviewer: artifact.reviewer.id, model: artifact.reviewer.model, error: artifact.error })),
+    failed_reviewers: failed.map((artifact) => ({ reviewer: artifact.reviewer.id, model: artifact.reviewer.model, error: artifact.error, structured_error: artifact.error ? classifyError(artifact.error, { reviewer: artifact.reviewer.id, model: artifact.reviewer.model }) : undefined })),
     min_successful_reviewers: req.minSuccessfulReviewers,
     findings,
     agreements,
@@ -1015,7 +1047,7 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
   }
 
   const stderrPath = join(run.artifactDir, "pal-stderr.log");
-  const client = new Client({ name: "pi-pal-consensus-sidecar", version: "0.1.0" }, { capabilities: {} });
+  const client = new Client({ name: "pi-pal-consensus-sidecar", version: SIDECAR_VERSION }, { capabilities: {} });
   const transport = new StdioClientTransport({ command: pal.command, args: pal.args, env, cwd: palCwd(), stderr: "pipe" });
   transport.stderr?.on("data", (chunk) => {
     const text = Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk);
@@ -1189,7 +1221,8 @@ async function startRun(req: RunRequest, cwd: string): Promise<RunState> {
       run.status = state.cancelledRuns.has(runId) ? "cancelled" : "failed";
       run.completedAt = new Date().toISOString();
       run.error = error instanceof Error ? error.message : String(error);
-      addEvent(run, run.status === "cancelled" ? "run_cancelled" : "run_failed", { runId, error: run.error });
+      run.structuredError = classifyError(error, { runId, planFile: req.planFile, stackId: req.stackId });
+      addEvent(run, run.status === "cancelled" ? "run_cancelled" : "run_failed", { runId, error: run.error, structuredError: run.structuredError });
     } finally {
       clearTimeout(timeout);
       state.cancelledRuns.delete(runId);
@@ -1243,7 +1276,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       return json(res, 200, { ...choice, stack: config.stacks[choice.stackId] });
     }
     if (req.method === "GET" && url.pathname === "/api/runs") {
-      return json(res, 200, { runs: [...state.runs.values()].map((r) => ({ id: r.id, status: r.status, startedAt: r.startedAt, completedAt: r.completedAt, planFile: r.planFile, artifactDir: r.artifactDir, warnings: r.warnings, error: r.error, findingsPath: r.findingsPath })) });
+      return json(res, 200, { runs: [...state.runs.values()].map((r) => ({ id: r.id, status: r.status, startedAt: r.startedAt, completedAt: r.completedAt, planFile: r.planFile, artifactDir: r.artifactDir, warnings: r.warnings, error: r.error, structuredError: r.structuredError, findingsPath: r.findingsPath })) });
     }
     if (req.method === "POST" && url.pathname === "/api/runs") {
       requireCsrf(req, url);
