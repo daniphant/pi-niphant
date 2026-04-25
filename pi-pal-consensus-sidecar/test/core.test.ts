@@ -19,6 +19,8 @@ import {
   renderFindingsSummaryMarkdown,
   sanitizeErrorMessage,
   stackAvailability,
+  stackAvailabilityPolicyErrorMessage,
+  stackAvailabilityWarnings,
 } from "../src/core.js";
 
 describe("artifact helpers", () => {
@@ -124,6 +126,56 @@ describe("stackAvailability", () => {
     expect(availability.runtimeDegraded).toBe(1);
     expect(availability.reviewers[0].runtimeHealth?.code).toBe("pal_model_no_endpoint");
     expect(availability.reviewers[2].runtimeHealth?.status).toBe("degraded");
+  });
+
+  it("emits runtime health warnings under warn policy", () => {
+    const availability = stackAvailability(config, [{ id: "openai/gpt-5.5" }, { id: "claude-latest" }], {
+      "openai/gpt-5.5": {
+        model: "openai/gpt-5.5",
+        status: "unhealthy",
+        code: "pal_model_no_endpoint",
+        message: "No endpoints found",
+        retryable: false,
+        failedAt: "2026-04-25T00:00:00.000Z",
+        expiresAt: "2026-04-25T01:00:00.000Z",
+      },
+    }).standard;
+    const warnings = stackAvailabilityWarnings("standard", availability, "warn");
+    expect(warnings.map((warning) => warning.code)).toEqual(["model_availability_warning", "model_runtime_health_warning"]);
+    expect(warnings[1].message).toContain("1 unhealthy and 0 degraded");
+  });
+
+  it("suppresses warnings when availability policy is off", () => {
+    const availability = stackAvailability(config, [{ id: "openai/gpt-5.5" }], {
+      "openai/gpt-5.5": {
+        model: "openai/gpt-5.5",
+        status: "unhealthy",
+        code: "pal_model_no_endpoint",
+        message: "No endpoints found",
+        retryable: false,
+        failedAt: "2026-04-25T00:00:00.000Z",
+        expiresAt: "2026-04-25T01:00:00.000Z",
+      },
+    }).standard;
+    expect(stackAvailabilityWarnings("standard", availability, "off")).toEqual([]);
+  });
+
+  it("builds a blocking policy error for runtime health warnings", () => {
+    const availability = stackAvailability(config, [{ id: "openai/gpt-5.5" }, { id: "claude-latest" }, { id: "missing/model" }], {
+      "missing/model": {
+        model: "missing/model",
+        status: "degraded",
+        code: "pal_rate_limited",
+        message: "rate limited",
+        retryable: true,
+        failedAt: "2026-04-25T00:00:00.000Z",
+        expiresAt: "2026-04-25T01:00:00.000Z",
+      },
+    }).standard;
+    const warnings = stackAvailabilityWarnings("standard", availability, "block");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].code).toBe("model_runtime_health_warning");
+    expect(stackAvailabilityPolicyErrorMessage(warnings)).toContain("Set PAL_SIDECAR_MODEL_AVAILABILITY_POLICY=warn");
   });
 });
 

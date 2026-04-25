@@ -26,6 +26,14 @@ export interface ModelRuntimeHealth {
   reviewer?: string;
 }
 
+export type ModelAvailabilityPolicy = "off" | "warn" | "block";
+
+export interface ModelAvailabilityWarning {
+  code: "model_availability_warning" | "model_runtime_health_warning";
+  message: string;
+  details?: unknown;
+}
+
 export interface StackAvailability {
   available: number;
   unknown: number;
@@ -512,6 +520,29 @@ export function recommendStack(planText: string, config: ConfigLike): StackRecom
     scores,
     signals: Array.from(new Set(signals)),
   };
+}
+
+export function stackAvailabilityWarnings(stackId: string, stack: StackAvailability, policy: ModelAvailabilityPolicy): ModelAvailabilityWarning[] {
+  if (policy === "off") return [];
+  const unavailable = stack.reviewers.filter((reviewer) => reviewer.availability === "unavailable");
+  const runtimeUnhealthy = stack.reviewers.filter((reviewer) => reviewer.runtimeHealth?.status === "unhealthy");
+  const runtimeDegraded = stack.reviewers.filter((reviewer) => reviewer.runtimeHealth?.status === "degraded");
+  const warnings: ModelAvailabilityWarning[] = [];
+  if (unavailable.length) warnings.push({
+    code: "model_availability_warning",
+    message: `Selected stack '${stackId}' has ${unavailable.length} reviewer model(s) not reported by PAL listmodels.`,
+    details: { stackId, policy, unavailable },
+  });
+  if (runtimeUnhealthy.length || runtimeDegraded.length) warnings.push({
+    code: "model_runtime_health_warning",
+    message: `Selected stack '${stackId}' has ${runtimeUnhealthy.length} unhealthy and ${runtimeDegraded.length} degraded reviewer model(s) from recent runtime failures.`,
+    details: { stackId, policy, unhealthy: runtimeUnhealthy, degraded: runtimeDegraded },
+  });
+  return warnings;
+}
+
+export function stackAvailabilityPolicyErrorMessage(warnings: ModelAvailabilityWarning[]): string {
+  return `${warnings.map((warning) => warning.message).join(" ")} Set PAL_SIDECAR_MODEL_AVAILABILITY_POLICY=warn to allow the run.`;
 }
 
 export function stackAvailability(config: ConfigLike, models: PalModelInfo[], runtimeHealth: Record<string, ModelRuntimeHealth> = {}): Record<string, StackAvailability> {

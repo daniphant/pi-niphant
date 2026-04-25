@@ -9,7 +9,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { artifactKind, artifactMediaType, buildFindingsHotspots, classifyError, classifyFindingBucket, collectModelInfos, extractCompactFindingsSummary, FINDINGS_PARSER_VERSION, FINDINGS_SCHEMA_VERSION, isSafeArtifactName, markdownSection, parseReviewerFindings, recommendStack, renderFindingsSummaryMarkdown, REVIEW_PROMPT_VERSION, SIDECAR_VERSION, stackAvailability, type FindingLike, type ModelRuntimeHealth, type PalModelInfo, type StackAvailability, type StructuredError } from "./src/core.js";
+import { artifactKind, artifactMediaType, buildFindingsHotspots, classifyError, classifyFindingBucket, collectModelInfos, extractCompactFindingsSummary, FINDINGS_PARSER_VERSION, FINDINGS_SCHEMA_VERSION, isSafeArtifactName, markdownSection, parseReviewerFindings, recommendStack, renderFindingsSummaryMarkdown, REVIEW_PROMPT_VERSION, SIDECAR_VERSION, stackAvailability, stackAvailabilityPolicyErrorMessage, stackAvailabilityWarnings, type FindingLike, type ModelAvailabilityWarning, type ModelRuntimeHealth, type PalModelInfo, type StackAvailability, type StructuredError } from "./src/core.js";
 
 interface ReviewerConfig {
   id: string;
@@ -19,11 +19,11 @@ interface ReviewerConfig {
   prompt: string;
 }
 
-interface RunWarning {
+type RunWarning = ModelAvailabilityWarning | {
   code: string;
   message: string;
   details?: unknown;
-}
+};
 
 interface RunRequest {
   planFile: string;
@@ -631,35 +631,22 @@ function clearModelRuntimeHealth(model: string) {
 async function modelAvailabilityWarnings(cwd: string, stackId: string): Promise<RunWarning[]> {
   const policy = modelAvailabilityPolicy();
   if (policy === "off" || stackId === "custom" || stackId === "auto") return [];
+  let discovery: PalModelsResponse;
   try {
-    const discovery = await discoverPalModels(cwd, false);
-    if (!discovery.enabled) return [];
-    const stack = discovery.stacks[stackId];
-    if (!stack) return [];
-    const unavailable = stack.reviewers.filter((reviewer) => reviewer.availability === "unavailable");
-    const runtimeUnhealthy = stack.reviewers.filter((reviewer) => reviewer.runtimeHealth?.status === "unhealthy");
-    const runtimeDegraded = stack.reviewers.filter((reviewer) => reviewer.runtimeHealth?.status === "degraded");
-    const warnings: RunWarning[] = [];
-    if (unavailable.length) warnings.push({
-      code: "model_availability_warning",
-      message: `Selected stack '${stackId}' has ${unavailable.length} reviewer model(s) not reported by PAL listmodels.`,
-      details: { stackId, policy, unavailable },
-    });
-    if (runtimeUnhealthy.length || runtimeDegraded.length) warnings.push({
-      code: "model_runtime_health_warning",
-      message: `Selected stack '${stackId}' has ${runtimeUnhealthy.length} unhealthy and ${runtimeDegraded.length} degraded reviewer model(s) from recent runtime failures.`,
-      details: { stackId, policy, unhealthy: runtimeUnhealthy, degraded: runtimeDegraded },
-    });
-    if (policy === "block" && warnings.length) throw new Error(`${warnings.map((warning) => warning.message).join(" ")} Set PAL_SIDECAR_MODEL_AVAILABILITY_POLICY=warn to allow the run.`);
-    return warnings;
+    discovery = await discoverPalModels(cwd, false);
   } catch (error) {
-    if (policy === "block" && error instanceof Error && error.message.includes("not reported by PAL listmodels")) throw error;
     return [{
       code: "model_discovery_warning",
       message: `Could not verify PAL model availability before starting the run: ${error instanceof Error ? error.message : String(error)}`,
       details: { stackId, policy },
     }];
   }
+  if (!discovery.enabled) return [];
+  const stack = discovery.stacks[stackId];
+  if (!stack) return [];
+  const warnings = stackAvailabilityWarnings(stackId, stack, policy);
+  if (policy === "block" && warnings.length) throw new Error(stackAvailabilityPolicyErrorMessage(warnings));
+  return warnings;
 }
 
 async function validateRunRequest(raw: unknown, cwd: string): Promise<RunRequest> {
