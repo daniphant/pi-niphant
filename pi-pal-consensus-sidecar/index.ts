@@ -24,6 +24,7 @@ interface RunRequest {
   artifactRoot?: string;
   palCommand?: string;
   palArgs?: string[];
+  minSuccessfulReviewers: number;
 }
 
 interface RunEvent {
@@ -148,12 +149,14 @@ function validateRunRequest(raw: unknown, cwd: string): RunRequest {
   if (!obj.planFile || !existsSync(planFile)) throw new Error(`Plan file not found: ${obj.planFile || "(empty)"}`);
   const reviewers = Array.isArray(obj.reviewers) ? obj.reviewers.map((r, i) => normalizeReviewer(r as Partial<ReviewerConfig>, i)) : [];
   if (reviewers.length < 2) throw new Error("PAL consensus requires at least two reviewers/models.");
+  const requestedMin = Number(obj.minSuccessfulReviewers ?? Math.min(2, reviewers.length));
   return {
     planFile,
     reviewers,
     artifactRoot: obj.artifactRoot ? String(obj.artifactRoot) : undefined,
     palCommand: obj.palCommand ? String(obj.palCommand) : undefined,
     palArgs: Array.isArray(obj.palArgs) ? obj.palArgs.map(String) : undefined,
+    minSuccessfulReviewers: Number.isFinite(requestedMin) && requestedMin > 0 ? Math.min(Math.floor(requestedMin), reviewers.length) : Math.min(2, reviewers.length),
   };
 }
 
@@ -238,6 +241,7 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
 
     const models = req.reviewers.map((reviewer) => ({ model: reviewer.model, stance: reviewer.stance ?? "neutral", stance_prompt: reviewerPrompt(reviewer) }));
     const rawResponses: any[] = [];
+    let successfulReviewers = 0;
 
     for (let i = 0; i < req.reviewers.length; i++) {
       const reviewer = req.reviewers[i];
@@ -261,19 +265,31 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
       const jsonPath = join(run.artifactDir, `${reviewer.id}.json`);
       const mdPath = join(run.artifactDir, `${reviewer.id}.md`);
       const modelResponse = parsed?.model_response ?? parsed;
-      const markdown = modelResponse?.verdict || modelResponse?.content || modelResponse?.text || text;
+      const responseStatus = modelResponse?.status || parsed?.status;
+      const responseError = modelResponse?.error || parsed?.error;
+      const markdown = responseStatus === "error"
+        ? `# ${reviewer.label} failed\n\nModel: ${reviewer.model}\n\n${responseError || "Unknown PAL/model error"}\n`
+        : modelResponse?.verdict || modelResponse?.content || modelResponse?.text || text;
       await writeFile(jsonPath, JSON.stringify(parsed ?? { text }, null, 2));
       await writeFile(mdPath, String(markdown));
       run.rawArtifacts.push(jsonPath, mdPath);
-      addEvent(run, "reviewer_completed", { reviewer: reviewer.id, label: reviewer.label, model: reviewer.model, jsonPath, mdPath });
+      if (responseStatus === "error") {
+        addEvent(run, "reviewer_failed", { reviewer: reviewer.id, label: reviewer.label, model: reviewer.model, error: responseError || "Unknown PAL/model error", jsonPath, mdPath });
+      } else {
+        successfulReviewers += 1;
+        addEvent(run, "reviewer_completed", { reviewer: reviewer.id, label: reviewer.label, model: reviewer.model, jsonPath, mdPath });
+      }
     }
 
+    const enoughSuccessfulReviewers = successfulReviewers >= req.minSuccessfulReviewers;
     const findings = {
       run_id: run.id,
-      status: "complete",
+      status: enoughSuccessfulReviewers ? "complete" : "failed",
       plan_file: req.planFile,
       generated_at: new Date().toISOString(),
       reviewers: req.reviewers,
+      successful_reviewers: successfulReviewers,
+      min_successful_reviewers: req.minSuccessfulReviewers,
       raw_artifacts: run.rawArtifacts,
       compact_findings_note: "This first sidecar version preserves PAL raw reviewer output. Use the raw artifacts for detailed findings; schema normalization can be layered on next.",
       pal_responses: rawResponses,
@@ -281,7 +297,10 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
     const findingsPath = join(run.artifactDir, "findings.json");
     await writeFile(findingsPath, JSON.stringify(findings, null, 2));
     run.findingsPath = findingsPath;
-    addEvent(run, "synthesis_completed", { findingsPath });
+    addEvent(run, enoughSuccessfulReviewers ? "synthesis_completed" : "synthesis_skipped", { findingsPath, successfulReviewers, minSuccessfulReviewers: req.minSuccessfulReviewers });
+    if (!enoughSuccessfulReviewers) {
+      throw new Error(`Only ${successfulReviewers}/${req.reviewers.length} reviewers succeeded; required ${req.minSuccessfulReviewers}. Check reviewer artifacts and pal-stderr.log.`);
+    }
   } finally {
     state.activePalClients.delete(client);
     await client.close();
@@ -361,9 +380,9 @@ let reviewerCount=0, selectedRun=null, sources={};
 function addReviewer(d){const i=reviewerCount++; const v=d||['reviewer-'+i,'Reviewer '+(i+1),'pro','Review for correctness and risks.']; const div=document.createElement('div'); div.className='reviewer'; div.innerHTML='<div class="grid"><div><label>ID</label><input name="id" value="'+v[0]+'"></div><div><label>Label</label><input name="label" value="'+v[1]+'"></div><div><label>PAL model</label><input name="model" value="'+v[2]+'"></div></div><label>Role prompt</label><textarea name="prompt">'+v[3]+'</textarea>'; reviewersEl.appendChild(div)}
 defaults.forEach(addReviewer); document.getElementById('addReviewer').onclick=()=>addReviewer();
 function collectReviewers(){return [...document.querySelectorAll('.reviewer')].map(r=>({id:r.querySelector('[name=id]').value,label:r.querySelector('[name=label]').value,model:r.querySelector('[name=model]').value,stance:'neutral',prompt:r.querySelector('[name=prompt]').value}))}
-document.getElementById('form').onsubmit=async e=>{e.preventDefault(); const body={planFile:document.getElementById('planFile').value,reviewers:collectReviewers()}; const res=await fetch('/api/runs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}); const json=await res.json(); if(!res.ok){alert(json.error||'failed');return} await refreshRuns(); selectRun(json.run.id)};
+document.getElementById('form').onsubmit=async e=>{e.preventDefault(); const reviewers=collectReviewers(); const body={planFile:document.getElementById('planFile').value,reviewers,minSuccessfulReviewers:Math.min(2,reviewers.length)}; const res=await fetch('/api/runs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}); const json=await res.json(); if(!res.ok){alert(json.error||'failed');return} await refreshRuns(); selectRun(json.run.id)};
 async function refreshRuns(){const res=await fetch('/api/runs'); const data=await res.json(); runList.innerHTML=''; data.runs.forEach(run=>{const div=document.createElement('div'); div.className='run-card '+(run.id===selectedRun?'active':''); div.onclick=()=>selectRun(run.id); div.innerHTML='<span class="status '+run.status+'">'+run.status+'</span><h3>'+run.id+'</h3><div class="small path">'+run.artifactDir+'</div>'; runList.appendChild(div)})}
-function selectRun(id){selectedRun=id; refreshRuns(); eventsEl.innerHTML=''; if(sources[id]) sources[id].close(); const es=new EventSource('/api/runs/'+id+'/events'); sources[id]=es; ['run_queued','run_started','pal_starting','pal_connected','reviewer_started','reviewer_completed','synthesis_completed','run_completed','run_failed'].forEach(t=>es.addEventListener(t,e=>append(t,JSON.parse(e.data))));}
+function selectRun(id){selectedRun=id; refreshRuns(); eventsEl.innerHTML=''; if(sources[id]) sources[id].close(); const es=new EventSource('/api/runs/'+id+'/events'); sources[id]=es; ['run_queued','run_started','pal_starting','pal_connected','reviewer_started','reviewer_completed','reviewer_failed','synthesis_completed','synthesis_skipped','run_completed','run_failed'].forEach(t=>es.addEventListener(t,e=>append(t,JSON.parse(e.data))));}
 function append(type,data){const div=document.createElement('div'); div.className='event'; div.innerHTML='<b>'+type+'</b> <span class="small">'+(data.at||'')+'</span><br><span class="path">'+escapeHtml(JSON.stringify(data,null,2))+'</span>'; eventsEl.appendChild(div); eventsEl.scrollTop=eventsEl.scrollHeight; refreshRuns();}
 function escapeHtml(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
 refreshRuns(); setInterval(refreshRuns,5000);
