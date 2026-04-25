@@ -74,6 +74,62 @@ run_pal_consensus_review({
 
 The direct tool uses the same sidecar engine, PAL MCP subprocess, config validation, trusted roots, artifacts, and deterministic `findings.json` as the dashboard.
 
+## PAL contract and model discovery
+
+The sidecar exposes backend-only discovery endpoints for checking PAL MCP compatibility and configured stack availability before running consensus:
+
+```text
+GET /api/pal/contract
+GET /api/pal/models
+GET /api/pal/models?refresh=1
+```
+
+`/api/pal/contract` starts PAL MCP, lists tools, and reports whether required tools are present:
+
+```json
+{
+  "ok": true,
+  "tools": ["consensus", "listmodels"],
+  "required": {
+    "consensus": true,
+    "listmodels": true,
+    "version": false
+  }
+}
+```
+
+`/api/pal/models` calls PAL `listmodels`, parses model ids conservatively, caches the result, and compares configured reviewer stacks against discovered ids/aliases:
+
+```json
+{
+  "enabled": true,
+  "from_cache": false,
+  "generated_at": "...",
+  "stale_at": "...",
+  "models": [{ "id": "openai/gpt-5.5", "provider": "openai" }],
+  "stacks": {
+    "standard-modern": {
+      "available": 10,
+      "unavailable": 1,
+      "unknown": 0,
+      "reviewers": []
+    }
+  }
+}
+```
+
+Configuration:
+
+```bash
+# Disable discovery endpoint behavior without affecting consensus runs.
+export PAL_SIDECAR_MODEL_DISCOVERY=0
+
+# Cache discovered models for 5 minutes by default.
+export PAL_SIDECAR_MODEL_CACHE_TTL_MS=300000
+```
+
+Discovery never returns provider environment variables or API keys. Failures are isolated to the discovery endpoint and do not disable normal consensus runs.
+
 ## Dashboard frontend
 
 The dashboard is a Vite + React + TypeScript static app served by the sidecar. Runtime API behavior remains under `/api/*`; the frontend has no direct PAL/provider access.

@@ -101,6 +101,51 @@ interface RunState {
   rawArtifacts: string[];
 }
 
+interface PalContract {
+  ok: boolean;
+  command: string;
+  args: string[];
+  tools: string[];
+  required: {
+    consensus: boolean;
+    listmodels: boolean;
+    version: boolean;
+  };
+  providerKeysPresent: boolean;
+  checkedAt: string;
+}
+
+interface PalModelInfo {
+  id: string;
+  provider?: string;
+  aliases?: string[];
+  raw?: unknown;
+}
+
+interface PalModelsResponse {
+  enabled: boolean;
+  generated_at: string;
+  stale_at: string;
+  from_cache: boolean;
+  ttl_ms: number;
+  contract: PalContract;
+  models: PalModelInfo[];
+  stacks: Record<string, StackAvailability>;
+  raw?: unknown;
+}
+
+interface StackAvailability {
+  available: number;
+  unknown: number;
+  unavailable: number;
+  reviewers: Array<{
+    id: string;
+    label: string;
+    model: string;
+    availability: "available" | "unavailable" | "unknown";
+  }>;
+}
+
 interface SidecarState {
   cwd: string;
   server?: ReturnType<typeof createServer>;
@@ -111,6 +156,7 @@ interface SidecarState {
   runClosers: Map<string, () => Promise<void>>;
   cancelledRuns: Set<string>;
   csrfToken: string;
+  modelDiscoveryCache?: { expiresAt: number; response: PalModelsResponse };
 }
 
 const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));
@@ -180,6 +226,15 @@ function hasProviderKey(env: Record<string, string>): boolean {
 function mcpRequestTimeoutMs(): number {
   const value = Number(process.env.PAL_SIDECAR_MCP_REQUEST_TIMEOUT_MS || 9 * 60_000);
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : 9 * 60_000;
+}
+
+function modelDiscoveryEnabled(): boolean {
+  return process.env.PAL_SIDECAR_MODEL_DISCOVERY !== "0" && process.env.PAL_SIDECAR_MODEL_DISCOVERY !== "false";
+}
+
+function modelDiscoveryTtlMs(): number {
+  const value = Number(process.env.PAL_SIDECAR_MODEL_CACHE_TTL_MS || 5 * 60_000);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 5 * 60_000;
 }
 
 async function readJsonFile(path: string): Promise<Record<string, unknown> | undefined> {
@@ -581,6 +636,87 @@ function textFromToolResult(result: any): string {
   return content.map((item) => (item?.type === "text" ? item.text : JSON.stringify(item))).join("\n");
 }
 
+function toolNamesFromListTools(result: any): string[] {
+  return (result?.tools ?? []).map((tool: any) => String(tool?.name ?? "")).filter(Boolean).sort();
+}
+
+function providerFromModelId(id: string): string | undefined {
+  const provider = id.includes("/") ? id.split("/")[0] : undefined;
+  return provider || undefined;
+}
+
+function normalizeModelInfo(value: unknown): PalModelInfo | undefined {
+  if (typeof value === "string") return { id: value, provider: providerFromModelId(value) };
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  const idValue = record.id ?? record.model ?? record.name ?? record.slug;
+  if (typeof idValue !== "string" || !idValue.trim()) return undefined;
+  const aliases = Array.isArray(record.aliases) ? record.aliases.filter((alias): alias is string => typeof alias === "string" && Boolean(alias.trim())) : undefined;
+  const provider = typeof record.provider === "string" ? record.provider : providerFromModelId(idValue);
+  return { id: idValue.trim(), provider, aliases, raw: value };
+}
+
+function collectModelInfos(raw: unknown): PalModelInfo[] {
+  const byId = new Map<string, PalModelInfo>();
+  const add = (model: PalModelInfo | undefined) => {
+    if (!model) return;
+    const existing = byId.get(model.id);
+    if (!existing) byId.set(model.id, model);
+    else if (!existing.aliases && model.aliases) existing.aliases = model.aliases;
+  };
+  const visit = (value: unknown, depth = 0) => {
+    if (depth > 4 || value == null) return;
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (/^[a-z0-9_.-]+\/[a-z0-9_.:-]+$/i.test(trimmed)) add(normalizeModelInfo(trimmed));
+      for (const match of trimmed.matchAll(/\b[a-z0-9_.-]+\/[a-z0-9_.:-]+\b/gi)) add(normalizeModelInfo(match[0]));
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const normalized = normalizeModelInfo(item);
+        if (normalized) add(normalized);
+        else visit(item, depth + 1);
+      }
+      return;
+    }
+    if (typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      const normalized = normalizeModelInfo(record);
+      if (normalized) add(normalized);
+      for (const key of ["models", "available_models", "data", "items", "result", "providers", "text", "content"]) visit(record[key], depth + 1);
+      if (record.providers && typeof record.providers === "object" && !Array.isArray(record.providers)) {
+        for (const providerValue of Object.values(record.providers as Record<string, unknown>)) visit(providerValue, depth + 1);
+      }
+    }
+  };
+  visit(raw);
+  return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+
+function stackAvailability(config: SidecarConfig, models: PalModelInfo[]): Record<string, StackAvailability> {
+  const availableIds = new Set<string>();
+  for (const model of models) {
+    availableIds.add(model.id);
+    for (const alias of model.aliases ?? []) availableIds.add(alias);
+  }
+  const known = models.length > 0;
+  const stacks: Record<string, StackAvailability> = {};
+  for (const [stackId, stack] of Object.entries(config.stacks)) {
+    const reviewers = stack.reviewers.map((reviewer) => {
+      const availability: "available" | "unavailable" | "unknown" = known ? (availableIds.has(reviewer.model) ? "available" : "unavailable") : "unknown";
+      return { id: reviewer.id, label: reviewer.label, model: reviewer.model, availability };
+    });
+    stacks[stackId] = {
+      available: reviewers.filter((reviewer) => reviewer.availability === "available").length,
+      unavailable: reviewers.filter((reviewer) => reviewer.availability === "unavailable").length,
+      unknown: reviewers.filter((reviewer) => reviewer.availability === "unknown").length,
+      reviewers,
+    };
+  }
+  return stacks;
+}
+
 function safeJson(text: string): any {
   try {
     return JSON.parse(text);
@@ -684,6 +820,105 @@ function parseFindings(artifact: ReviewerArtifact): CompactFinding[] {
     });
   }
   return parsed;
+}
+
+async function withPalClient<T>(cwd: string, operation: (client: Client, pal: { command: string; args: string[] }, env: Record<string, string>) => Promise<T>): Promise<T> {
+  const pal = defaultPalCommand();
+  const env = await palEnv(cwd);
+  const client = new Client({ name: "pi-pal-consensus-sidecar", version: "0.1.0" }, { capabilities: {} });
+  const transport = new StdioClientTransport({ command: pal.command, args: pal.args, env, cwd: palCwd(), stderr: "pipe" });
+  state.activePalClients.add(client);
+  await client.connect(transport);
+  try {
+    return await operation(client, pal, env);
+  } finally {
+    state.activePalClients.delete(client);
+    await client.close();
+  }
+}
+
+async function inspectPalContract(cwd: string): Promise<PalContract> {
+  return withPalClient(cwd, async (client, pal, env) => {
+    const tools = toolNamesFromListTools(await client.listTools(undefined, { timeout: mcpRequestTimeoutMs() }));
+    return {
+      ok: tools.includes("consensus") && tools.includes("listmodels"),
+      command: pal.command,
+      args: pal.args,
+      tools,
+      required: {
+        consensus: tools.includes("consensus"),
+        listmodels: tools.includes("listmodels"),
+        version: tools.includes("version"),
+      },
+      providerKeysPresent: hasProviderKey(env),
+      checkedAt: new Date().toISOString(),
+    };
+  });
+}
+
+async function discoverPalModels(cwd: string, refresh = false): Promise<PalModelsResponse> {
+  if (!modelDiscoveryEnabled()) {
+    const pal = defaultPalCommand();
+    const now = new Date().toISOString();
+    return {
+      enabled: false,
+      generated_at: now,
+      stale_at: now,
+      from_cache: false,
+      ttl_ms: 0,
+      contract: {
+        ok: false,
+        command: pal.command,
+        args: pal.args,
+        tools: [],
+        required: { consensus: false, listmodels: false, version: false },
+        providerKeysPresent: false,
+        checkedAt: now,
+      },
+      models: [],
+      stacks: {},
+    };
+  }
+  const ttlMs = modelDiscoveryTtlMs();
+  if (!refresh && state.modelDiscoveryCache && state.modelDiscoveryCache.expiresAt > Date.now()) {
+    return { ...state.modelDiscoveryCache.response, from_cache: true };
+  }
+  const config = await loadSidecarConfig(cwd);
+  const response = await withPalClient(cwd, async (client, pal, env) => {
+    const tools = toolNamesFromListTools(await client.listTools(undefined, { timeout: mcpRequestTimeoutMs() }));
+    const contract: PalContract = {
+      ok: tools.includes("consensus") && tools.includes("listmodels"),
+      command: pal.command,
+      args: pal.args,
+      tools,
+      required: {
+        consensus: tools.includes("consensus"),
+        listmodels: tools.includes("listmodels"),
+        version: tools.includes("version"),
+      },
+      providerKeysPresent: hasProviderKey(env),
+      checkedAt: new Date().toISOString(),
+    };
+    if (!contract.required.listmodels) throw new Error(`PAL MCP did not expose a listmodels tool. Tools: ${tools.join(", ")}`);
+    const rawResult = await client.callTool({ name: "listmodels", arguments: {} }, undefined, { timeout: mcpRequestTimeoutMs() });
+    const text = textFromToolResult(rawResult);
+    const parsed = safeJson(text) ?? { text };
+    const models = collectModelInfos(parsed);
+    const generated = new Date();
+    return {
+      enabled: true,
+      generated_at: generated.toISOString(),
+      stale_at: new Date(generated.getTime() + ttlMs).toISOString(),
+      from_cache: false,
+      ttl_ms: ttlMs,
+      contract,
+      models,
+      stacks: stackAvailability(config, models),
+      raw: parsed,
+    } satisfies PalModelsResponse;
+  });
+  state.modelDiscoveryCache = { expiresAt: Date.now() + ttlMs, response };
+  return response;
 }
 
 function deterministicNormalize(run: RunState, req: RunRequest, artifacts: ReviewerArtifact[], rawResponses: any[]) {
@@ -990,6 +1225,8 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     if (req.method === "GET" && url.pathname === "/api/health") return json(res, 200, { ok: true, port: state.port });
     if (req.method === "GET" && url.pathname === "/api/session") return json(res, 200, { csrfToken: state.csrfToken });
     if (req.method === "GET" && url.pathname === "/api/config") return json(res, 200, await loadSidecarConfig(state.cwd));
+    if (req.method === "GET" && url.pathname === "/api/pal/contract") return json(res, 200, await inspectPalContract(state.cwd));
+    if (req.method === "GET" && url.pathname === "/api/pal/models") return json(res, 200, await discoverPalModels(state.cwd, url.searchParams.get("refresh") === "1"));
     if (req.method === "POST" && url.pathname === "/api/recommend-stack") {
       requireCsrf(req, url);
       const body = (await readBody(req)) as Record<string, unknown>;
