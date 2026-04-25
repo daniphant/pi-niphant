@@ -11,6 +11,10 @@ Use this as the discovery/front-door skill when the user asks to start or use th
 
 Ensure new workflows are created through the explicit `/workflow --name <slug> -- <request>` command with a concise AI-chosen name, so generated paths, worktrees, branches, and follow-up commands stay short and safe.
 
+## Context hygiene
+
+Do not read unrelated `SKILL.md` files, enumerate installed skills, or inspect other workflow-stage docs while choosing the slug. Use only this skill and the user's request. Load another skill only when the user explicitly requests it.
+
 ## Trigger phrases
 
 Use this skill when the user says things like:

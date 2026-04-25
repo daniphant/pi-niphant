@@ -27,6 +27,9 @@ assertIncludes("index.ts", "Deprecated alias for /workflow-execute", "deprecated
 assertMatches("index.ts", /\^\[a-z0-9\]\(\?:\[a-z0-9-\]\{0,30\}\[a-z0-9\]\)\?\$/, "strict slug validation regex");
 assertIncludes("index.ts", "Refusing repeated unnamed /workflow", "repeated unnamed refusal");
 assertIncludes("index.ts", "Browser review: skipped_for_trivial", "trivial execution marker checks");
+assertIncludes("index.ts", "stageContextGuard", "generated prompt context hygiene helper");
+assertIncludes("index.ts", "Do not read unrelated SKILL.md files", "generated prompt unrelated skill guard");
+assertIncludes("index.ts", "bootstrap by reading workflow.toml first, then workflow.plan.md", "execute prompt strict bootstrap guard");
 
 // Route schema checks.
 for (const file of ["templates/workflow.research.md", "skills/workflow-brainstorm/SKILL.md"]) {
@@ -60,6 +63,10 @@ assertIncludes("skills/workflow-plan/SKILL.md", "execution/task state only", "pl
 assertIncludes("skills/workflow-implement/SKILL.md", "Do not rely on `workflow.spec.md`", "execute no spec dependency");
 assertIncludes("skills/workflow-implement/SKILL.md", "If any marker is absent or incompatible", "execute missing-marker refusal");
 assertIncludes("skills/workflow-implement/SKILL.md", "workflow.plan.md` as the authoritative", "execute plan authority");
+assertIncludes("skills/workflow-implement/SKILL.md", "## Context hygiene", "execute context hygiene section");
+assertIncludes("skills/workflow-implement/SKILL.md", "Do not read unrelated", "execute unrelated skill guard");
+assertIncludes("skills/workflow-plan/SKILL.md", "## Context hygiene", "plan context hygiene section");
+assertIncludes("skills/workflow-spec/SKILL.md", "## Context hygiene", "spec context hygiene section");
 
 if (failures.length) {
   console.error("pi-workflow smoke check failed:");

@@ -16,6 +16,10 @@ The bundle uses focused files:
 
 Workflow files should not be committed to project git.
 
+## Context hygiene
+
+Do not read unrelated `SKILL.md` files or enumerate installed skills during research. Broader code exploration is allowed, but inspect other skill docs only when the workflow request is about skills/Pi behavior, the user explicitly asks, or a skill is directly required for validation/tooling.
+
 ## Bundle requirement
 
 Refuse to run if the prompt does not include concrete workflow file paths and no provided path resolves to a workflow directory or `workflow.toml`. Stage 1 requires a workflow bundle so `/clear` continuation has durable paths. On refusal:

@@ -14,6 +14,10 @@ The workflow is split into focused files, following the Multiverse-style separat
 - `workflow.plan.md` — focused implementation plan/task graph when the route requires one; browser review and any consensus feedback live here.
 - `workflow.toml` — execution/task state only, initialized from the final plan and updated during execution.
 
+## Context hygiene
+
+Do not read unrelated `SKILL.md` files, enumerate installed skills, or read every workflow-stage skill as background. Prefer the stage-specific skill for the active stage and load only the workflow artifacts that stage requires. Load another skill only when the user explicitly requests it or direct validation/tooling requires it.
+
 Prefer the stage-specific skills:
 
 1. `workflow-brainstorm` — updates `workflow.research.md`, classifies complexity, records the route decision, and stops with a handoff.

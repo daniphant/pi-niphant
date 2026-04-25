@@ -14,6 +14,10 @@ Execution supports two sources:
 
 Do not rely on `workflow.spec.md` during execution. The plan must carry the requirements needed for planned work.
 
+## Context hygiene
+
+Do not read unrelated `SKILL.md` files, enumerate installed skills, or inspect other workflow-stage skill docs during execution. For planned workflows, read `workflow.toml` first and `workflow.plan.md` second; do not read `workflow.spec.md` or `workflow.research.md` for context. For explicitly trivial research-only workflows, read `workflow.research.md` only to verify the required markers and execute the approved tiny change. Load another skill only when the user explicitly requests it or direct validation/tooling requires it.
+
 ## Rules
 
 - For planned workflows, read `workflow.toml` first to assess execution state, then read `workflow.plan.md` as the authoritative implementation instructions.

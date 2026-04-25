@@ -7,6 +7,10 @@ description: Stage 2 of the Pi workflow. Convert research into workflow.spec.md 
 
 This is Stage 2. It converts `workflow.research.md` into a focused, reviewable `workflow.spec.md` when the route decision requires a spec.
 
+## Context hygiene
+
+Do not read unrelated `SKILL.md` files, enumerate installed skills, or inspect planning/execution skill docs during spec work. Read only `workflow.research.md` and `workflow.spec.md`, with `workflow.toml` only for locating files or correcting broken paths. Load another skill only when the user explicitly requests it or direct validation/tooling requires it.
+
 ## Hard rules
 
 - Do not implement code.

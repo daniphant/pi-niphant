@@ -7,6 +7,10 @@ description: Stage 3 of the Pi workflow. Create workflow.plan.md from a finalize
 
 This is Stage 3. It creates `workflow.plan.md` and initializes execution state in `workflow.toml`, following the Multiverse-style split between human-readable tasks and machine-readable task state.
 
+## Context hygiene
+
+Do not read unrelated `SKILL.md` files, enumerate installed skills, or inspect execution skill docs while planning. Read `workflow.research.md` first; read `workflow.spec.md` only when the route requires a spec; use `workflow.plan.md` and `workflow.toml` only for plan/task-state output. Load another skill only when the user explicitly requests it or direct validation/tooling requires it.
+
 ## Hard rules
 
 - Do not implement code.

@@ -122,6 +122,14 @@ function workflowSummary(paths: WorkflowPaths) {
   ].join("\n");
 }
 
+function stageContextGuard(stage: string, allowed: string[], strictStage4 = false) {
+  const allowedText = allowed.join(", ");
+  const strictText = strictStage4
+    ? " For planned Stage 4 execution, bootstrap by reading workflow.toml first, then workflow.plan.md. Do not read workflow.spec.md, workflow.research.md, or other workflow-stage skill docs for context unless refusing or debugging a missing prerequisite requires it."
+    : "";
+  return `Context hygiene (${stage}): Do not read unrelated SKILL.md files or enumerate installed skills. Use only the invoked workflow skill plus these workflow artifacts: ${allowedText}. Only load another skill when the user explicitly requests it or when that skill is directly required for validation/tooling.${strictText}`;
+}
+
 function createWorkflow(cwd: string, request: string, planName: string) {
   const root = workflowsDir(cwd);
   mkdirSync(root, { recursive: true });
@@ -176,14 +184,14 @@ function resolveWorkflowArg(cwd: string, arg: string): WorkflowPaths | null {
 
 function sendSlugSelection(pi: ExtensionAPI, cwd: string, request: string) {
   pendingSlugSelectionByCwd.set(cwd, request);
-  pi.sendUserMessage(`/skill:workflow-start\n\nStart a durable workflow for this request. Choose a concise lowercase kebab-case slug (2-4 words, max 32 chars) and invoke the explicit terminal command form only:\n\n/workflow --name <slug> -- ${request}\n\nDo not call unnamed /workflow again. If you cannot execute slash commands directly, reply with exactly the explicit /workflow --name command.\n\nRequest:\n${request}`);
+  pi.sendUserMessage(`/skill:workflow-start\n\n${stageContextGuard("slug selection", ["this generated prompt"])}\n\nStart a durable workflow for this request. Choose a concise lowercase kebab-case slug (2-4 words, max 32 chars) and invoke the explicit terminal command form only:\n\n/workflow --name <slug> -- ${request}\n\nDo not call unnamed /workflow again. If you cannot execute slash commands directly, reply with exactly the explicit /workflow --name command.\n\nRequest:\n${request}`);
 }
 
 function executionPrompt(commandName: "workflow-execute" | "workflow-implement", workflow: WorkflowPaths) {
   const aliasNote = commandName === "workflow-implement"
     ? "This legacy command is a thin alias for /workflow-execute; use the same execution semantics."
     : "Use the preferred /workflow-execute semantics.";
-  return `/skill:workflow-implement\n\n${aliasNote}\n\nBegin Stage 4 Execution from this workflow reference:\n${workflowSummary(workflow)}\n\nFor planned workflows, read workflow.toml first for execution/task state and use workflow.plan.md as the authoritative implementation instructions. Do not depend on workflow.spec.md. Verify the plan records required browser review before executing.\n\nFor explicitly trivial research-only workflows, execute from workflow.research.md only if every required marker is present: Complexity: trivial; Spec: skipped; Plan: skipped; Consensus: none; Browser review: skipped_for_trivial; Execution source: research; Trivial execution approved: true; Workflow task tracking: skipped_for_trivial. If any marker is missing or incompatible, refuse with a missing-marker list and suggest /workflow-plan <workflow>.\n\nImplement task-by-task when task tracking is enabled, update workflow.toml statuses/timestamps/results, run diagnostics/tests, use browser/E2E validation when relevant, and summarize final results.`;
+  return `/skill:workflow-implement\n\n${aliasNote}\n\n${stageContextGuard("Stage 4 execution", ["workflow.toml", "workflow.plan.md", "workflow.research.md only for explicitly trivial marker verification"], true)}\n\nBegin Stage 4 Execution from this workflow reference:\n${workflowSummary(workflow)}\n\nFor planned workflows, read workflow.toml first for execution/task state and use workflow.plan.md as the authoritative implementation instructions. Do not depend on workflow.spec.md. Verify the plan records required browser review before executing.\n\nFor explicitly trivial research-only workflows, execute from workflow.research.md only if every required marker is present: Complexity: trivial; Spec: skipped; Plan: skipped; Consensus: none; Browser review: skipped_for_trivial; Execution source: research; Trivial execution approved: true; Workflow task tracking: skipped_for_trivial. If any marker is missing or incompatible, refuse with a missing-marker list and suggest /workflow-plan <workflow>.\n\nImplement task-by-task when task tracking is enabled, update workflow.toml statuses/timestamps/results, run diagnostics/tests, use browser/E2E validation when relevant, and summarize final results.`;
 }
 
 export default function workflowExtension(pi: ExtensionAPI) {
@@ -222,7 +230,7 @@ export default function workflowExtension(pi: ExtensionAPI) {
 
       const workflow = createWorkflow(ctx.cwd, request, planName);
       ctx.ui.notify(`Created user-local workflow (${planName}): ${workflow.dir}`, "info");
-      pi.sendUserMessage(`/skill:workflow-brainstorm\n\nStart Stage 1 Research for this request. Use and continuously update this workflow bundle:\n${workflowSummary(workflow)}\n\nThe concise workflow slug is: ${planName}.\n\nRequest:\n${request}\n\nInterview me aggressively when needed, but first inspect code directly for anything you can answer yourself. Do not implement code yet. Record the complete Complexity / Route Recommendation and stop with a confirmation-oriented handoff.`);
+      pi.sendUserMessage(`/skill:workflow-brainstorm\n\n${stageContextGuard("Stage 1 research", ["workflow.research.md", "workflow.md", "workflow.toml for file references only"])}\n\nStart Stage 1 Research for this request. Use and continuously update this workflow bundle:\n${workflowSummary(workflow)}\n\nThe concise workflow slug is: ${planName}.\n\nRequest:\n${request}\n\nInterview me aggressively when needed, but first inspect code directly for anything you can answer yourself. Do not implement code yet. Record the complete Complexity / Route Recommendation and stop with a confirmation-oriented handoff.`);
     },
   });
 
@@ -242,7 +250,7 @@ export default function workflowExtension(pi: ExtensionAPI) {
         ctx.ui.notify("No workflow found. Usage: /workflow-spec [workflow-dir|workflow.toml]", "warning");
         return;
       }
-      pi.sendUserMessage(`/skill:workflow-spec\n\nRun Stage 2 Spec for this workflow bundle:\n${workflowSummary(workflow)}\n\nValidate the route decision in workflow.research.md first. Refuse if Spec is skipped unless the user explicitly overrides. Draft/finalize only workflow.spec.md. Consensus is optional/prompted, never automatic; when appropriate ask whether to run PAL consensus before browser review. Browser annotation/user review of the produced spec is mandatory after consensus is completed, declined, bypassed after failure, or skipped by route. Apply all feedback to the spec markdown. Do not implement code and do not use workflow.toml for spec state.`);
+      pi.sendUserMessage(`/skill:workflow-spec\n\n${stageContextGuard("Stage 2 spec", ["workflow.research.md", "workflow.spec.md"])}\n\nRun Stage 2 Spec for this workflow bundle:\n${workflowSummary(workflow)}\n\nValidate the route decision in workflow.research.md first. Refuse if Spec is skipped unless the user explicitly overrides. Draft/finalize only workflow.spec.md. Consensus is optional/prompted, never automatic; when appropriate ask whether to run PAL consensus before browser review. Browser annotation/user review of the produced spec is mandatory after consensus is completed, declined, bypassed after failure, or skipped by route. Apply all feedback to the spec markdown. Do not implement code and do not use workflow.toml for spec state.`);
     },
   });
 
@@ -254,7 +262,7 @@ export default function workflowExtension(pi: ExtensionAPI) {
         ctx.ui.notify("No workflow found. Usage: /workflow-plan [workflow-dir|workflow.toml]", "warning");
         return;
       }
-      pi.sendUserMessage(`/skill:workflow-plan\n\nRun Stage 3 Implementation Planning for this workflow bundle:\n${workflowSummary(workflow)}\n\nValidate the route decision first. Plan from workflow.spec.md when spec is required/finalized, or from workflow.research.md when the route intentionally skipped spec and research is sufficient. Refuse with targeted questions if prerequisites are missing. Consensus is optional/prompted, never automatic; ask when recommended by route, then always run mandatory browser annotation/user review on the produced plan after consensus is completed, declined, bypassed after failure, or skipped. Apply all feedback to the plan markdown, then populate workflow.toml with execution task state only. Do not implement code.`);
+      pi.sendUserMessage(`/skill:workflow-plan\n\n${stageContextGuard("Stage 3 planning", ["workflow.research.md", "workflow.spec.md when required", "workflow.plan.md", "workflow.toml for task-state output only"])}\n\nRun Stage 3 Implementation Planning for this workflow bundle:\n${workflowSummary(workflow)}\n\nValidate the route decision first. Plan from workflow.spec.md when spec is required/finalized, or from workflow.research.md when the route intentionally skipped spec and research is sufficient. Refuse with targeted questions if prerequisites are missing. Consensus is optional/prompted, never automatic; ask when recommended by route, then always run mandatory browser annotation/user review on the produced plan after consensus is completed, declined, bypassed after failure, or skipped. Apply all feedback to the plan markdown, then populate workflow.toml with execution task state only. Do not implement code.`);
     },
   });
 
@@ -276,7 +284,7 @@ export default function workflowExtension(pi: ExtensionAPI) {
       if (result.annotationsPath && existsSync(result.annotationsPath)) {
         const annotations = readFileSync(result.annotationsPath, "utf8");
         ctx.ui.notify(`Review submitted: ${result.annotationsPath}`, "info");
-        pi.sendUserMessage(`/skill:research-plan-implement\n\nApply these browser review annotations to the reviewed workflow artifact. Apply every deletion, edit, annotation, and general comment concretely. Then ask whether another browser review round is needed.\n\n${workflowSummary(workflow)}\n\nReviewed file:\n${reviewFile}\n\nAnnotations file:\n${result.annotationsPath}\n\nAnnotations:\n${annotations}`);
+        pi.sendUserMessage(`/skill:research-plan-implement\n\n${stageContextGuard("browser review annotation application", ["reviewed workflow artifact", "annotations file", "workflow bundle paths listed below"])}\n\nApply these browser review annotations to the reviewed workflow artifact. Apply every deletion, edit, annotation, and general comment concretely. Then ask whether another browser review round is needed.\n\n${workflowSummary(workflow)}\n\nReviewed file:\n${reviewFile}\n\nAnnotations file:\n${result.annotationsPath}\n\nAnnotations:\n${annotations}`);
       } else {
         ctx.ui.notify(`Plan review server exited without annotations.\n${result.output}`, result.code === 0 ? "info" : "error");
       }
