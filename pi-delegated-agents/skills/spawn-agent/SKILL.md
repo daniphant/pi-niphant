@@ -1,43 +1,58 @@
 ---
 name: spawn-agent
-description: Explicit delegated execution only. Use when the user asks to spawn/delegate/run a separate agent, or for browser E2E testing, consensus review, isolated verification, or long-running artifact-producing tasks. Do not use for ordinary code exploration, repo inspection, architecture discovery, or planning unless the user explicitly requests delegation.
+description: Explicit spawn-only delegated execution. Use only when the user's prompt contains the word "spawn" and asks to spawn a delegated/sub-agent. Do not use for consensus, review, browser/E2E, verification, or long-running tasks unless the prompt explicitly says "spawn".
 ---
 
 # Spawn Agent
 
-Use this skill only when the user wants delegated/sub-agent execution rather than synchronous work in the current session.
+Use this skill only when the user's prompt contains the word "spawn" and asks for delegated/sub-agent execution rather than synchronous work in the current session.
+
+Do not use this skill for phrases like "run consensus", "run PAL consensus", "review this", "verify this", "test this", or "run browser review" unless the user also explicitly says to spawn an agent.
 
 ## Opinionated policy
 
-Delegated agents are allowed for:
-- browser/E2E execution that produces screenshots, traces, console logs, network logs, or objective pass/fail results
-- consensus/review across multiple models
-- independent verification of a completed change or proposed plan
-- long-running or isolated tasks with objective artifacts
-- explicit user requests such as "spawn an agent", "delegate this", "ask a subagent", or "run a reviewer agent"
+Delegated agents are allowed only for explicit spawn requests, such as:
+- "spawn an agent to ..."
+- "spawn an e2e agent to test the login flow"
+- "spawn a reviewer agent to independently verify my plan"
+- "spawn several agents for consensus on this migration plan"
 
-Delegated agents are not allowed for ordinary first-pass development work, including:
+Delegated agents are not allowed merely because a task involves browser/E2E work, consensus, review, independent verification, or long-running execution. Those tasks should use their direct tools/workflows unless the user explicitly says "spawn".
+
+Delegated agents are not allowed when the prompt does not contain "spawn", including:
+- running PAL/consensus review (for example, "yes, run consensus")
+- browser/E2E work or browser review
+- code review or plan review
+- independent verification
+- long-running test execution
+- ordinary first-pass development work
 - exploring a repository or codebase
 - finding where code lives
 - summarizing architecture
 - inspecting frontend/backend structure
 - planning implementation when the primary model can read the relevant files directly
 
-If the user asks for ordinary exploration, inspect the files yourself in the main context. Do not call delegated-agent tools.
+If the user asks for work without saying "spawn", do the work yourself in the main context or use the direct non-delegated tool/workflow. Do not call delegated-agent tools.
 
 ## What to do
 
-When the request matches the allowed cases above, prefer `run_delegated_agents`.
-Use `infer_and_run_delegated_agents` only when the user explicitly requested delegation but did not specify agent names.
+When the request contains "spawn" and matches the allowed cases above, prefer `run_delegated_agents`.
+Use `infer_and_run_delegated_agents` only when the user explicitly said "spawn" but did not specify agent names.
 
 Examples of matching requests:
 - "spawn an e2e agent to test the login flow"
+- "spawn a browser agent to verify this page"
+- "spawn a reviewer agent to independently verify my plan"
+- "spawn several agents for consensus on this migration plan"
+- "spawn a subagent to run the long test suite and report failures"
+
+Examples that do not match:
+- "yes, run consensus"
+- "run PAL consensus"
 - "delegate browser verification for this page"
 - "run a reviewer agent to independently verify my plan"
 - "ask several models for consensus on this migration plan"
 - "have a subagent run the long test suite and report failures"
-
-Examples that do not match unless the user explicitly says to delegate:
 - "explore this repo"
 - "inspect the frontend"
 - "analyze the architecture"
