@@ -9,7 +9,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { artifactKind, artifactMediaType, buildFindingsHotspots, classifyError, classifyFindingBucket, collectModelInfos, extractCompactFindingsSummary, FINDINGS_PARSER_VERSION, FINDINGS_SCHEMA_VERSION, isSafeArtifactName, markdownSection, parseReviewerFindings, recommendStack, renderFindingsSummaryMarkdown, REVIEW_PROMPT_VERSION, SIDECAR_VERSION, stackAvailability, type FindingLike, type PalModelInfo, type StackAvailability, type StructuredError } from "./src/core.js";
+import { artifactKind, artifactMediaType, buildFindingsHotspots, classifyError, classifyFindingBucket, collectModelInfos, extractCompactFindingsSummary, FINDINGS_PARSER_VERSION, FINDINGS_SCHEMA_VERSION, isSafeArtifactName, markdownSection, parseReviewerFindings, recommendStack, renderFindingsSummaryMarkdown, REVIEW_PROMPT_VERSION, SIDECAR_VERSION, stackAvailability, type FindingLike, type ModelRuntimeHealth, type PalModelInfo, type StackAvailability, type StructuredError } from "./src/core.js";
 
 interface ReviewerConfig {
   id: string;
@@ -136,13 +136,15 @@ interface SidecarState {
   cancelledRuns: Set<string>;
   csrfToken: string;
   modelDiscoveryCache?: { expiresAt: number; response: PalModelsResponse };
+  modelRuntimeHealth: Map<string, ModelRuntimeHealth>;
 }
 
 const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));
 const DASHBOARD_DIR = resolve(EXTENSION_DIR, "dashboard-build");
 const STATE_KEY = Symbol.for("pi-pal-consensus-sidecar.state");
 const globalWithState = globalThis as typeof globalThis & { [STATE_KEY]?: SidecarState };
-const state: SidecarState = globalWithState[STATE_KEY] ?? { cwd: process.cwd(), runs: new Map(), clients: new Map(), activePalClients: new Set(), runClosers: new Map(), cancelledRuns: new Set(), csrfToken: randomUUID() };
+const state: SidecarState = globalWithState[STATE_KEY] ?? { cwd: process.cwd(), runs: new Map(), clients: new Map(), activePalClients: new Set(), runClosers: new Map(), cancelledRuns: new Set(), csrfToken: randomUUID(), modelRuntimeHealth: new Map() };
+if (!state.modelRuntimeHealth) state.modelRuntimeHealth = new Map();
 globalWithState[STATE_KEY] = state;
 
 function splitShellish(input: string): string[] {
@@ -219,6 +221,10 @@ function modelDiscoveryTtlMs(): number {
 function modelAvailabilityPolicy(): "off" | "warn" | "block" {
   const value = String(process.env.PAL_SIDECAR_MODEL_AVAILABILITY_POLICY || "warn").trim().toLowerCase();
   return value === "off" || value === "block" ? value : "warn";
+}
+
+function modelRuntimeHealthTtlMs(): number {
+  return positiveIntEnv("PAL_SIDECAR_MODEL_HEALTH_TTL_MS", 60 * 60_000);
 }
 
 function positiveIntEnv(name: string, fallback: number): number {
@@ -579,6 +585,49 @@ function assertUniqueModelStances(reviewers: ReviewerConfig[]) {
   }
 }
 
+function activeModelRuntimeHealth(): Record<string, ModelRuntimeHealth> {
+  const now = Date.now();
+  const active: Record<string, ModelRuntimeHealth> = {};
+  for (const [model, health] of state.modelRuntimeHealth) {
+    if (Date.parse(health.expiresAt) <= now) {
+      state.modelRuntimeHealth.delete(model);
+      continue;
+    }
+    active[model] = health;
+  }
+  return active;
+}
+
+function runtimeHealthStatus(error: StructuredError): ModelRuntimeHealth["status"] | undefined {
+  if (["pal_model_no_endpoint", "pal_model_not_found", "model_unavailable"].includes(error.code)) return "unhealthy";
+  if (["pal_rate_limited", "pal_quota_exceeded", "pal_provider_auth_failed", "pal_upstream_unavailable", "pal_network_error", "pal_timeout"].includes(error.code)) return "degraded";
+  return undefined;
+}
+
+function recordModelRuntimeFailure(model: string, error: StructuredError, context: { runId?: string; reviewer?: string }) {
+  const status = runtimeHealthStatus(error);
+  if (!status) return;
+  const failedAt = new Date();
+  const expiresAt = new Date(failedAt.getTime() + modelRuntimeHealthTtlMs());
+  state.modelRuntimeHealth.set(model, {
+    model,
+    status,
+    code: error.code,
+    message: error.message,
+    retryable: error.retryable,
+    guidance: error.guidance,
+    failedAt: failedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    runId: context.runId,
+    reviewer: context.reviewer,
+  });
+  state.modelDiscoveryCache = undefined;
+}
+
+function clearModelRuntimeHealth(model: string) {
+  if (state.modelRuntimeHealth.delete(model)) state.modelDiscoveryCache = undefined;
+}
+
 async function modelAvailabilityWarnings(cwd: string, stackId: string): Promise<RunWarning[]> {
   const policy = modelAvailabilityPolicy();
   if (policy === "off" || stackId === "custom" || stackId === "auto") return [];
@@ -588,14 +637,21 @@ async function modelAvailabilityWarnings(cwd: string, stackId: string): Promise<
     const stack = discovery.stacks[stackId];
     if (!stack) return [];
     const unavailable = stack.reviewers.filter((reviewer) => reviewer.availability === "unavailable");
-    if (!unavailable.length) return [];
-    const warning: RunWarning = {
+    const runtimeUnhealthy = stack.reviewers.filter((reviewer) => reviewer.runtimeHealth?.status === "unhealthy");
+    const runtimeDegraded = stack.reviewers.filter((reviewer) => reviewer.runtimeHealth?.status === "degraded");
+    const warnings: RunWarning[] = [];
+    if (unavailable.length) warnings.push({
       code: "model_availability_warning",
       message: `Selected stack '${stackId}' has ${unavailable.length} reviewer model(s) not reported by PAL listmodels.`,
       details: { stackId, policy, unavailable },
-    };
-    if (policy === "block") throw new Error(`${warning.message} Set PAL_SIDECAR_MODEL_AVAILABILITY_POLICY=warn to allow the run.`);
-    return [warning];
+    });
+    if (runtimeUnhealthy.length || runtimeDegraded.length) warnings.push({
+      code: "model_runtime_health_warning",
+      message: `Selected stack '${stackId}' has ${runtimeUnhealthy.length} unhealthy and ${runtimeDegraded.length} degraded reviewer model(s) from recent runtime failures.`,
+      details: { stackId, policy, unhealthy: runtimeUnhealthy, degraded: runtimeDegraded },
+    });
+    if (policy === "block" && warnings.length) throw new Error(`${warnings.map((warning) => warning.message).join(" ")} Set PAL_SIDECAR_MODEL_AVAILABILITY_POLICY=warn to allow the run.`);
+    return warnings;
   } catch (error) {
     if (policy === "block" && error instanceof Error && error.message.includes("not reported by PAL listmodels")) throw error;
     return [{
@@ -804,7 +860,7 @@ async function discoverPalModels(cwd: string, refresh = false): Promise<PalModel
       ttl_ms: ttlMs,
       contract,
       models,
-      stacks: stackAvailability(config, models),
+      stacks: stackAvailability(config, models, activeModelRuntimeHealth()),
       raw: parsed,
     } satisfies PalModelsResponse;
   });
@@ -961,9 +1017,12 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
       run.rawArtifacts.push(jsonPath, mdPath);
       reviewerArtifacts.push({ reviewer, status: responseStatus === "error" ? "error" : "success", markdown: String(markdown), jsonPath, mdPath, error: responseError });
       if (responseStatus === "error") {
-        addEvent(run, "reviewer_failed", { reviewer: reviewer.id, label: reviewer.label, model: reviewer.model, error: responseError || "Unknown PAL/model error", jsonPath, mdPath });
+        const structuredError = classifyError(responseError || "Unknown PAL/model error", { reviewer: reviewer.id, model: reviewer.model, runId: run.id });
+        recordModelRuntimeFailure(reviewer.model, structuredError, { runId: run.id, reviewer: reviewer.id });
+        addEvent(run, "reviewer_failed", { reviewer: reviewer.id, label: reviewer.label, model: reviewer.model, error: responseError || "Unknown PAL/model error", structuredError, jsonPath, mdPath });
       } else {
         successfulReviewers += 1;
+        clearModelRuntimeHealth(reviewer.model);
         addEvent(run, "reviewer_completed", { reviewer: reviewer.id, label: reviewer.label, model: reviewer.model, jsonPath, mdPath });
       }
     }
@@ -1208,11 +1267,16 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
         cacheTtlMs: modelDiscoveryTtlMs(),
         availabilityPolicy: modelAvailabilityPolicy(),
       },
+      modelRuntimeHealth: {
+        ttlMs: modelRuntimeHealthTtlMs(),
+        activeCount: Object.keys(activeModelRuntimeHealth()).length,
+      },
     });
     if (req.method === "GET" && url.pathname === "/api/session") return json(res, 200, { csrfToken: state.csrfToken });
     if (req.method === "GET" && url.pathname === "/api/config") return json(res, 200, await loadSidecarConfig(state.cwd));
     if (req.method === "GET" && url.pathname === "/api/pal/contract") return json(res, 200, await inspectPalContract(state.cwd));
     if (req.method === "GET" && url.pathname === "/api/pal/models") return json(res, 200, await discoverPalModels(state.cwd, url.searchParams.get("refresh") === "1"));
+    if (req.method === "GET" && url.pathname === "/api/model-health") return json(res, 200, { generated_at: new Date().toISOString(), ttl_ms: modelRuntimeHealthTtlMs(), models: Object.values(activeModelRuntimeHealth()).sort((a, b) => a.model.localeCompare(b.model)) });
     if (req.method === "POST" && url.pathname === "/api/recommend-stack") {
       requireCsrf(req, url);
       const body = (await readBody(req)) as Record<string, unknown>;

@@ -13,15 +13,31 @@ export interface PalModelInfo {
   raw?: unknown;
 }
 
+export interface ModelRuntimeHealth {
+  model: string;
+  status: "unhealthy" | "degraded";
+  code: string;
+  message: string;
+  retryable: boolean;
+  guidance?: string;
+  failedAt: string;
+  expiresAt: string;
+  runId?: string;
+  reviewer?: string;
+}
+
 export interface StackAvailability {
   available: number;
   unknown: number;
   unavailable: number;
+  runtimeUnhealthy: number;
+  runtimeDegraded: number;
   reviewers: Array<{
     id: string;
     label: string;
     model: string;
     availability: "available" | "unavailable" | "unknown";
+    runtimeHealth?: ModelRuntimeHealth;
   }>;
 }
 
@@ -490,7 +506,7 @@ export function recommendStack(planText: string, config: ConfigLike): StackRecom
   };
 }
 
-export function stackAvailability(config: ConfigLike, models: PalModelInfo[]): Record<string, StackAvailability> {
+export function stackAvailability(config: ConfigLike, models: PalModelInfo[], runtimeHealth: Record<string, ModelRuntimeHealth> = {}): Record<string, StackAvailability> {
   const availableIds = new Set<string>();
   for (const model of models) {
     availableIds.add(model.id);
@@ -501,12 +517,14 @@ export function stackAvailability(config: ConfigLike, models: PalModelInfo[]): R
   for (const [stackId, stack] of Object.entries(config.stacks)) {
     const reviewers = stack.reviewers.map((reviewer) => {
       const availability: "available" | "unavailable" | "unknown" = known ? (availableIds.has(reviewer.model) ? "available" : "unavailable") : "unknown";
-      return { id: reviewer.id, label: reviewer.label, model: reviewer.model, availability };
+      return { id: reviewer.id, label: reviewer.label, model: reviewer.model, availability, runtimeHealth: runtimeHealth[reviewer.model] };
     });
     stacks[stackId] = {
       available: reviewers.filter((reviewer) => reviewer.availability === "available").length,
       unavailable: reviewers.filter((reviewer) => reviewer.availability === "unavailable").length,
       unknown: reviewers.filter((reviewer) => reviewer.availability === "unknown").length,
+      runtimeUnhealthy: reviewers.filter((reviewer) => reviewer.runtimeHealth?.status === "unhealthy").length,
+      runtimeDegraded: reviewers.filter((reviewer) => reviewer.runtimeHealth?.status === "degraded").length,
       reviewers,
     };
   }

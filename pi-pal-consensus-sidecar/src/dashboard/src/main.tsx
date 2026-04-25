@@ -77,12 +77,29 @@ type ArtifactContent = {
   content: string;
 };
 
+type ModelRuntimeHealth = {
+  model: string;
+  status: "unhealthy" | "degraded";
+  code: string;
+  message: string;
+  retryable: boolean;
+  guidance?: string;
+  failedAt: string;
+  expiresAt: string;
+  runId?: string;
+  reviewer?: string;
+};
+
 type Health = {
   limits: Record<string, unknown>;
   modelDiscovery: {
     enabled: boolean;
     cacheTtlMs: number;
     availabilityPolicy: "off" | "warn" | "block";
+  };
+  modelRuntimeHealth?: {
+    ttlMs: number;
+    activeCount: number;
   };
 };
 
@@ -96,7 +113,9 @@ type ModelDiscovery = {
     available: number;
     unavailable: number;
     unknown: number;
-    reviewers: Array<{ id: string; label: string; model: string; availability: "available" | "unavailable" | "unknown" }>;
+    runtimeUnhealthy: number;
+    runtimeDegraded: number;
+    reviewers: Array<{ id: string; label: string; model: string; availability: "available" | "unavailable" | "unknown"; runtimeHealth?: ModelRuntimeHealth }>;
   }>;
 };
 
@@ -192,7 +211,7 @@ function App() {
       }
     }).catch(() => undefined);
     const source = new EventSource(`/api/runs/${selectedRun}/events?token=${encodeURIComponent(sessionToken)}`);
-    const eventTypes = ["run_queued", "model_availability_warning", "model_discovery_warning", "run_started", "pal_starting", "pal_connected", "reviewer_started", "reviewer_completed", "reviewer_failed", "synthesis_completed", "synthesis_skipped", "run_completed", "run_failed", "run_timeout", "run_cancelled", "run_cancel_requested"];
+    const eventTypes = ["run_queued", "model_availability_warning", "model_runtime_health_warning", "model_discovery_warning", "run_started", "pal_starting", "pal_connected", "reviewer_started", "reviewer_completed", "reviewer_failed", "synthesis_completed", "synthesis_skipped", "run_completed", "run_failed", "run_timeout", "run_cancelled", "run_cancel_requested"];
     for (const type of eventTypes) {
       source.addEventListener(type, (event) => {
         setEvents((current) => [...current, { type, data: JSON.parse((event as MessageEvent).data) }]);
@@ -304,12 +323,13 @@ function App() {
           <button type="button" className="secondary" onClick={() => void checkModels(true)} disabled={checkingModels || health?.modelDiscovery.enabled === false}>{checkingModels ? "Checking..." : "Check PAL models"}</button>
           <span className="hint">Policy: {health?.modelDiscovery.availabilityPolicy || "warn"} · Discovery: {health?.modelDiscovery.enabled === false ? "disabled" : "manual"}</span>
         </div>
-        {selectedAvailability && <div className={`availability ${selectedAvailability.unavailable ? "warn" : "ok"}`}>
-          <strong>Model availability:</strong> {selectedAvailability.available} available · {selectedAvailability.unavailable} unavailable · {selectedAvailability.unknown} unknown
-          {selectedAvailability.unavailable > 0 && <ul>
-            {selectedAvailability.reviewers.filter((reviewer) => reviewer.availability === "unavailable").map((reviewer) => <li key={reviewer.id}>{reviewer.label}: <code>{reviewer.model}</code></li>)}
+        {selectedAvailability && <div className={`availability ${selectedAvailability.unavailable || selectedAvailability.runtimeUnhealthy || selectedAvailability.runtimeDegraded ? "warn" : "ok"}`}>
+          <strong>Model availability:</strong> {selectedAvailability.available} available · {selectedAvailability.unavailable} unavailable · {selectedAvailability.unknown} unknown · {selectedAvailability.runtimeUnhealthy} unhealthy · {selectedAvailability.runtimeDegraded} degraded
+          {(selectedAvailability.unavailable > 0 || selectedAvailability.runtimeUnhealthy > 0 || selectedAvailability.runtimeDegraded > 0) && <ul>
+            {selectedAvailability.reviewers.filter((reviewer) => reviewer.availability === "unavailable").map((reviewer) => <li key={`unavailable-${reviewer.id}`}>{reviewer.label}: <code>{reviewer.model}</code> not reported by PAL listmodels</li>)}
+            {selectedAvailability.reviewers.filter((reviewer) => reviewer.runtimeHealth).map((reviewer) => <li key={`runtime-${reviewer.id}`}>{reviewer.label}: <code>{reviewer.model}</code> recently {reviewer.runtimeHealth?.status} ({reviewer.runtimeHealth?.code})</li>)}
           </ul>}
-          {selectedAvailability.unavailable > 0 && <p className="hint">{health?.modelDiscovery.availabilityPolicy === "block" ? "Runs will be rejected until these models are updated." : "Runs proceed with warnings under the current policy."}</p>}
+          {(selectedAvailability.unavailable > 0 || selectedAvailability.runtimeUnhealthy > 0 || selectedAvailability.runtimeDegraded > 0) && <p className="hint">{health?.modelDiscovery.availabilityPolicy === "block" ? "Runs will be rejected until these models are updated or health records expire." : "Runs proceed with warnings under the current policy."}</p>}
         </div>}
         {modelDiscovery && !selectedAvailability && <p className="hint">Model cache checked at {modelDiscovery.generated_at}; choose a configured stack to see availability.</p>}
 

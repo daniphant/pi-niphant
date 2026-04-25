@@ -91,6 +91,38 @@ describe("stackAvailability", () => {
     expect(availability.available).toBe(0);
     expect(availability.unavailable).toBe(0);
     expect(availability.unknown).toBe(3);
+    expect(availability.runtimeUnhealthy).toBe(0);
+    expect(availability.runtimeDegraded).toBe(0);
+  });
+
+  it("annotates reviewers with recent runtime health failures", () => {
+    const availability = stackAvailability(config, [{ id: "openai/gpt-5.5" }], {
+      "openai/gpt-5.5": {
+        model: "openai/gpt-5.5",
+        status: "unhealthy",
+        code: "pal_model_no_endpoint",
+        message: "No endpoints found for openai/gpt-5.5",
+        retryable: false,
+        guidance: "Replace the model.",
+        failedAt: "2026-04-25T00:00:00.000Z",
+        expiresAt: "2026-04-25T01:00:00.000Z",
+        runId: "run-1",
+        reviewer: "a",
+      },
+      "missing/model": {
+        model: "missing/model",
+        status: "degraded",
+        code: "pal_rate_limited",
+        message: "rate limited",
+        retryable: true,
+        failedAt: "2026-04-25T00:00:00.000Z",
+        expiresAt: "2026-04-25T01:00:00.000Z",
+      },
+    }).standard;
+    expect(availability.runtimeUnhealthy).toBe(1);
+    expect(availability.runtimeDegraded).toBe(1);
+    expect(availability.reviewers[0].runtimeHealth?.code).toBe("pal_model_no_endpoint");
+    expect(availability.reviewers[2].runtimeHealth?.status).toBe("degraded");
   });
 });
 

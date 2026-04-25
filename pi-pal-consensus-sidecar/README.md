@@ -82,6 +82,7 @@ The sidecar exposes backend-only discovery endpoints for checking PAL MCP compat
 GET /api/pal/contract
 GET /api/pal/models
 GET /api/pal/models?refresh=1
+GET /api/model-health
 ```
 
 `/api/pal/contract` starts PAL MCP, lists tools, and reports whether required tools are present:
@@ -112,6 +113,8 @@ GET /api/pal/models?refresh=1
       "available": 10,
       "unavailable": 1,
       "unknown": 0,
+      "runtimeUnhealthy": 0,
+      "runtimeDegraded": 0,
       "reviewers": []
     }
   }
@@ -127,12 +130,17 @@ export PAL_SIDECAR_MODEL_DISCOVERY=0
 # Cache discovered models for 5 minutes by default.
 export PAL_SIDECAR_MODEL_CACHE_TTL_MS=300000
 
-# Run validation policy for configured stack model availability.
+# Run validation policy for configured stack model availability and recent runtime health.
 # Default is warn: runs proceed and record warnings.
 export PAL_SIDECAR_MODEL_AVAILABILITY_POLICY=warn # off | warn | block
+
+# Remember recent model runtime failures for 1 hour by default.
+export PAL_SIDECAR_MODEL_HEALTH_TTL_MS=3600000
 ```
 
-When the policy is `warn`, unavailable stack models produce run warnings and `model_availability_warning` SSE events but do not block the run. When the policy is `block`, the sidecar rejects the run before PAL consensus starts if PAL `listmodels` does not report one or more selected stack models.
+When the policy is `warn`, unavailable stack models produce run warnings and recent runtime failures produce `model_runtime_health_warning` warnings, but they do not block the run. When the policy is `block`, the sidecar rejects the run before PAL consensus starts if PAL `listmodels` does not report one or more selected stack models or the selected stack contains recently unhealthy/degraded reviewer models.
+
+Runtime model health is in-memory and local to the sidecar process. Reviewer failures with model/provider-specific structured errors such as `pal_model_no_endpoint`, `pal_model_not_found`, `pal_rate_limited`, `pal_quota_exceeded`, `pal_provider_auth_failed`, or transient provider/network failures are recorded by model id until their TTL expires. Successful reviewer calls clear that model's runtime health. `GET /api/model-health` returns active records without provider environment variables or API keys.
 
 Discovery never returns provider environment variables or API keys. Failures are isolated to discovery/model-availability warnings and do not disable normal consensus runs by default.
 
