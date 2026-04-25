@@ -6,6 +6,7 @@ import {
   classifyError,
   classifyFindingBucket,
   collectModelInfos,
+  extractCompactFindingsSummary,
   FINDINGS_PARSER_VERSION,
   FINDINGS_SCHEMA_VERSION,
   REVIEW_PROMPT_VERSION,
@@ -107,6 +108,21 @@ describe("findings normalization helpers", () => {
     ]);
     expect(hotspots).toContainEqual({ topic: "rollback and migration safety", count: 2, reviewers: ["ops", "security"] });
     expect(hotspots).toContainEqual({ topic: "validation and tests", count: 2, reviewers: ["maintainer", "qa"] });
+  });
+
+  it("extracts compact findings summaries from v2 findings", () => {
+    expect(extractCompactFindingsSummary({ summary: { recommendation: "revise", blocking_count: 2, suggestion_count: 3, question_count: 1, reviewer_success: "4/4", failed_reviewer_count: 0, warning_count: 1, total_findings: 6 } })).toEqual({
+      recommendation: "revise",
+      blocking_count: 2,
+      suggestion_count: 3,
+      question_count: 1,
+      reviewer_success: "4/4",
+      failed_reviewer_count: 0,
+      warning_count: 1,
+      total_findings: 6,
+    });
+    expect(extractCompactFindingsSummary({ recommendation: "revise" })).toBeUndefined();
+    expect(extractCompactFindingsSummary("not json")).toBeUndefined();
   });
 
   it("renders stable markdown summaries", () => {

@@ -32,6 +32,17 @@ type Config = {
   sources: Array<{ path: string; kind: string; status: string; reason?: string }>;
 };
 
+type CompactFindingsSummary = {
+  recommendation: string;
+  blocking_count: number;
+  suggestion_count: number;
+  question_count: number;
+  reviewer_success: string;
+  failed_reviewer_count: number;
+  warning_count: number;
+  total_findings: number;
+};
+
 type Run = {
   id: string;
   status: RunStatus;
@@ -42,6 +53,7 @@ type Run = {
   error?: string;
   structuredError?: { code: string; message: string; retryable: boolean; guidance?: string; details?: unknown };
   findingsPath?: string;
+  findingsSummary?: CompactFindingsSummary;
   warnings?: Array<{ code: string; message: string; details?: unknown }>;
 };
 
@@ -135,6 +147,7 @@ function App() {
   const [events, setEvents] = useState<EventLine[]>([]);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [artifactContent, setArtifactContent] = useState<ArtifactContent | null>(null);
+  const [findingsSummaryContent, setFindingsSummaryContent] = useState<ArtifactContent | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -171,14 +184,25 @@ function App() {
     setEvents([]);
     setArtifacts([]);
     setArtifactContent(null);
-    void api<{ artifacts: Artifact[] }>(`/api/runs/${selectedRun}/artifacts`).then((data) => setArtifacts(data.artifacts)).catch(() => undefined);
+    setFindingsSummaryContent(null);
+    void api<{ artifacts: Artifact[] }>(`/api/runs/${selectedRun}/artifacts`).then((data) => {
+      setArtifacts(data.artifacts);
+      if (data.artifacts.some((artifact) => artifact.name === "findings-summary.md")) {
+        void api<ArtifactContent>(`/api/runs/${selectedRun}/artifacts/read?name=findings-summary.md`).then(setFindingsSummaryContent).catch(() => undefined);
+      }
+    }).catch(() => undefined);
     const source = new EventSource(`/api/runs/${selectedRun}/events?token=${encodeURIComponent(sessionToken)}`);
     const eventTypes = ["run_queued", "model_availability_warning", "model_discovery_warning", "run_started", "pal_starting", "pal_connected", "reviewer_started", "reviewer_completed", "reviewer_failed", "synthesis_completed", "synthesis_skipped", "run_completed", "run_failed", "run_timeout", "run_cancelled", "run_cancel_requested"];
     for (const type of eventTypes) {
       source.addEventListener(type, (event) => {
         setEvents((current) => [...current, { type, data: JSON.parse((event as MessageEvent).data) }]);
         void refreshRuns();
-        void api<{ artifacts: Artifact[] }>(`/api/runs/${selectedRun}/artifacts`).then((data) => setArtifacts(data.artifacts)).catch(() => undefined);
+        void api<{ artifacts: Artifact[] }>(`/api/runs/${selectedRun}/artifacts`).then((data) => {
+          setArtifacts(data.artifacts);
+          if (data.artifacts.some((artifact) => artifact.name === "findings-summary.md")) {
+            void api<ArtifactContent>(`/api/runs/${selectedRun}/artifacts/read?name=findings-summary.md`).then(setFindingsSummaryContent).catch(() => undefined);
+          }
+        }).catch(() => undefined);
       });
     }
     source.onerror = () => void refreshRuns();
@@ -319,8 +343,16 @@ function App() {
             <strong>{run.id}</strong>
             <small>{duration(run)} · {run.planFile}</small>
             <code>{run.artifactDir}</code>
+            {run.findingsSummary && <span className="finding-pills">
+              <span className="summary-pill">{run.findingsSummary.recommendation}</span>
+              <span className={run.findingsSummary.blocking_count ? "error-pill" : "summary-pill"}>{run.findingsSummary.blocking_count} blocking</span>
+              <span className="summary-pill">{run.findingsSummary.suggestion_count} suggestions</span>
+              <span className="summary-pill">{run.findingsSummary.question_count} questions</span>
+              <span className="summary-pill">{run.findingsSummary.reviewer_success} reviewers</span>
+            </span>}
             {Boolean(run.warnings?.length) && <span className="warning-pill">{run.warnings?.length} warning{run.warnings?.length === 1 ? "" : "s"}</span>}
-            {run.structuredError && <span className="error-pill">{run.structuredError.code}</span>}
+            {run.structuredError && <span className="error-pill">{run.structuredError.code} · {run.structuredError.retryable ? "retryable" : "not retryable"}</span>}
+            {run.structuredError?.guidance && <small className="guidance">Guidance: {run.structuredError.guidance}</small>}
             {run.status === "running" && <span className="cancel" onClick={(event) => { event.stopPropagation(); void cancelRun(run.id); }}>Cancel</span>}
           </button>)}
         </div>
@@ -329,6 +361,14 @@ function App() {
 
     <section className="panel event-panel">
       <div className="event-head"><h2>Artifacts</h2>{activeRun?.findingsPath && <code>{activeRun.findingsPath}</code>}</div>
+      {activeRun?.structuredError && <div className="structured-error">
+        <strong>{activeRun.structuredError.code}</strong> · {activeRun.structuredError.retryable ? "retryable" : "not retryable"}
+        {activeRun.structuredError.guidance && <p>Guidance: {activeRun.structuredError.guidance}</p>}
+      </div>}
+      {findingsSummaryContent && <div className="summary-content">
+        <h3>Findings summary</h3>
+        <pre>{findingsSummaryContent.content}</pre>
+      </div>}
       <div className="artifact-list">
         {artifacts.length === 0 ? <p className="hint">No artifacts yet.</p> : artifacts.map((artifact) => <button type="button" className="artifact-chip" key={artifact.name} onClick={() => void openArtifact(artifact.name)}>
           {artifact.name}<small>{artifact.kind} · {artifact.bytes} bytes</small>

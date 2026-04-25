@@ -9,7 +9,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { artifactKind, artifactMediaType, buildFindingsHotspots, classifyError, classifyFindingBucket, collectModelInfos, FINDINGS_PARSER_VERSION, FINDINGS_SCHEMA_VERSION, isSafeArtifactName, recommendStack, renderFindingsSummaryMarkdown, REVIEW_PROMPT_VERSION, SIDECAR_VERSION, stackAvailability, type FindingLike, type PalModelInfo, type StackAvailability, type StructuredError } from "./src/core.js";
+import { artifactKind, artifactMediaType, buildFindingsHotspots, classifyError, classifyFindingBucket, collectModelInfos, extractCompactFindingsSummary, FINDINGS_PARSER_VERSION, FINDINGS_SCHEMA_VERSION, isSafeArtifactName, recommendStack, renderFindingsSummaryMarkdown, REVIEW_PROMPT_VERSION, SIDECAR_VERSION, stackAvailability, type FindingLike, type PalModelInfo, type StackAvailability, type StructuredError } from "./src/core.js";
 
 interface ReviewerConfig {
   id: string;
@@ -1263,6 +1263,15 @@ function serveEvents(run: RunState, res: ServerResponse) {
   });
 }
 
+async function readRunFindingsSummary(run: RunState) {
+  if (!run.findingsPath || !existsSync(run.findingsPath)) return undefined;
+  try {
+    return extractCompactFindingsSummary(JSON.parse(await readFile(run.findingsPath, "utf8")));
+  } catch {
+    return undefined;
+  }
+}
+
 async function handle(req: IncomingMessage, res: ServerResponse) {
   try {
     assertLocalRequest(req);
@@ -1303,7 +1312,8 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       return json(res, 200, { ...recommendation, stack: config.stacks[recommendation.stackId], availability });
     }
     if (req.method === "GET" && url.pathname === "/api/runs") {
-      return json(res, 200, { runs: [...state.runs.values()].map((r) => ({ id: r.id, status: r.status, startedAt: r.startedAt, completedAt: r.completedAt, planFile: r.planFile, artifactDir: r.artifactDir, warnings: r.warnings, error: r.error, structuredError: r.structuredError, findingsPath: r.findingsPath })) });
+      const runs = await Promise.all([...state.runs.values()].map(async (r) => ({ id: r.id, status: r.status, startedAt: r.startedAt, completedAt: r.completedAt, planFile: r.planFile, artifactDir: r.artifactDir, warnings: r.warnings, error: r.error, structuredError: r.structuredError, findingsPath: r.findingsPath, findingsSummary: await readRunFindingsSummary(r) })));
+      return json(res, 200, { runs });
     }
     if (req.method === "POST" && url.pathname === "/api/runs") {
       requireCsrf(req, url);

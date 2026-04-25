@@ -61,6 +61,17 @@ export interface FindingLike {
   artifact?: string;
 }
 
+export interface CompactFindingsSummary {
+  recommendation: string;
+  blocking_count: number;
+  suggestion_count: number;
+  question_count: number;
+  reviewer_success: string;
+  failed_reviewer_count: number;
+  warning_count: number;
+  total_findings: number;
+}
+
 export interface FindingsSummaryInput {
   run_id: string;
   status: string;
@@ -79,6 +90,25 @@ export const SIDECAR_VERSION = "0.1.0";
 export const FINDINGS_SCHEMA_VERSION = "2026-04-25.1";
 export const FINDINGS_PARSER_VERSION = "deterministic-markdown-v1";
 export const REVIEW_PROMPT_VERSION = "plan-review-v1";
+
+export function extractCompactFindingsSummary(value: unknown): CompactFindingsSummary | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const summary = (value as Record<string, unknown>).summary;
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) return undefined;
+  const record = summary as Record<string, unknown>;
+  if (typeof record.recommendation !== "string") return undefined;
+  const numberField = (key: string) => typeof record[key] === "number" ? record[key] as number : 0;
+  return {
+    recommendation: record.recommendation,
+    blocking_count: numberField("blocking_count"),
+    suggestion_count: numberField("suggestion_count"),
+    question_count: numberField("question_count"),
+    reviewer_success: typeof record.reviewer_success === "string" ? record.reviewer_success : "unknown",
+    failed_reviewer_count: numberField("failed_reviewer_count"),
+    warning_count: numberField("warning_count"),
+    total_findings: numberField("total_findings"),
+  };
+}
 
 export function classifyFindingBucket(finding: FindingLike): FindingBucket {
   const text = `${finding.severity ?? ""} ${finding.issue ?? ""} ${finding.recommendation ?? ""}`.toLowerCase();
