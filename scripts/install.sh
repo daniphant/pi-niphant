@@ -17,6 +17,7 @@ DEFAULT_PACKAGES=(
   pi-codex-compaction
   pi-codex-like-diff
   pi-consensus
+  pi-pal-consensus-sidecar
   pi-delegation-guard
   pi-diagnostics
   pi-markdown-commands
@@ -139,6 +140,9 @@ install_package() {
     pi-consensus)
       link_ext pi-consensus "$ROOT/pi-consensus"
       link_skill consensus "$ROOT/pi-consensus/skills/consensus"
+      ;;
+    pi-pal-consensus-sidecar)
+      link_ext pi-pal-consensus-sidecar "$ROOT/pi-pal-consensus-sidecar"
       ;;
     pi-delegated-agents)
       link_ext pi-delegated-agents "$ROOT/pi-delegated-agents/extensions/pi-delegated-agents"
