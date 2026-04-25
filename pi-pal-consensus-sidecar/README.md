@@ -126,9 +126,15 @@ export PAL_SIDECAR_MODEL_DISCOVERY=0
 
 # Cache discovered models for 5 minutes by default.
 export PAL_SIDECAR_MODEL_CACHE_TTL_MS=300000
+
+# Run validation policy for configured stack model availability.
+# Default is warn: runs proceed and record warnings.
+export PAL_SIDECAR_MODEL_AVAILABILITY_POLICY=warn # off | warn | block
 ```
 
-Discovery never returns provider environment variables or API keys. Failures are isolated to the discovery endpoint and do not disable normal consensus runs.
+When the policy is `warn`, unavailable stack models produce run warnings and `model_availability_warning` SSE events but do not block the run. When the policy is `block`, the sidecar rejects the run before PAL consensus starts if PAL `listmodels` does not report one or more selected stack models.
+
+Discovery never returns provider environment variables or API keys. Failures are isolated to discovery/model-availability warnings and do not disable normal consensus runs by default.
 
 ## Dashboard frontend
 
@@ -140,13 +146,6 @@ Important safety properties:
 - static paths are resolved and checked against the dashboard asset root
 - dashboard responses include a strict CSP
 - no external CDN/runtime assets are required
-- legacy inline dashboard fallback is temporarily available with:
-
-```bash
-export PAL_SIDECAR_LEGACY_DASHBOARD=1
-```
-
-Use the fallback only for rollback/debugging while the framework migration stabilizes.
 
 ## Reviewer model configuration
 

@@ -41,6 +41,7 @@ type Run = {
   artifactDir: string;
   error?: string;
   findingsPath?: string;
+  warnings?: Array<{ code: string; message: string; details?: unknown }>;
 };
 
 type EventLine = { type: string; data: Record<string, unknown> };
@@ -121,7 +122,7 @@ function App() {
     location.hash = `run=${selectedRun}`;
     setEvents([]);
     const source = new EventSource(`/api/runs/${selectedRun}/events?token=${encodeURIComponent(sessionToken)}`);
-    const eventTypes = ["run_queued", "run_started", "pal_starting", "pal_connected", "reviewer_started", "reviewer_completed", "reviewer_failed", "synthesis_completed", "synthesis_skipped", "run_completed", "run_failed", "run_timeout", "run_cancelled", "run_cancel_requested"];
+    const eventTypes = ["run_queued", "model_availability_warning", "model_discovery_warning", "run_started", "pal_starting", "pal_connected", "reviewer_started", "reviewer_completed", "reviewer_failed", "synthesis_completed", "synthesis_skipped", "run_completed", "run_failed", "run_timeout", "run_cancelled", "run_cancel_requested"];
     for (const type of eventTypes) {
       source.addEventListener(type, (event) => {
         setEvents((current) => [...current, { type, data: JSON.parse((event as MessageEvent).data) }]);
@@ -233,6 +234,7 @@ function App() {
             <strong>{run.id}</strong>
             <small>{duration(run)} · {run.planFile}</small>
             <code>{run.artifactDir}</code>
+            {Boolean(run.warnings?.length) && <span className="warning-pill">{run.warnings?.length} warning{run.warnings?.length === 1 ? "" : "s"}</span>}
             {run.status === "running" && <span className="cancel" onClick={(event) => { event.stopPropagation(); void cancelRun(run.id); }}>Cancel</span>}
           </button>)}
         </div>
