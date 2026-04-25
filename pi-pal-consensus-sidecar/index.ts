@@ -9,7 +9,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { artifactKind, artifactMediaType, classifyError, collectModelInfos, FINDINGS_PARSER_VERSION, FINDINGS_SCHEMA_VERSION, isSafeArtifactName, recommendStack, REVIEW_PROMPT_VERSION, SIDECAR_VERSION, stackAvailability, type PalModelInfo, type StackAvailability, type StructuredError } from "./src/core.js";
+import { artifactKind, artifactMediaType, buildFindingsHotspots, classifyError, classifyFindingBucket, collectModelInfos, FINDINGS_PARSER_VERSION, FINDINGS_SCHEMA_VERSION, isSafeArtifactName, recommendStack, renderFindingsSummaryMarkdown, REVIEW_PROMPT_VERSION, SIDECAR_VERSION, stackAvailability, type FindingLike, type PalModelInfo, type StackAvailability, type StructuredError } from "./src/core.js";
 
 interface ReviewerConfig {
   id: string;
@@ -904,19 +904,11 @@ async function discoverPalModels(cwd: string, refresh = false): Promise<PalModel
 function deterministicNormalize(run: RunState, req: RunRequest, artifacts: ReviewerArtifact[], rawResponses: any[]) {
   const findings = artifacts.flatMap(parseFindings);
   const failed = artifacts.filter((artifact) => artifact.status === "error");
-  const hasCritical = findings.some((finding) => finding.severity === "critical");
-  const hasMajor = findings.some((finding) => finding.severity === "major");
-  const hasMinor = findings.some((finding) => finding.severity === "minor");
-  const recommendation = failed.length === artifacts.length ? "reject" : hasCritical || failed.length ? "revise" : hasMajor || hasMinor ? "revise" : "approve";
-  const rawConcernSections = artifacts.map((artifact) => section(artifact.markdown, "Raw Concerns")).filter(Boolean);
-  const approvalSections = artifacts.map((artifact) => section(artifact.markdown, "Approval Recommendation")).filter(Boolean);
-  const agreements = Array.from(new Set(findings.map((finding) => finding.issue.toLowerCase()).filter((issue) => issue.includes("cost") || issue.includes("timeout") || issue.includes("local") || issue.includes("path") || issue.includes("secret")).map((issue) => {
-    if (issue.includes("cost")) return "Cost controls and budget visibility need explicit product support.";
-    if (issue.includes("timeout")) return "Runs need timeout/cancellation safeguards.";
-    if (issue.includes("local")) return "The dashboard must remain explicitly local-only.";
-    if (issue.includes("path")) return "Plan-file path handling needs validation and root restrictions.";
-    return "Secrets and raw logs must be scrubbed before display or persistence.";
-  })));
+  const blocking_findings = findings.filter((finding) => classifyFindingBucket(finding as FindingLike) === "blocking");
+  const suggestion_findings = findings.filter((finding) => classifyFindingBucket(finding as FindingLike) === "suggestion");
+  const question_findings = findings.filter((finding) => classifyFindingBucket(finding as FindingLike) === "question");
+  const recommendation = failed.length === artifacts.length ? "reject" : blocking_findings.length || failed.length ? "revise" : "approve";
+  const failed_reviewers = failed.map((artifact) => ({ reviewer: artifact.reviewer.id, model: artifact.reviewer.model, error: artifact.error, structured_error: artifact.error ? classifyError(artifact.error, { reviewer: artifact.reviewer.id, model: artifact.reviewer.model }) : undefined }));
   return {
     schema_version: FINDINGS_SCHEMA_VERSION,
     parser_version: FINDINGS_PARSER_VERSION,
@@ -924,25 +916,39 @@ function deterministicNormalize(run: RunState, req: RunRequest, artifacts: Revie
     sidecar_version: SIDECAR_VERSION,
     run_id: run.id,
     status: failed.length ? "partial" : "complete",
+    generated_at: new Date().toISOString(),
     plan_file: req.planFile,
-    stack_id: req.stackId,
-    stack_reason: req.stackReason,
-    stack_cost_tier: req.stackCostTier,
+    stack: {
+      id: req.stackId,
+      reason: req.stackReason,
+      cost_tier: req.stackCostTier,
+    },
     config_sources: req.configSources,
     warnings: req.warnings ?? [],
-    generated_at: new Date().toISOString(),
-    recommendation,
-    summary: `${artifacts.length - failed.length}/${artifacts.length} reviewers succeeded; ${findings.length} deterministic findings extracted.`,
-    successful_reviewers: artifacts.length - failed.length,
-    failed_reviewers: failed.map((artifact) => ({ reviewer: artifact.reviewer.id, model: artifact.reviewer.model, error: artifact.error, structured_error: artifact.error ? classifyError(artifact.error, { reviewer: artifact.reviewer.id, model: artifact.reviewer.model }) : undefined })),
-    min_successful_reviewers: req.minSuccessfulReviewers,
-    findings,
-    agreements,
-    disagreements: failed.length ? ["One or more configured reviewer models failed, so consensus is incomplete."] : [],
-    raw_concerns: rawConcernSections,
-    approval_recommendations: approvalSections,
-    raw_artifacts: run.rawArtifacts,
-    pal_responses: rawResponses,
+    summary: {
+      recommendation,
+      blocking_count: blocking_findings.length,
+      suggestion_count: suggestion_findings.length,
+      question_count: question_findings.length,
+      reviewer_success: `${artifacts.length - failed.length}/${artifacts.length}`,
+      successful_reviewers: artifacts.length - failed.length,
+      total_reviewers: artifacts.length,
+      min_successful_reviewers: req.minSuccessfulReviewers,
+      failed_reviewer_count: failed.length,
+      warning_count: (req.warnings ?? []).length,
+      total_findings: findings.length,
+    },
+    blocking_findings,
+    suggestion_findings,
+    question_findings,
+    hotspots: buildFindingsHotspots(findings as FindingLike[]),
+    failed_reviewers,
+    raw: {
+      artifacts: run.rawArtifacts,
+      pal_responses: rawResponses,
+      concerns: artifacts.map((artifact) => section(artifact.markdown, "Raw Concerns")).filter(Boolean),
+      approval_recommendations: artifacts.map((artifact) => section(artifact.markdown, "Approval Recommendation")).filter(Boolean),
+    },
   };
 }
 
@@ -1055,9 +1061,24 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
     const findings = deterministicNormalize(run, req, reviewerArtifacts, rawResponses);
     findings.status = enoughSuccessfulReviewers ? findings.status : "failed";
     const findingsPath = join(run.artifactDir, "findings.json");
+    const summaryPath = join(run.artifactDir, "findings-summary.md");
     await writeFile(findingsPath, JSON.stringify(findings, null, 2));
+    await writeFile(summaryPath, renderFindingsSummaryMarkdown({
+      run_id: findings.run_id,
+      status: findings.status,
+      recommendation: findings.summary.recommendation,
+      reviewer_success: { successful: successfulReviewers, total: req.reviewers.length, minimum: req.minSuccessfulReviewers },
+      warning_count: findings.summary.warning_count,
+      failed_reviewers: findings.failed_reviewers,
+      blocking_findings: findings.blocking_findings,
+      suggestion_findings: findings.suggestion_findings,
+      question_findings: findings.question_findings,
+      hotspots: findings.hotspots,
+      artifactDir: run.artifactDir,
+    }));
+    run.rawArtifacts.push(summaryPath);
     run.findingsPath = findingsPath;
-    addEvent(run, enoughSuccessfulReviewers ? "synthesis_completed" : "synthesis_skipped", { findingsPath, successfulReviewers, minSuccessfulReviewers: req.minSuccessfulReviewers });
+    addEvent(run, enoughSuccessfulReviewers ? "synthesis_completed" : "synthesis_skipped", { findingsPath, summaryPath, successfulReviewers, minSuccessfulReviewers: req.minSuccessfulReviewers });
     if (!enoughSuccessfulReviewers) {
       throw new Error(`Only ${successfulReviewers}/${req.reviewers.length} reviewers succeeded; required ${req.minSuccessfulReviewers}. Check reviewer artifacts and pal-stderr.log.`);
     }
@@ -1418,22 +1439,31 @@ export default function palConsensusSidecarExtension(pi: ExtensionAPI) {
         findings = JSON.parse(await readFile(finalRun.findingsPath, "utf8"));
       }
       const findingsRecord = findings && typeof findings === "object" ? findings as Record<string, any> : undefined;
-      const findingCount = Array.isArray(findingsRecord?.findings) ? findingsRecord.findings.length : undefined;
-      const failedReviewerCount = Array.isArray(findingsRecord?.failed_reviewers) ? findingsRecord.failed_reviewers.length : undefined;
-      const warningCount = Array.isArray(finalRun.warnings) ? finalRun.warnings.length : 0;
-      const successfulReviewers = findingsRecord?.successful_reviewers;
-      const totalReviewers = finalRun.reviewers.length;
+      const findingsSummary = findingsRecord?.summary as Record<string, any> | undefined;
+      const findingCount = typeof findingsSummary?.total_findings === "number" ? findingsSummary.total_findings : undefined;
+      const blockingCount = typeof findingsSummary?.blocking_count === "number" ? findingsSummary.blocking_count : undefined;
+      const suggestionCount = typeof findingsSummary?.suggestion_count === "number" ? findingsSummary.suggestion_count : undefined;
+      const questionCount = typeof findingsSummary?.question_count === "number" ? findingsSummary.question_count : undefined;
+      const failedReviewerCount = typeof findingsSummary?.failed_reviewer_count === "number" ? findingsSummary.failed_reviewer_count : undefined;
+      const warningCount = typeof findingsSummary?.warning_count === "number" ? findingsSummary.warning_count : (Array.isArray(finalRun.warnings) ? finalRun.warnings.length : 0);
+      const successfulReviewers = findingsSummary?.successful_reviewers;
+      const totalReviewers = findingsSummary?.total_reviewers ?? finalRun.reviewers.length;
+      const findingsSummaryPath = finalRun.findingsPath ? join(dirname(finalRun.findingsPath), "findings-summary.md") : undefined;
       const summary = [
         `PAL consensus run ${finalRun.status}: ${finalRun.id}`,
-        `Recommendation: ${findingsRecord?.recommendation ?? "unavailable"}`,
+        `Recommendation: ${findingsSummary?.recommendation ?? "unavailable"}`,
         `Reviewer success: ${successfulReviewers ?? "?"}/${totalReviewers}`,
         `Findings: ${findingCount ?? "unavailable"}`,
+        `Blocking findings: ${blockingCount ?? "unavailable"}`,
+        `Suggestions: ${suggestionCount ?? "unavailable"}`,
+        `Questions: ${questionCount ?? "unavailable"}`,
         `Warnings: ${warningCount}`,
         `Failed reviewers: ${failedReviewerCount ?? "unavailable"}`,
         `Plan: ${finalRun.planFile}`,
         `Stack: ${runReq.stackId ?? "custom"}${runReq.stackCostTier ? ` (${runReq.stackCostTier})` : ""}`,
         `Artifacts: ${finalRun.artifactDir}`,
         finalRun.findingsPath ? `Findings path: ${finalRun.findingsPath}` : undefined,
+        findingsSummaryPath ? `Findings summary: ${findingsSummaryPath}` : undefined,
         finalRun.structuredError ? `Structured error: ${finalRun.structuredError.code} (retryable=${finalRun.structuredError.retryable})` : undefined,
         finalRun.structuredError?.guidance ? `Guidance: ${finalRun.structuredError.guidance}` : undefined,
         finalRun.error ? `Error: ${finalRun.error}` : undefined,

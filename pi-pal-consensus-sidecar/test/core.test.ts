@@ -2,19 +2,23 @@ import { describe, expect, it } from "vitest";
 import {
   artifactKind,
   artifactMediaType,
+  buildFindingsHotspots,
   classifyError,
+  classifyFindingBucket,
   collectModelInfos,
   FINDINGS_PARSER_VERSION,
   FINDINGS_SCHEMA_VERSION,
   REVIEW_PROMPT_VERSION,
   SIDECAR_VERSION,
   isSafeArtifactName,
+  renderFindingsSummaryMarkdown,
   stackAvailability,
 } from "../src/core.js";
 
 describe("artifact helpers", () => {
   it("classifies artifact names", () => {
     expect(artifactKind("findings.json")).toBe("findings");
+    expect(artifactKind("findings-summary.md")).toBe("findings_summary");
     expect(artifactKind("security.md")).toBe("reviewer_markdown");
     expect(artifactKind("security.json")).toBe("reviewer_json");
     expect(artifactKind("pal-stderr.log")).toBe("log");
@@ -82,6 +86,48 @@ describe("stackAvailability", () => {
     expect(availability.available).toBe(0);
     expect(availability.unavailable).toBe(0);
     expect(availability.unknown).toBe(3);
+  });
+});
+
+describe("findings normalization helpers", () => {
+  it.each([
+    [{ severity: "critical", issue: "Missing validation can cause data loss", recommendation: "Must fix before approval" }, "blocking"],
+    [{ severity: "minor", issue: "Consider adding copy polish", recommendation: "Optional" }, "suggestion"],
+    [{ severity: "unknown", issue: "Unclear whether rollback is required", recommendation: "Clarify TBD" }, "question"],
+  ] as const)("classifies finding buckets", (finding, bucket) => {
+    expect(classifyFindingBucket(finding)).toBe(bucket);
+  });
+
+  it("builds deterministic hotspots", () => {
+    const hotspots = buildFindingsHotspots([
+      { reviewer: "ops", issue: "Rollback plan is missing" },
+      { reviewer: "security", issue: "Migration can cause data loss without rollback" },
+      { reviewer: "qa", issue: "Tests are missing" },
+      { reviewer: "maintainer", issue: "Validation command is missing" },
+    ]);
+    expect(hotspots).toContainEqual({ topic: "rollback and migration safety", count: 2, reviewers: ["ops", "security"] });
+    expect(hotspots).toContainEqual({ topic: "validation and tests", count: 2, reviewers: ["maintainer", "qa"] });
+  });
+
+  it("renders stable markdown summaries", () => {
+    const markdown = renderFindingsSummaryMarkdown({
+      run_id: "pal-test",
+      status: "complete",
+      recommendation: "revise",
+      reviewer_success: { successful: 2, total: 2, minimum: 2 },
+      warning_count: 0,
+      failed_reviewers: [],
+      blocking_findings: [{ reviewer: "security", reviewer_label: "Security", model: "openai/o3", issue: "Missing auth validation", recommendation: "Add auth tests" }],
+      suggestion_findings: [],
+      question_findings: [],
+      hotspots: [{ topic: "validation and tests", count: 2, reviewers: ["qa", "security"] }],
+      artifactDir: "/tmp/pal-test",
+    });
+    expect(markdown).toContain("# PAL Consensus Findings Summary");
+    expect(markdown).toContain("Recommendation: revise");
+    expect(markdown).toContain("## Blocking Findings");
+    expect(markdown).toContain("Missing auth validation");
+    expect(markdown).toContain("validation and tests: 2 finding(s) from qa, security");
   });
 });
 

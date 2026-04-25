@@ -40,7 +40,7 @@ type Run = {
   planFile: string;
   artifactDir: string;
   error?: string;
-  structuredError?: { code: string; message: string; retryable: boolean; details?: unknown };
+  structuredError?: { code: string; message: string; retryable: boolean; guidance?: string; details?: unknown };
   findingsPath?: string;
   warnings?: Array<{ code: string; message: string; details?: unknown }>;
 };

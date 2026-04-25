@@ -47,15 +47,131 @@ export interface StackRecommendation {
   signals: string[];
 }
 
-export type ArtifactKind = "findings" | "reviewer_markdown" | "reviewer_json" | "log" | "text" | "unknown";
+export type ArtifactKind = "findings" | "findings_summary" | "reviewer_markdown" | "reviewer_json" | "log" | "text" | "unknown";
+export type FindingBucket = "blocking" | "suggestion" | "question";
+
+export interface FindingLike {
+  severity?: string;
+  reviewer?: string;
+  reviewer_label?: string;
+  model?: string;
+  location?: string;
+  issue: string;
+  recommendation?: string;
+  artifact?: string;
+}
+
+export interface FindingsSummaryInput {
+  run_id: string;
+  status: string;
+  recommendation: string;
+  reviewer_success: { successful: number; total: number; minimum: number };
+  warning_count: number;
+  failed_reviewers: Array<{ reviewer: string; model?: string; error?: string; structured_error?: StructuredError }>;
+  blocking_findings: FindingLike[];
+  suggestion_findings: FindingLike[];
+  question_findings: FindingLike[];
+  hotspots: Array<{ topic: string; count: number; reviewers: string[] }>;
+  artifactDir?: string;
+}
 
 export const SIDECAR_VERSION = "0.1.0";
 export const FINDINGS_SCHEMA_VERSION = "2026-04-25.1";
 export const FINDINGS_PARSER_VERSION = "deterministic-markdown-v1";
 export const REVIEW_PROMPT_VERSION = "plan-review-v1";
 
+export function classifyFindingBucket(finding: FindingLike): FindingBucket {
+  const text = `${finding.severity ?? ""} ${finding.issue ?? ""} ${finding.recommendation ?? ""}`.toLowerCase();
+  if (/\b(question|unclear|clarify|clarification|ambiguous|tbd|open question|unknown requirement)\b/.test(text)) return "question";
+  if (/\b(optional|nice to have|nice-to-have|polish|consider|could|may want|minor|nit|low priority)\b/.test(text)) return "suggestion";
+  if (/\b(critical|major|blocker|blocking|must fix|must address|cannot approve|reject|unsafe|security vulnerability|data loss|contradiction|missing validation|rollback|secrets?|pii|auth|payment)\b/.test(text)) return "blocking";
+  if (finding.severity === "critical" || finding.severity === "major") return "blocking";
+  if (finding.severity === "minor" || finding.severity === "nit") return "suggestion";
+  return "suggestion";
+}
+
+function topicForFinding(finding: FindingLike): string {
+  const text = `${finding.issue} ${finding.recommendation ?? ""}`.toLowerCase();
+  const topics: Array<[RegExp, string]> = [
+    [/\b(rollback|revert|migration|data loss|destructive)\b/, "rollback and migration safety"],
+    [/\b(test|tests|validation|validate|diagnostic|diagnostics|ci|coverage|command|commands)\b/, "validation and tests"],
+    [/\b(auth|oauth|permission|session|credential)\b/, "authentication and authorization"],
+    [/\b(secret|api key|token|credential)\b/, "secrets handling"],
+    [/\b(pii|privacy|personal data|customer data)\b/, "privacy and customer data"],
+    [/\b(cost|budget|quota|rate limit|spend)\b/, "cost and quota controls"],
+    [/\b(timeout|cancel|retry|concurrency)\b/, "timeouts retries and concurrency"],
+    [/\b(path|traversal|filesystem|artifact)\b/, "artifact and path safety"],
+    [/\b(model|provider|openrouter|pal|mcp)\b/, "model/provider configuration"],
+    [/\b(ui|dashboard|ux|browser)\b/, "dashboard UX"],
+  ];
+  for (const [pattern, topic] of topics) if (pattern.test(text)) return topic;
+  return text.split(/[^a-z0-9]+/).filter((word) => word.length > 3 && !["should", "would", "could", "this", "that", "with", "from", "plan", "need", "needs"].includes(word)).slice(0, 3).join(" ") || "general plan quality";
+}
+
+export function buildFindingsHotspots(findings: FindingLike[]): Array<{ topic: string; count: number; reviewers: string[] }> {
+  const byTopic = new Map<string, { topic: string; count: number; reviewers: Set<string> }>();
+  for (const finding of findings) {
+    const topic = topicForFinding(finding);
+    const entry = byTopic.get(topic) ?? { topic, count: 0, reviewers: new Set<string>() };
+    entry.count += 1;
+    if (finding.reviewer) entry.reviewers.add(finding.reviewer);
+    byTopic.set(topic, entry);
+  }
+  return [...byTopic.values()]
+    .filter((entry) => entry.count > 1 || entry.reviewers.size > 1)
+    .map((entry) => ({ topic: entry.topic, count: entry.count, reviewers: [...entry.reviewers].sort() }))
+    .sort((a, b) => b.count - a.count || a.topic.localeCompare(b.topic));
+}
+
+function renderFindingList(findings: FindingLike[]): string {
+  if (!findings.length) return "_None._\n";
+  return findings.map((finding, index) => {
+    const parts = [
+      `${index + 1}. **${finding.reviewer_label || finding.reviewer || "Reviewer"}**${finding.model ? ` (${finding.model})` : ""}`,
+      finding.location ? `   - Location: ${finding.location}` : undefined,
+      `   - Issue: ${finding.issue}`,
+      finding.recommendation ? `   - Recommendation: ${finding.recommendation}` : undefined,
+    ].filter(Boolean);
+    return parts.join("\n");
+  }).join("\n\n") + "\n";
+}
+
+export function renderFindingsSummaryMarkdown(input: FindingsSummaryInput): string {
+  const lines = [
+    "# PAL Consensus Findings Summary",
+    "",
+    `Run: ${input.run_id}`,
+    `Status: ${input.status}`,
+    `Recommendation: ${input.recommendation}`,
+    `Reviewer success: ${input.reviewer_success.successful}/${input.reviewer_success.total} (minimum ${input.reviewer_success.minimum})`,
+    `Warnings: ${input.warning_count}`,
+    `Failed reviewers: ${input.failed_reviewers.length}`,
+    input.artifactDir ? `Artifacts: ${input.artifactDir}` : undefined,
+    "",
+    "## Blocking Findings",
+    "",
+    renderFindingList(input.blocking_findings),
+    "## Suggestions",
+    "",
+    renderFindingList(input.suggestion_findings),
+    "## Questions / Clarifications",
+    "",
+    renderFindingList(input.question_findings),
+    "## Hotspots",
+    "",
+    input.hotspots.length ? input.hotspots.map((hotspot) => `- ${hotspot.topic}: ${hotspot.count} finding(s) from ${hotspot.reviewers.join(", ") || "unknown reviewers"}`).join("\n") : "_None._",
+    "",
+    "## Failed Reviewers",
+    "",
+    input.failed_reviewers.length ? input.failed_reviewers.map((failed) => `- ${failed.reviewer}${failed.model ? ` (${failed.model})` : ""}: ${failed.structured_error?.code ?? failed.error ?? "failed"}${failed.structured_error?.guidance ? ` — ${failed.structured_error.guidance}` : ""}`).join("\n") : "_None._",
+    "",
+  ].filter((line): line is string => line !== undefined);
+  return lines.join("\n");
+}
+
 export function artifactKind(name: string): ArtifactKind {
   if (name === "findings.json") return "findings";
+  if (name === "findings-summary.md") return "findings_summary";
   if (name === "pal-stderr.log" || name.endsWith(".log")) return "log";
   if (name.endsWith(".md")) return "reviewer_markdown";
   if (name.endsWith(".json")) return "reviewer_json";

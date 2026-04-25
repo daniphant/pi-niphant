@@ -194,16 +194,32 @@ export PAL_SIDECAR_CLEAN_ARTIFACTS=0
 
 ## Findings schema and structured errors
 
-Every generated `findings.json` includes stable version metadata so downstream workflow steps can detect parser/prompt/schema changes:
+Every run writes `findings.json` plus a human-readable `findings-summary.md`. `findings.json` is intentionally normalized for agent consumption and includes stable version metadata so downstream workflow steps can detect parser/prompt/schema changes:
 
 ```json
 {
   "schema_version": "2026-04-25.1",
   "parser_version": "deterministic-markdown-v1",
   "prompt_version": "plan-review-v1",
-  "sidecar_version": "0.1.0"
+  "sidecar_version": "0.1.0",
+  "summary": {
+    "recommendation": "revise",
+    "blocking_count": 2,
+    "suggestion_count": 4,
+    "question_count": 1,
+    "reviewer_success": "11/11",
+    "failed_reviewer_count": 0,
+    "warning_count": 0,
+    "total_findings": 7
+  },
+  "blocking_findings": [],
+  "suggestion_findings": [],
+  "question_findings": [],
+  "hotspots": []
 }
 ```
+
+`findings-summary.md` contains the same normalized result as Markdown: recommendation, reviewer success, blocking findings, suggestions, questions/clarifications, hotspots, and failed reviewers.
 
 Run failures also include a structured error with retryability and operator guidance where possible:
 
