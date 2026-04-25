@@ -12,7 +12,7 @@ It gives Pi a browser dashboard for plan-file consensus reviews without replacin
 - launches PAL MCP as a stdio subprocess using the MCP SDK
 - calls PAL's `consensus` tool step-by-step
 - streams reviewer status over SSE
-- writes raw per-reviewer artifacts and `findings.json`
+- writes raw per-reviewer artifacts and deterministic normalized `findings.json`
 
 ## Install
 
@@ -78,5 +78,14 @@ printf 'OPENROUTER_API_KEY=%s\n' 'sk-or-v1-...' > pi-pal-consensus-sidecar/.env
 ```
 
 Artifacts are written to `.pi/pal-consensus-runs/<run-id>/` by default.
+
+`findings.json` is normalized deterministically from reviewer Markdown. It contains:
+
+- `recommendation`: `approve`, `revise`, or `reject`
+- `summary`
+- `findings[]` with severity, reviewer, model, issue, recommendation, confidence, and artifact path
+- `agreements[]` / `disagreements[]`
+- raw concern and approval sections
+- raw artifact paths and PAL response payloads
 
 PAL subprocess stderr is captured to `.pi/pal-consensus-runs/<run-id>/pal-stderr.log` so PAL logs do not corrupt the Pi TUI.

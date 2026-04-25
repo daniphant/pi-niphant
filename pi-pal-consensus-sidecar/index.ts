@@ -34,6 +34,27 @@ interface RunEvent {
   data: Record<string, unknown>;
 }
 
+interface ReviewerArtifact {
+  reviewer: ReviewerConfig;
+  status: "success" | "error";
+  markdown: string;
+  jsonPath: string;
+  mdPath: string;
+  error?: string;
+}
+
+interface CompactFinding {
+  severity: "critical" | "major" | "minor" | "nit" | "unknown";
+  reviewer: string;
+  reviewer_label: string;
+  model: string;
+  location?: string;
+  issue: string;
+  recommendation?: string;
+  confidence: "high" | "medium" | "low" | "unknown";
+  artifact: string;
+}
+
 interface RunState {
   id: string;
   status: "queued" | "running" | "complete" | "failed";
@@ -201,6 +222,119 @@ function reviewerPrompt(reviewer: ReviewerConfig): string {
   ].join("\n");
 }
 
+function section(markdown: string, heading: string): string {
+  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = markdown.match(new RegExp(`^##\\s+${escaped}\\s*$([\\s\\S]*?)(?=^##\\s+|(?![\\s\\S]))`, "im"));
+  return (match?.[1] ?? "").trim();
+}
+
+function normalizeSeverity(text: string): CompactFinding["severity"] {
+  const lower = text.toLowerCase();
+  if (/\b(critical|blocker|severe)\b/.test(lower)) return "critical";
+  if (/\b(major|high)\b/.test(lower)) return "major";
+  if (/\b(moderate|medium|minor)\b/.test(lower)) return "minor";
+  if (/\b(low|nit|info|informational)\b/.test(lower)) return lower.includes("nit") ? "nit" : "minor";
+  return "unknown";
+}
+
+function confidenceFromSeverity(severity: CompactFinding["severity"]): CompactFinding["confidence"] {
+  if (severity === "critical" || severity === "major") return "high";
+  if (severity === "minor") return "medium";
+  if (severity === "nit") return "low";
+  return "unknown";
+}
+
+function cleanupText(text: string): string {
+  return text.replace(/^\s*[•*-]\s*/gm, "").replace(/\s+/g, " ").trim();
+}
+
+function extractField(block: string, labels: string[]): string | undefined {
+  for (const label of labels) {
+    const match = block.match(new RegExp(`${label}\\s*[:：]\\s*([\\s\\S]*?)(?=\\n\\s*(?:[*-]?\\s*)?(?:Severity|Location|Issue|Recommendation|Confidence)\\s*[:：]|$)`, "i"));
+    if (match?.[1]) return cleanupText(match[1]);
+  }
+  return undefined;
+}
+
+function splitFindingBlocks(findingsText: string): string[] {
+  const lines = findingsText.split(/\r?\n/);
+  const blocks: string[] = [];
+  let current: string[] = [];
+  const startsBlock = (line: string) => /^\s*\d+[.)]\s+/.test(line) || (/^\s*[-*]\s+/.test(line) && /\b(severity|critical|major|high|moderate|medium|minor|low|nit)\b/i.test(line));
+  for (const line of lines) {
+    if (startsBlock(line) && current.length) {
+      blocks.push(current.join("\n").trim());
+      current = [line];
+    } else {
+      current.push(line);
+    }
+  }
+  if (current.join("\n").trim()) blocks.push(current.join("\n").trim());
+  return blocks.length ? blocks : findingsText.split(/\n\s*\n/).map((block) => block.trim()).filter(Boolean);
+}
+
+function parseFindings(artifact: ReviewerArtifact): CompactFinding[] {
+  if (artifact.status !== "success") return [];
+  const findingsText = section(artifact.markdown, "Findings") || artifact.markdown;
+  const blocks = splitFindingBlocks(findingsText);
+  const parsed: CompactFinding[] = [];
+  for (const block of blocks) {
+    if (!/\b(issue|recommendation|risk|missing|should|must|severity|major|high|medium|low|critical)\b/i.test(block)) continue;
+    const severity = normalizeSeverity(extractField(block, ["Severity"]) || block);
+    const location = extractField(block, ["Location"]) || block.match(/\bLines?\s+\d+(?:\s*-\s*\d+)?\b/i)?.[0];
+    const issue = extractField(block, ["Issue"]) || cleanupText(block.split(/Recommendation\s*[:：]/i)[0] || block).slice(0, 600);
+    const recommendation = extractField(block, ["Recommendation"]);
+    parsed.push({
+      severity,
+      reviewer: artifact.reviewer.id,
+      reviewer_label: artifact.reviewer.label,
+      model: artifact.reviewer.model,
+      location,
+      issue,
+      recommendation,
+      confidence: confidenceFromSeverity(severity),
+      artifact: artifact.mdPath,
+    });
+  }
+  return parsed;
+}
+
+function deterministicNormalize(run: RunState, req: RunRequest, artifacts: ReviewerArtifact[], rawResponses: any[]) {
+  const findings = artifacts.flatMap(parseFindings);
+  const failed = artifacts.filter((artifact) => artifact.status === "error");
+  const hasCritical = findings.some((finding) => finding.severity === "critical");
+  const hasMajor = findings.some((finding) => finding.severity === "major");
+  const hasMinor = findings.some((finding) => finding.severity === "minor");
+  const recommendation = failed.length === artifacts.length ? "reject" : hasCritical || failed.length ? "revise" : hasMajor || hasMinor ? "revise" : "approve";
+  const rawConcernSections = artifacts.map((artifact) => section(artifact.markdown, "Raw Concerns")).filter(Boolean);
+  const approvalSections = artifacts.map((artifact) => section(artifact.markdown, "Approval Recommendation")).filter(Boolean);
+  const agreements = Array.from(new Set(findings.map((finding) => finding.issue.toLowerCase()).filter((issue) => issue.includes("cost") || issue.includes("timeout") || issue.includes("local") || issue.includes("path") || issue.includes("secret")).map((issue) => {
+    if (issue.includes("cost")) return "Cost controls and budget visibility need explicit product support.";
+    if (issue.includes("timeout")) return "Runs need timeout/cancellation safeguards.";
+    if (issue.includes("local")) return "The dashboard must remain explicitly local-only.";
+    if (issue.includes("path")) return "Plan-file path handling needs validation and root restrictions.";
+    return "Secrets and raw logs must be scrubbed before display or persistence.";
+  })));
+  return {
+    run_id: run.id,
+    status: failed.length ? "partial" : "complete",
+    plan_file: req.planFile,
+    generated_at: new Date().toISOString(),
+    recommendation,
+    summary: `${artifacts.length - failed.length}/${artifacts.length} reviewers succeeded; ${findings.length} deterministic findings extracted.`,
+    successful_reviewers: artifacts.length - failed.length,
+    failed_reviewers: failed.map((artifact) => ({ reviewer: artifact.reviewer.id, model: artifact.reviewer.model, error: artifact.error })),
+    min_successful_reviewers: req.minSuccessfulReviewers,
+    findings,
+    agreements,
+    disagreements: failed.length ? ["One or more configured reviewer models failed, so consensus is incomplete."] : [],
+    raw_concerns: rawConcernSections,
+    approval_recommendations: approvalSections,
+    raw_artifacts: run.rawArtifacts,
+    pal_responses: rawResponses,
+  };
+}
+
 async function callPalConsensus(run: RunState, req: RunRequest) {
   const pal = req.palCommand && req.palArgs ? { command: req.palCommand, args: req.palArgs } : defaultPalCommand();
   addEvent(run, "pal_starting", { command: pal.command, args: pal.args });
@@ -241,6 +375,7 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
 
     const models = req.reviewers.map((reviewer) => ({ model: reviewer.model, stance: reviewer.stance ?? "neutral", stance_prompt: reviewerPrompt(reviewer) }));
     const rawResponses: any[] = [];
+    const reviewerArtifacts: ReviewerArtifact[] = [];
     let successfulReviewers = 0;
 
     for (let i = 0; i < req.reviewers.length; i++) {
@@ -273,6 +408,7 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
       await writeFile(jsonPath, JSON.stringify(parsed ?? { text }, null, 2));
       await writeFile(mdPath, String(markdown));
       run.rawArtifacts.push(jsonPath, mdPath);
+      reviewerArtifacts.push({ reviewer, status: responseStatus === "error" ? "error" : "success", markdown: String(markdown), jsonPath, mdPath, error: responseError });
       if (responseStatus === "error") {
         addEvent(run, "reviewer_failed", { reviewer: reviewer.id, label: reviewer.label, model: reviewer.model, error: responseError || "Unknown PAL/model error", jsonPath, mdPath });
       } else {
@@ -282,18 +418,8 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
     }
 
     const enoughSuccessfulReviewers = successfulReviewers >= req.minSuccessfulReviewers;
-    const findings = {
-      run_id: run.id,
-      status: enoughSuccessfulReviewers ? "complete" : "failed",
-      plan_file: req.planFile,
-      generated_at: new Date().toISOString(),
-      reviewers: req.reviewers,
-      successful_reviewers: successfulReviewers,
-      min_successful_reviewers: req.minSuccessfulReviewers,
-      raw_artifacts: run.rawArtifacts,
-      compact_findings_note: "This first sidecar version preserves PAL raw reviewer output. Use the raw artifacts for detailed findings; schema normalization can be layered on next.",
-      pal_responses: rawResponses,
-    };
+    const findings = deterministicNormalize(run, req, reviewerArtifacts, rawResponses);
+    findings.status = enoughSuccessfulReviewers ? findings.status : "failed";
     const findingsPath = join(run.artifactDir, "findings.json");
     await writeFile(findingsPath, JSON.stringify(findings, null, 2));
     run.findingsPath = findingsPath;
