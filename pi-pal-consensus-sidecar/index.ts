@@ -818,6 +818,29 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
   }
 }
 
+async function awaitRunCompletion(run: RunState, timeoutMs = Number(process.env.PAL_SIDECAR_TOOL_WAIT_TIMEOUT_MS || 20 * 60_000)): Promise<RunState> {
+  const started = Date.now();
+  while (run.status === "queued" || run.status === "running") {
+    if (Date.now() - started > timeoutMs) throw new Error(`Timed out waiting for PAL consensus run ${run.id} after ${timeoutMs}ms. Run continues in the sidecar; artifact dir: ${run.artifactDir}`);
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 500));
+  }
+  return run;
+}
+
+async function planFileFromToolInput(params: { planFile?: string; planText?: string; title?: string }, cwd: string): Promise<string> {
+  if (params.planFile) return params.planFile;
+  const planText = params.planText?.trim();
+  if (!planText) throw new Error("Either planFile or planText is required.");
+  const inputRoot = resolve(cwd, ".pi", "pal-consensus-inputs");
+  await mkdir(inputRoot, { recursive: true, mode: 0o700 });
+  const id = `plan-${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}.md`;
+  const title = params.title?.trim() || "PAL Consensus Review";
+  const path = join(inputRoot, id);
+  await writeFile(path, `# ${title}\n\n${planText}\n`);
+  await chmod(path, 0o600);
+  return path;
+}
+
 async function startRun(req: RunRequest, cwd: string): Promise<RunState> {
   const runId = `pal-${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`;
   const artifactRoot = resolve(cwd, req.artifactRoot ?? join(".pi", "pal-consensus-runs"));
@@ -1029,6 +1052,49 @@ export default function palConsensusSidecarExtension(pi: ExtensionAPI) {
       const port = args.trim() ? Number(args.trim()) : undefined;
       const result = await startServer({ cwd: ctx.cwd, port });
       ctx.ui.notify(`PAL consensus sidecar running: ${result.url}${result.warning ? `\n${result.warning}` : ""}`, result.warning ? "warning" : "info");
+    },
+  });
+
+  pi.registerTool({
+    name: "run_pal_consensus_review",
+    label: "Run PAL Consensus Review",
+    description: "Run a PAL MCP consensus review through the sidecar engine for a plan file or supplied plan text, write artifacts, and return findings metadata.",
+    promptSnippet: "Use when the user asks to run PAL/sidecar consensus, review a plan with the configured reviewer stacks, or validate an architectural decision through PAL MCP.",
+    parameters: Type.Object({
+      planFile: Type.Optional(Type.String({ description: "Markdown plan file to review. Must be inside cwd, ~/.pi, or PAL_SIDECAR_ALLOWED_ROOTS." })),
+      planText: Type.Optional(Type.String({ description: "Plan text to write to a temporary project-local .pi/pal-consensus-inputs/*.md file and review." })),
+      title: Type.Optional(Type.String({ description: "Title used when planText is supplied." })),
+      stackId: Type.Optional(Type.String({ description: "Reviewer stack id, e.g. auto, budget, standard-modern, frontier-modern, china-open. Defaults to auto selection." })),
+      artifactRoot: Type.Optional(Type.String({ description: "Optional artifact root. Defaults to .pi/pal-consensus-runs." })),
+      minSuccessfulReviewers: Type.Optional(Type.Number({ description: "Optional success threshold override." })),
+      wait: Type.Optional(Type.Boolean({ description: "Wait for completion before returning. Defaults to true." })),
+      waitTimeoutMs: Type.Optional(Type.Number({ description: "How long to wait for completion. Defaults to PAL_SIDECAR_TOOL_WAIT_TIMEOUT_MS or 20 minutes." })),
+    }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const planFile = await planFileFromToolInput({ planFile: params.planFile, planText: params.planText, title: params.title }, ctx.cwd);
+      const runReq = await validateRunRequest({
+        planFile,
+        stackId: params.stackId || "auto",
+        reviewers: [],
+        artifactRoot: params.artifactRoot,
+        minSuccessfulReviewers: params.minSuccessfulReviewers,
+      }, ctx.cwd);
+      const run = await startRun(runReq, ctx.cwd);
+      const shouldWait = params.wait !== false;
+      const finalRun = shouldWait ? await awaitRunCompletion(run, params.waitTimeoutMs) : run;
+      let findings: unknown;
+      if (finalRun.findingsPath && existsSync(finalRun.findingsPath)) {
+        findings = JSON.parse(await readFile(finalRun.findingsPath, "utf8"));
+      }
+      const summary = [
+        `PAL consensus run ${finalRun.status}: ${finalRun.id}`,
+        `Plan: ${finalRun.planFile}`,
+        `Stack: ${runReq.stackId ?? "custom"}${runReq.stackCostTier ? ` (${runReq.stackCostTier})` : ""}`,
+        `Artifacts: ${finalRun.artifactDir}`,
+        finalRun.findingsPath ? `Findings: ${finalRun.findingsPath}` : undefined,
+        finalRun.error ? `Error: ${finalRun.error}` : undefined,
+      ].filter(Boolean).join("\n");
+      return { content: [{ type: "text", text: summary }], details: { run: finalRun, findings } };
     },
   });
 

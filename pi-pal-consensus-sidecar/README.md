@@ -38,13 +38,35 @@ In Pi:
 /pal-sidecar
 ```
 
-Or use the tool:
+Or use the dashboard-start tool:
 
 ```ts
 start_pal_consensus_sidecar({ port: 8787 })
 ```
 
 Then open the returned dashboard URL.
+
+Agents can also run PAL consensus directly without using the browser dashboard:
+
+```ts
+run_pal_consensus_review({
+  planFile: "/path/to/plan.md",
+  stackId: "auto",
+  wait: true
+})
+```
+
+Or pass ad-hoc plan text; the tool writes it to `.pi/pal-consensus-inputs/*.md` before review:
+
+```ts
+run_pal_consensus_review({
+  title: "Framework Migration Decision",
+  planText: "Evaluate whether to migrate the dashboard to Vite + React...",
+  stackId: "standard-modern"
+})
+```
+
+The direct tool uses the same sidecar engine, PAL MCP subprocess, config validation, trusted roots, artifacts, and deterministic `findings.json` as the dashboard.
 
 ## Reviewer model configuration
 
