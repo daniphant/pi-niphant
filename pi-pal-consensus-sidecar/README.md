@@ -228,6 +228,17 @@ Important safety properties:
 - dashboard responses include a strict CSP
 - no external CDN/runtime assets are required
 
+## Built-in stack validation
+
+Built-in stack presets are covered by offline tests in:
+
+```text
+pi-pal-consensus-sidecar/test/stacks.test.ts
+pi-pal-consensus-sidecar/test/fixtures/pal-models.json
+```
+
+The fixture is a snapshot of PAL/OpenRouter `listmodels`. Tests fail if a built-in stack references a model not present in the fixture, duplicates reviewer ids, duplicates `model:stance`, uses an invalid cost tier/stance, or has an invalid `minSuccessfulReviewers` threshold. Refresh the fixture intentionally when PAL's model catalog or stack presets change.
+
 ## Reviewer model configuration
 
 Default reviewer/model configuration lives in:
