@@ -55,6 +55,17 @@ try {
   );
   assert.equal(commitMessageSubject, "fix(pi-checkpoint): improve auto-commit messages");
 
+  const absolutePathSubject = buildCommitSubject(
+    "M\tpi-delegated-agents/skills/spawn-agent/SKILL.md",
+    messages(
+      "make spawn-agent harder to invoke",
+      "Updated `/Users/daniphant/.pi/agent/skills/spawn-agent/SKILL.md` to make invocation spawn-only."
+    )
+  );
+  assert.equal(absolutePathSubject, "docs(pi-delegated-agents): update documentation");
+  assert(!absolutePathSubject.toLowerCase().includes("/users/"));
+  assert(!absolutePathSubject.toLowerCase().includes("daniphant"));
+
   console.log("pi-checkpoint subject checks passed");
 } finally {
   await rm(tempDir, { recursive: true, force: true });

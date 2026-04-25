@@ -171,6 +171,22 @@ function splitIdentifierWords(text: string) {
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2");
 }
 
+function escapeRegExp(text: string) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function sanitizeLocalPaths(text: string) {
+  const home = homedir();
+  const pathPattern = /(?:~|\/Users\/[^\s`"'<>]+|\/home\/[^\s`"'<>]+|\/private\/tmp\/[^\s`"'<>]+|\/tmp\/[^\s`"'<>]+)(?:\/[^\s`"'<>]*)*/g;
+  return text
+    .replace(new RegExp(escapeRegExp(home), "gi"), "~")
+    .replace(pathPattern, (match) => {
+      const trimmed = match.replace(/[.,;:)]+$/g, "");
+      const leaf = trimmed.split(/[\\/]/).filter(Boolean).pop();
+      return leaf && /\.[A-Za-z0-9]+$/.test(leaf) ? leaf : "local path";
+    });
+}
+
 function stripSubjectSyntax(text: string) {
   return splitIdentifierWords(text)
     .replace(/\b([A-Za-z_$][\w$]*)\s*\([^)]*\)/g, "$1")
@@ -183,7 +199,7 @@ function stripSubjectSyntax(text: string) {
 }
 
 export function normalizeSubjectPhrase(text: string) {
-  return stripSubjectSyntax(text)
+  return stripSubjectSyntax(sanitizeLocalPaths(text))
     .replace(/^(i('|’)ll|i will|i can|we can|let('|’)s|please|cool,?|okay,?|alright,?)\s+/i, "")
     .replace(/^(implemented|implements|implementing)\s+/i, "implement ")
     .replace(/^(added|adds|adding)\s+/i, "add ")
@@ -201,7 +217,10 @@ export function normalizeSubjectPhrase(text: string) {
 export function inferSubjectPhrase(files: string[], promptText: string, assistantText: string) {
   const combined = `${assistantText}\n${promptText}`;
   const completionMatch = combined.match(/\b(implemented|added|updated|fixed|moved|removed|documented|changed|renamed|refactored)\s+([^\n.]{6,90})/i);
-  if (completionMatch) return normalizeSubjectPhrase(`${completionMatch[1]} ${completionMatch[2]}`).toLowerCase();
+  if (completionMatch) {
+    const phrase = normalizeSubjectPhrase(`${completionMatch[1]} ${completionMatch[2]}`).toLowerCase();
+    if (!/\blocal path\b/.test(phrase)) return phrase;
+  }
 
   const prompt = promptText.toLowerCase();
   if (/move|moved|end|after/.test(prompt) && /reset/.test(prompt)) return "move stopwatch timer after reset";
