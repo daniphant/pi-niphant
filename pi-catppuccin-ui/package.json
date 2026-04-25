@@ -13,12 +13,23 @@
     "LICENSE"
   ],
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
-    "@mariozechner/pi-tui": "*"
+    "@mariozechner/pi-coding-agent": "0.70.2",
+    "@mariozechner/pi-tui": "0.70.2"
   },
-  "keywords": ["pi", "pi-package", "extension", "theme", "catppuccin", "markdown"],
+  "keywords": [
+    "pi",
+    "pi-package",
+    "extension",
+    "theme",
+    "catppuccin",
+    "markdown"
+  ],
   "pi": {
-    "extensions": ["./extensions/pi-catppuccin-ui"],
-    "themes": ["./themes"]
+    "extensions": [
+      "./extensions/pi-catppuccin-ui"
+    ],
+    "themes": [
+      "./themes"
+    ]
   }
 }

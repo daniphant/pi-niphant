@@ -5,11 +5,19 @@
   "type": "module",
   "private": false,
   "license": "MIT",
-  "keywords": ["pi", "pi-package", "extension", "compaction", "codex"],
+  "keywords": [
+    "pi",
+    "pi-package",
+    "extension",
+    "compaction",
+    "codex"
+  ],
   "pi": {
-    "extensions": ["."]
+    "extensions": [
+      "."
+    ]
   },
   "dependencies": {
-    "@mariozechner/pi-ai": "latest"
+    "@mariozechner/pi-ai": "0.70.2"
   }
 }

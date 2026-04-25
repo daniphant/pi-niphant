@@ -5,6 +5,14 @@
   "type": "module",
   "private": false,
   "license": "MIT",
+  "main": "index.ts",
+  "files": [
+    "index.ts",
+    "src",
+    "stacks",
+    "dashboard-build",
+    "README.md"
+  ],
   "keywords": [
     "pi",
     "pi-package",
@@ -20,25 +28,27 @@
     ]
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "latest",
-    "@sinclair/typebox": "latest",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "@sinclair/typebox": "0.34.49"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.1",
-    "typescript": "^6.0.3",
-    "vite": "^8.0.10",
-    "vitest": "^3.2.4"
+    "@types/node": "25.6.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.1",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
+    "typescript": "6.0.3",
+    "vite": "8.0.10",
+    "vitest": "3.2.4"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config vitest.config.ts",
     "dashboard:build": "vite build",
     "build": "npm run dashboard:build",
-    "check": "npm run typecheck && npm run test && npm run build"
+    "check": "npm run typecheck && npm run test && npm run build",
+    "prepack": "npm run build",
+    "pack:check": "npm run check && npm pack --dry-run"
   }
 }

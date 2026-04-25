@@ -11,7 +11,7 @@
     "README.md"
   ],
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*"
+    "@mariozechner/pi-coding-agent": "0.70.2"
   },
   "keywords": [
     "pi",

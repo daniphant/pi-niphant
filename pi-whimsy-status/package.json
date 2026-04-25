@@ -14,10 +14,19 @@
     "CONTRIBUTING.md"
   ],
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*"
+    "@mariozechner/pi-coding-agent": "0.70.2"
   },
-  "keywords": ["pi", "pi-package", "extension", "working", "status", "whimsy"],
+  "keywords": [
+    "pi",
+    "pi-package",
+    "extension",
+    "working",
+    "status",
+    "whimsy"
+  ],
   "pi": {
-    "extensions": ["./extensions/pi-whimsy-status"]
+    "extensions": [
+      "./extensions/pi-whimsy-status"
+    ]
   }
 }

@@ -20,10 +20,10 @@
     ]
   },
   "dependencies": {
-    "@sinclair/typebox": "latest"
+    "@sinclair/typebox": "0.34.49"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
-    "typescript": "^6.0.3"
+    "@types/node": "25.6.0",
+    "typescript": "6.0.3"
   }
 }

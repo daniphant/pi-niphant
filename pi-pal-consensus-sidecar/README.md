@@ -228,6 +228,32 @@ Important safety properties:
 - dashboard responses include a strict CSP
 - no external CDN/runtime assets are required
 
+## Packaging and release checks
+
+The published package explicitly includes the runtime TypeScript extension source, built dashboard assets, stack presets, and README via `package.json#files`:
+
+```text
+index.ts
+src/
+stacks/
+dashboard-build/
+README.md
+```
+
+Run this before publishing or validating package contents:
+
+```bash
+npm run pack:check --workspace pi-pal-consensus-sidecar
+```
+
+`prepack` runs the dashboard build so `dashboard-build` is current when `npm pack`/publish is invoked. If the dashboard route returns a missing-asset error after installing from a checkout, run:
+
+```bash
+npm run build --workspace pi-pal-consensus-sidecar
+```
+
+then `/reload` inside Pi.
+
 ## Stack recommendation policy
 
 `stackId: "auto"` and `POST /api/recommend-stack` use a cost-aware recommendation policy:

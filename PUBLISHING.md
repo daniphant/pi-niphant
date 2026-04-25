@@ -139,11 +139,8 @@ Existing pieces still included:
 
 ```bash
 node scripts/list-packages.mjs
-pi --offline --list-models gpt-5.5
-```
-
-If you have dependencies installed:
-
-```bash
 npm run check
+npm run pack:check --workspace pi-pal-consensus-sidecar
 ```
+
+The sidecar pack check verifies that the Vite dashboard build and built-in stack JSON are included in the package tarball. If PAL/OpenRouter model availability changed, refresh `pi-pal-consensus-sidecar/test/fixtures/pal-models.json` intentionally and rerun the checks.
