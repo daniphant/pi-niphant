@@ -61,8 +61,11 @@ export PAL_MCP_CWD="$HOME/src/pal-mcp-server"
 
 The sidecar also loads provider keys from these files when the Pi process did not inherit shell exports:
 
+- `PAL_ENV_FILE` if set
 - `<repo>/.env`
 - `<repo>/.pal.env`
+- `$PAL_MCP_CWD/.env` if `PAL_MCP_CWD` is set
+- `$PAL_MCP_CWD/.pal.env` if `PAL_MCP_CWD` is set
 - `~/.pal/.env`
 - `~/.claude/.env`
 

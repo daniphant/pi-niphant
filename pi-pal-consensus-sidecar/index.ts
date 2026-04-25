@@ -92,7 +92,16 @@ async function parseDotenv(path: string): Promise<Record<string, string>> {
 
 async function palEnv(cwd: string): Promise<Record<string, string>> {
   const base = Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
-  const dotenvPaths = [resolve(cwd, ".env"), resolve(cwd, ".pal.env"), join(homedir(), ".pal", ".env"), join(homedir(), ".claude", ".env")];
+  const configuredPalCwd = palCwd();
+  const dotenvPaths = [
+    process.env.PAL_ENV_FILE ? resolve(process.env.PAL_ENV_FILE) : undefined,
+    resolve(cwd, ".env"),
+    resolve(cwd, ".pal.env"),
+    configuredPalCwd ? resolve(configuredPalCwd, ".env") : undefined,
+    configuredPalCwd ? resolve(configuredPalCwd, ".pal.env") : undefined,
+    join(homedir(), ".pal", ".env"),
+    join(homedir(), ".claude", ".env"),
+  ].filter((path): path is string => Boolean(path));
   for (const path of dotenvPaths) {
     const values = await parseDotenv(path);
     for (const [key, value] of Object.entries(values)) {
