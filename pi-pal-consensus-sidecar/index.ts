@@ -1274,6 +1274,11 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
         cleanArtifacts: shouldCleanArtifacts(),
         maxArtifactReadBytes: maxArtifactReadBytes(),
       },
+      modelDiscovery: {
+        enabled: modelDiscoveryEnabled(),
+        cacheTtlMs: modelDiscoveryTtlMs(),
+        availabilityPolicy: modelAvailabilityPolicy(),
+      },
     });
     if (req.method === "GET" && url.pathname === "/api/session") return json(res, 200, { csrfToken: state.csrfToken });
     if (req.method === "GET" && url.pathname === "/api/config") return json(res, 200, await loadSidecarConfig(state.cwd));

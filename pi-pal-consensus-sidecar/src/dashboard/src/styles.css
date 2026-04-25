@@ -48,6 +48,11 @@ textarea { min-height: 88px; resize: vertical; }
 .hint { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 8px 0 12px; }
 .grid { display: grid; gap: 14px; }
 .three { grid-template-columns: repeat(3, 1fr); }
+.model-check { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0 12px; }
+.availability { border: 2px solid var(--line); border-radius: 16px; padding: 12px; margin: 10px 0 14px; background: #dceccc; font-family: ui-monospace, monospace; font-size: 13px; }
+.availability.warn { background: #fff0bd; }
+.availability ul { margin: 8px 0 0; padding-left: 20px; }
+.availability code { word-break: break-all; }
 .reviewer-list { display: grid; gap: 12px; margin-top: 14px; }
 .reviewer { border: 2px dashed #8f7c68; border-radius: 18px; padding: 14px; background: #fff5e4; }
 .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }

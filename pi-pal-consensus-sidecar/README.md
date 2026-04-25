@@ -190,7 +190,7 @@ export PAL_SIDECAR_RETENTION_DAYS=14
 export PAL_SIDECAR_CLEAN_ARTIFACTS=0
 ```
 
-`GET /api/health` reports the effective limit values and current active run count. Artifact cleanup is intentionally disabled by default; enabling it only removes expired `pal-*` run directories under the sidecar artifact root.
+`GET /api/health` reports the effective limit values, current active run count, model discovery status, model cache TTL, and model availability policy. Artifact cleanup is intentionally disabled by default; enabling it only removes expired `pal-*` run directories under the sidecar artifact root.
 
 ## Findings schema and structured errors
 

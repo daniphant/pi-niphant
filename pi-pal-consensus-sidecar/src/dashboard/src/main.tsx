@@ -65,6 +65,29 @@ type ArtifactContent = {
   content: string;
 };
 
+type Health = {
+  limits: Record<string, unknown>;
+  modelDiscovery: {
+    enabled: boolean;
+    cacheTtlMs: number;
+    availabilityPolicy: "off" | "warn" | "block";
+  };
+};
+
+type ModelDiscovery = {
+  enabled: boolean;
+  generated_at: string;
+  stale_at: string;
+  from_cache: boolean;
+  models: Array<{ id: string; provider?: string; aliases?: string[] }>;
+  stacks: Record<string, {
+    available: number;
+    unavailable: number;
+    unknown: number;
+    reviewers: Array<{ id: string; label: string; model: string; availability: "available" | "unavailable" | "unknown" }>;
+  }>;
+};
+
 const emptyReviewer = (index: number): Reviewer => ({
   id: `reviewer-${index + 1}`,
   label: `Reviewer ${index + 1}`,
@@ -100,6 +123,9 @@ function duration(run: Run): string {
 
 function App() {
   const [config, setConfig] = useState<Config | null>(null);
+  const [health, setHealth] = useState<Health | null>(null);
+  const [modelDiscovery, setModelDiscovery] = useState<ModelDiscovery | null>(null);
+  const [checkingModels, setCheckingModels] = useState(false);
   const [sessionToken, setSessionToken] = useState("");
   const [planFile, setPlanFile] = useState("");
   const [stackId, setStackId] = useState("custom");
@@ -112,9 +138,10 @@ function App() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void Promise.all([api<Config>("/api/config"), api<{ csrfToken: string }>("/api/session")])
-      .then(([cfg, session]) => {
+    void Promise.all([api<Config>("/api/config"), api<{ csrfToken: string }>("/api/session"), api<Health>("/api/health")])
+      .then(([cfg, session, healthData]) => {
         setConfig(cfg);
+        setHealth(healthData);
         setSessionToken(session.csrfToken);
         const initialStack = cfg.defaultStack || "standard-modern";
         setStackId(initialStack);
@@ -159,6 +186,7 @@ function App() {
   }, [selectedRun, sessionToken]);
 
   const selectedStack = config?.stacks[stackId];
+  const selectedAvailability = stackId !== "custom" && stackId !== "auto" ? modelDiscovery?.stacks[stackId] : undefined;
   const activeRun = useMemo(() => runs.find((run) => run.id === selectedRun), [runs, selectedRun]);
 
   function applyStack(nextStackId: string) {
@@ -205,6 +233,19 @@ function App() {
     setArtifactContent(data);
   }
 
+  async function checkModels(refresh = true) {
+    setCheckingModels(true);
+    setError(null);
+    try {
+      const data = await api<ModelDiscovery>(`/api/pal/models${refresh ? "?refresh=1" : ""}`);
+      setModelDiscovery(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCheckingModels(false);
+    }
+  }
+
   return <main className="shell">
     <section className="hero panel">
       <div>
@@ -234,6 +275,19 @@ function App() {
           {Object.values(config?.stacks || {}).map((stack) => <option key={stack.id} value={stack.id}>{stack.label} · {stack.costTier || "unknown"}</option>)}
         </select>
         <p className="hint">{stackId === "auto" ? "Sidecar chooses a stack from plan keywords." : selectedStack ? `${selectedStack.description} Cost tier: ${selectedStack.costTier}.` : "Custom reviewer form."}</p>
+
+        <div className="model-check">
+          <button type="button" className="secondary" onClick={() => void checkModels(true)} disabled={checkingModels || health?.modelDiscovery.enabled === false}>{checkingModels ? "Checking..." : "Check PAL models"}</button>
+          <span className="hint">Policy: {health?.modelDiscovery.availabilityPolicy || "warn"} · Discovery: {health?.modelDiscovery.enabled === false ? "disabled" : "manual"}</span>
+        </div>
+        {selectedAvailability && <div className={`availability ${selectedAvailability.unavailable ? "warn" : "ok"}`}>
+          <strong>Model availability:</strong> {selectedAvailability.available} available · {selectedAvailability.unavailable} unavailable · {selectedAvailability.unknown} unknown
+          {selectedAvailability.unavailable > 0 && <ul>
+            {selectedAvailability.reviewers.filter((reviewer) => reviewer.availability === "unavailable").map((reviewer) => <li key={reviewer.id}>{reviewer.label}: <code>{reviewer.model}</code></li>)}
+          </ul>}
+          {selectedAvailability.unavailable > 0 && <p className="hint">{health?.modelDiscovery.availabilityPolicy === "block" ? "Runs will be rejected until these models are updated." : "Runs proceed with warnings under the current policy."}</p>}
+        </div>}
+        {modelDiscovery && !selectedAvailability && <p className="hint">Model cache checked at {modelDiscovery.generated_at}; choose a configured stack to see availability.</p>}
 
         <div className="reviewer-list">
           {reviewers.map((reviewer, index) => <article className="reviewer" key={`${reviewer.id}-${index}`}>
