@@ -23,7 +23,7 @@ scripts/list-packages.mjs # package inventory
 pi-workflow/
 pi-checkpoint/
 pi-codex-compaction/
-pi-consensus/
+pi-pal-consensus-sidecar/
 pi-web-e2e-agent/
 pi-diagnostics/
 pi-markdown-commands/
@@ -81,7 +81,7 @@ Install everything including explicit delegated-agent orchestration:
 Install selected tools:
 
 ```bash
-./scripts/install.sh pi-workflow pi-consensus pi-diagnostics pi-web-e2e-agent
+./scripts/install.sh pi-workflow pi-pal-consensus-sidecar pi-diagnostics pi-web-e2e-agent
 ```
 
 Uninstall symlinks:
@@ -120,7 +120,7 @@ Major new/updated toolbox pieces:
 - `pi-workflow`
 - `pi-checkpoint`
 - `pi-codex-compaction`
-- `pi-consensus`
+- `pi-pal-consensus-sidecar`
 - `pi-web-e2e-agent`
 - `pi-diagnostics`
 - `pi-markdown-commands`

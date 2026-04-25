@@ -141,7 +141,7 @@ Then run `/reload` inside Pi.
 
 ## Recommended companion extensions
 
-- `pi-consensus` for multi-model review
+- `pi-pal-consensus-sidecar` for PAL-backed multi-model review
 - `pi-web-e2e-agent` for browser annotation/E2E artifacts
 - `pi-diagnostics` for verification and systematic debugging
 - `pi-checkpoint` for local WIP auto-commit recovery points

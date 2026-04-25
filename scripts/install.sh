@@ -16,7 +16,6 @@ DEFAULT_PACKAGES=(
   pi-catppuccin-ui
   pi-codex-compaction
   pi-codex-like-diff
-  pi-consensus
   pi-pal-consensus-sidecar
   pi-delegation-guard
   pi-diagnostics
@@ -49,7 +48,7 @@ Options:
 Examples:
   scripts/install.sh
   scripts/install.sh --all
-  scripts/install.sh pi-workflow pi-consensus pi-diagnostics
+  scripts/install.sh pi-workflow pi-pal-consensus-sidecar pi-diagnostics
   scripts/install.sh --uninstall
 EOF
 }
@@ -136,10 +135,6 @@ install_package() {
       ;;
     pi-codex-like-diff)
       link_ext pi-codex-like-diff "$ROOT/pi-codex-like-diff"
-      ;;
-    pi-consensus)
-      link_ext pi-consensus "$ROOT/pi-consensus"
-      link_skill consensus "$ROOT/pi-consensus/skills/consensus"
       ;;
     pi-pal-consensus-sidecar)
       link_ext pi-pal-consensus-sidecar "$ROOT/pi-pal-consensus-sidecar"

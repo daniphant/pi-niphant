@@ -39,27 +39,20 @@ For split workflows, read:
    - Reference implementations / quality anchors
 3. Save only the spec markdown.
 
-## Automatic consensus
+## Automatic PAL sidecar consensus
 
-After drafting the spec, run `run_consensus` on frozen context before asking the user for browser review:
+After drafting the spec, run `run_pal_consensus_review` before asking the user for browser review. Pass `planText` containing frozen context plus the full spec, or `planFile` if the spec file itself is ready to review:
 
 ```text
-Review this frozen pre-implementation spec. Identify missing requirements, contradictions, unclear acceptance criteria, hidden risks, and implementation blockers. Return blocking issues first, then recommended revisions.
-
-<context>
-[brief research summary and relevant file paths]
-</context>
-
-<spec>
-[the full workflow.spec.md]
-</spec>
+run_pal_consensus_review({
+  title: "Workflow Spec Review",
+  stackId: "auto",
+  wait: true,
+  planText: "Review this frozen pre-implementation spec. Identify missing requirements, contradictions, unclear acceptance criteria, hidden risks, and implementation blockers. Return blocking issues first, then recommended revisions.\n\n<context>...brief research summary and relevant file paths...</context>\n\n<spec>...the full workflow.spec.md...</spec>"
+})
 ```
 
-Default models:
-- `openai-codex/gpt-5.5`
-- `zai/glm-5.1`
-
-Apply all required consensus changes to `workflow.spec.md`. Summarize consensus feedback in `## Consensus Feedback` without adding gate/state checkboxes.
+Use the returned `findings.json` and reviewer artifacts. Apply all required changes to `workflow.spec.md`. Summarize consensus feedback in `## Consensus Feedback` without adding gate/state checkboxes.
 
 ## Automatic browser annotation / user review
 

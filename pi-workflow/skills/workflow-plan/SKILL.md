@@ -56,27 +56,20 @@ Explicitly include:
 - Parallelizable Tasks
 - Blocked tasks and their blockers
 
-## Automatic consensus
+## Automatic PAL sidecar consensus
 
-After drafting the implementation plan, run `run_consensus` on frozen context before asking the user for browser review:
+After drafting the implementation plan, run `run_pal_consensus_review` before asking the user for browser review. Pass `planText` containing frozen context plus the full plan, or `planFile` if the plan file itself is ready to review:
 
 ```text
-Review this frozen implementation plan before coding. Identify dependency mistakes, unsafe parallelization, missing validation, missing rollback steps, over-specific code generation, under-specified tasks, and likely blockers. Return blocking issues first, then recommended revisions.
-
-<context>
-[brief spec summary, relevant files, constraints]
-</context>
-
-<implementation_plan>
-[the full workflow.plan.md]
-</implementation_plan>
+run_pal_consensus_review({
+  title: "Workflow Implementation Plan Review",
+  stackId: "auto",
+  wait: true,
+  planText: "Review this frozen implementation plan before coding. Identify dependency mistakes, unsafe parallelization, missing validation, missing rollback steps, over-specific code generation, under-specified tasks, and likely blockers. Return blocking issues first, then recommended revisions.\n\n<context>...brief spec summary, relevant files, constraints...</context>\n\n<implementation_plan>...the full workflow.plan.md...</implementation_plan>"
+})
 ```
 
-Default models:
-- `openai-codex/gpt-5.5`
-- `zai/glm-5.1`
-
-Apply all required consensus changes to `workflow.plan.md`. Summarize consensus feedback in `## Consensus Feedback` without adding gate/state checkboxes.
+Use the returned `findings.json` and reviewer artifacts. Apply all required changes to `workflow.plan.md`. Summarize consensus feedback in `## Consensus Feedback` without adding gate/state checkboxes.
 
 ## Automatic browser annotation / user review
 

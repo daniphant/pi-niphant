@@ -1,6 +1,6 @@
 # pi-niphant
 
-A trunkful of opinionated developer harness tools for [Pi](https://github.com/mariozechner/pi-coding-agent): workflow, checkpoints, consensus review, browser/E2E automation, diagnostics, systematic debugging, compaction, notifications, HUD, Catppuccin UI polish, and delegation guardrails.
+A trunkful of opinionated developer harness tools for [Pi](https://github.com/mariozechner/pi-coding-agent): workflow, checkpoints, PAL-backed consensus review, browser/E2E automation, diagnostics, systematic debugging, compaction, notifications, HUD, Catppuccin UI polish, and delegation guardrails.
 
 This repository is intentionally a **single toolbox repo**, in the spirit of GStack and Superpowers. Each directory is a standalone Pi extension/skill package, but the recommended install is to clone this repo once and symlink the tools you want into `~/.pi/agent`.
 
@@ -11,7 +11,7 @@ Pi should be a predictable, high-agency coding harness:
 - one strong main model does normal repo/code exploration directly
 - subagents are reserved for objective artifact-producing work
 - browser/E2E verification should produce inspectable artifacts
-- risky specs/plans should get frozen-context consensus review
+- risky specs/plans should get PAL-backed frozen-context consensus review through the sidecar
 - debugging should be systematic, evidence-first, and root-cause driven
 - long sessions should survive `/clear`, compaction, and crashes
 - planning artifacts should be durable but user-local, not committed to project repos
@@ -25,7 +25,7 @@ Pi should be a predictable, high-agency coding harness:
 | [`pi-checkpoint`](./pi-checkpoint) | Continuous local auto-commits plus manual patch checkpoints. |
 | [`pi-catppuccin-ui`](./pi-catppuccin-ui) | Catppuccin Mocha theme plus Markdown rendering polish. |
 | [`pi-codex-compaction`](./pi-codex-compaction) | Codex-style checkpoint handoff compaction summaries. |
-| [`pi-consensus`](./pi-consensus) | Multi-model frozen-context consensus reviews. |
+| [`pi-pal-consensus-sidecar`](./pi-pal-consensus-sidecar) | PAL MCP consensus dashboard and direct plan-review tool with artifacts. |
 | [`pi-web-e2e-agent`](./pi-web-e2e-agent) | `agent-browser` powered browser/E2E automation and artifacts. |
 | [`pi-diagnostics`](./pi-diagnostics) | Diagnostics runner plus Superpowers-inspired systematic debugging skill. |
 | [`pi-markdown-commands`](./pi-markdown-commands) | OpenCode-style markdown slash commands. |
@@ -66,7 +66,7 @@ The default set installs:
 - `pi-checkpoint`
 - `pi-catppuccin-ui`
 - `pi-codex-compaction`
-- `pi-consensus`
+- `pi-pal-consensus-sidecar`
 - `pi-delegation-guard`
 - `pi-diagnostics`
 - `pi-markdown-commands`
@@ -88,7 +88,7 @@ The default set installs:
 ## Install selected packages
 
 ```bash
-./scripts/install.sh pi-workflow pi-consensus pi-diagnostics pi-web-e2e-agent
+./scripts/install.sh pi-workflow pi-pal-consensus-sidecar pi-diagnostics pi-web-e2e-agent
 ```
 
 ## Uninstall symlinks
@@ -100,7 +100,7 @@ The default set installs:
 Or selected:
 
 ```bash
-./scripts/install.sh --uninstall pi-workflow pi-consensus
+./scripts/install.sh --uninstall pi-workflow pi-pal-consensus-sidecar
 ```
 
 ## Niphant `ni` flow
@@ -208,13 +208,15 @@ Quick capture:
 
 Multi-step flows use `agent-browser` commands via the `run_agent_browser` tool with `snapshot -i` and compact `@e1` refs.
 
-## Consensus
+## PAL consensus sidecar
+
+Start the local dashboard:
 
 ```text
-/consensus Review this implementation plan for scope, risk, and validation gaps: ...
+/pal-sidecar
 ```
 
-Consensus models run with tools/skills/extensions disabled and only review the frozen context you pass.
+Agents can also run PAL-backed plan review directly with the `run_pal_consensus_review` tool. This routes through the sidecar, PAL MCP, configured reviewer stacks, raw artifacts, and deterministic `findings.json`.
 
 ## Markdown commands
 

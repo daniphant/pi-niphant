@@ -78,4 +78,4 @@ error = ""
 
 ## Post-execution review
 
-If user asks for final consensus or independent review, use `run_consensus` on a frozen diff/summary. Do not ask consensus models to explore the repo.
+If user asks for final consensus or independent review, use `run_pal_consensus_review` on a frozen diff/summary. Do not ask reviewers to explore the repo; pass the exact frozen context as `planText` or a reviewed artifact as `planFile`.
