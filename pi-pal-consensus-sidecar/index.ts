@@ -6,6 +6,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
+import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
 
 interface ReviewerConfig {
@@ -65,8 +66,36 @@ function defaultPalCommand(): { command: string; args: string[] } {
   return { command, args };
 }
 
-function stringEnv(): Record<string, string> {
-  return Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
+async function parseDotenv(path: string): Promise<Record<string, string>> {
+  if (!existsSync(path)) return {};
+  const text = await readFile(path, "utf8");
+  const values: Record<string, string> = {};
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!match) continue;
+    let value = match[2].trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
+    values[match[1]] = value;
+  }
+  return values;
+}
+
+async function palEnv(cwd: string): Promise<Record<string, string>> {
+  const base = Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
+  const dotenvPaths = [resolve(cwd, ".env"), resolve(cwd, ".pal.env"), join(homedir(), ".pal", ".env"), join(homedir(), ".claude", ".env")];
+  for (const path of dotenvPaths) {
+    const values = await parseDotenv(path);
+    for (const [key, value] of Object.entries(values)) {
+      if (base[key] === undefined) base[key] = value;
+    }
+  }
+  return base;
+}
+
+function hasProviderKey(env: Record<string, string>): boolean {
+  return Boolean(env.OPENROUTER_API_KEY || env.OPENAI_API_KEY || env.GEMINI_API_KEY || env.XAI_API_KEY || env.DIAL_API_KEY || env.CUSTOM_API_URL);
 }
 
 function json(res: ServerResponse, status: number, body: unknown) {
@@ -152,8 +181,13 @@ async function callPalConsensus(run: RunState, req: RunRequest) {
   const pal = req.palCommand && req.palArgs ? { command: req.palCommand, args: req.palArgs } : defaultPalCommand();
   addEvent(run, "pal_starting", { command: pal.command, args: pal.args });
 
+  const env = await palEnv(state.cwd);
+  if (!hasProviderKey(env)) {
+    throw new Error("PAL needs at least one provider key. Set OPENROUTER_API_KEY in your Pi shell environment, project .env, project .pal.env, ~/.pal/.env, or ~/.claude/.env.");
+  }
+
   const client = new Client({ name: "pi-pal-consensus-sidecar", version: "0.1.0" }, { capabilities: {} });
-  const transport = new StdioClientTransport({ command: pal.command, args: pal.args, env: stringEnv() });
+  const transport = new StdioClientTransport({ command: pal.command, args: pal.args, env });
   await client.connect(transport);
 
   try {

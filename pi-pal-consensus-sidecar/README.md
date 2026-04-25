@@ -57,4 +57,17 @@ export PAL_MCP_COMMAND=uvx
 export PAL_MCP_ARGS="--from git+https://github.com/BeehiveInnovations/pal-mcp-server.git pal-mcp-server"
 ```
 
+The sidecar also loads provider keys from these files when the Pi process did not inherit shell exports:
+
+- `<repo>/.env`
+- `<repo>/.pal.env`
+- `~/.pal/.env`
+- `~/.claude/.env`
+
+Example:
+
+```bash
+printf 'OPENROUTER_API_KEY=%s\n' 'sk-or-v1-...' > .pal.env
+```
+
 Artifacts are written to `.pi/pal-consensus-runs/<run-id>/` by default.
