@@ -6,56 +6,56 @@
     {
       "id": "ceo_product",
       "label": "CEO / Product Reviewer",
-      "model": "anthropic/claude-opus-4.7",
+      "model": "anthropic/claude-opus-4.5",
       "stance": "neutral",
       "prompt": "Focus on strategic product judgment: is this worth building, is the scope right, what should be cut, and what user or workflow value is unclear?"
     },
     {
       "id": "architecture",
       "label": "Architecture Reviewer",
-      "model": "openai/gpt-5.5",
+      "model": "openai/gpt-5.2",
       "stance": "neutral",
       "prompt": "Focus on architecture, system boundaries, long-term maintainability, integration complexity, failure domains, and whether the plan creates avoidable coupling."
     },
     {
       "id": "deep_reasoning",
       "label": "Deep Reasoning Reviewer",
-      "model": "openai/gpt-5.5-pro",
+      "model": "openai/gpt-5.2-pro",
       "stance": "neutral",
       "prompt": "Focus on subtle contradictions, hidden dependencies, second-order effects, and high-stakes flaws that other reviewers may miss. Be compact but rigorous."
     },
     {
       "id": "implementation",
       "label": "Implementation Reviewer",
-      "model": "openai/gpt-5.4",
+      "model": "openai/gpt-5-codex",
       "stance": "neutral",
       "prompt": "Focus on implementation realism, code-level sequencing, likely bugs, developer workflow, API shape, integration boundaries, and whether the plan is executable without improvisation. Prefer current unified GPT/Codex-era engineering judgment over older Codex-only assumptions."
     },
     {
       "id": "security",
       "label": "Security / Privacy Reviewer",
-      "model": "anthropic/claude-sonnet-4.6",
+      "model": "anthropic/claude-sonnet-4.5",
       "stance": "neutral",
       "prompt": "Focus on security, privacy, secrets, prompt injection, local HTTP exposure, provider data policy, raw transcript handling, and safe defaults."
     },
     {
       "id": "qa",
       "label": "QA / Verification Reviewer",
-      "model": "google/gemini-3.1-pro-preview",
+      "model": "google/gemini-3-pro-preview",
       "stance": "neutral",
       "prompt": "Focus on verification: unit tests, integration tests, UI/server tests, failure injection, acceptance criteria, and how to prove the implementation is correct."
     },
     {
       "id": "release_ops",
       "label": "Release / Ops Reviewer",
-      "model": "x-ai/grok-4.20",
+      "model": "x-ai/grok-4",
       "stance": "neutral",
       "prompt": "Focus on operational risk, rollout sequencing, visibility, local server safety, failure recovery, and what will go wrong in real-world use."
     },
     {
       "id": "contrarian",
       "label": "Contrarian Reviewer",
-      "model": "moonshotai/kimi-k2.6",
+      "model": "deepseek/deepseek-r1-0528",
       "stance": "neutral",
       "prompt": "Assume the plan is too ambitious or solving the wrong layer. Find the smaller plan, unnecessary components, and risks hidden by confident phrasing."
     }
