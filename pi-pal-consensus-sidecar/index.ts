@@ -27,14 +27,26 @@ interface RunRequest {
   minSuccessfulReviewers: number;
   stackId?: string;
   stackReason?: string;
+  stackCostTier?: CostTier;
+  configSources?: ConfigSource[];
 }
+
+type CostTier = "low" | "medium" | "high" | "frontier" | "unknown";
 
 interface ReviewerStack {
   id: string;
   label: string;
   description: string;
+  costTier: CostTier;
   reviewers: ReviewerConfig[];
   minSuccessfulReviewers: number;
+}
+
+interface ConfigSource {
+  path: string;
+  kind: "default" | "project" | "env";
+  status: "loaded" | "missing" | "skipped";
+  reason?: string;
 }
 
 interface SidecarConfig {
@@ -43,6 +55,8 @@ interface SidecarConfig {
   stacks: Record<string, ReviewerStack>;
   defaultStack: string;
   autoStack: boolean;
+  maxReviewers: number;
+  sources: ConfigSource[];
 }
 
 interface RunEvent {
@@ -176,15 +190,73 @@ function stackLabel(id: string): string {
   return id.split(/[-_]/).map((part) => part ? part[0].toUpperCase() + part.slice(1) : part).join(" ");
 }
 
-function normalizeStack(id: string, raw: Record<string, unknown>): ReviewerStack {
-  const reviewers = Array.isArray(raw.reviewers) ? raw.reviewers.map((reviewer, index) => normalizeReviewer(reviewer as Partial<ReviewerConfig>, index)) : [];
-  const minSuccessfulReviewers = Number(raw.minSuccessfulReviewers ?? Math.min(2, reviewers.length));
+function maxReviewers(): number {
+  const value = Number(process.env.PAL_SIDECAR_MAX_REVIEWERS || 16);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 16;
+}
+
+function requireNonEmpty(value: unknown, path: string, maxLength: number): string {
+  const text = String(value ?? "").trim();
+  if (!text) throw new Error(`Invalid sidecar config: ${path} must be a non-empty string.`);
+  if (text.length > maxLength) throw new Error(`Invalid sidecar config: ${path} must be at most ${maxLength} characters.`);
+  return text;
+}
+
+function normalizeStance(value: unknown, path: string): "for" | "against" | "neutral" {
+  const stance = String(value ?? "neutral").trim();
+  if (stance !== "for" && stance !== "against" && stance !== "neutral") throw new Error(`Invalid sidecar config: ${path} must be one of: for, against, neutral.`);
+  return stance;
+}
+
+function normalizeCostTier(value: unknown): CostTier {
+  const tier = String(value ?? "unknown").trim();
+  return tier === "low" || tier === "medium" || tier === "high" || tier === "frontier" ? tier : "unknown";
+}
+
+function normalizeReviewer(input: Partial<ReviewerConfig>, index: number, path = `reviewers[${index}]`): ReviewerConfig {
+  const rawId = requireNonEmpty(input.id || input.label || `reviewer-${index + 1}`, `${path}.id`, 96);
+  const id = sanitizeId(rawId, `reviewer-${index + 1}`);
+  if (id !== rawId && input.id) throw new Error(`Invalid sidecar config: ${path}.id may only contain letters, numbers, underscores, and dashes after normalization; received '${rawId}'.`);
   return {
     id,
-    label: String(raw.label || stackLabel(id)),
-    description: String(raw.description || ""),
+    label: requireNonEmpty(input.label || input.id || `Reviewer ${index + 1}`, `${path}.label`, 96),
+    model: requireNonEmpty(input.model, `${path}.model`, 128),
+    stance: normalizeStance(input.stance, `${path}.stance`),
+    prompt: requireNonEmpty(input.prompt || "Review the plan for correctness, risks, and actionable improvements.", `${path}.prompt`, 4000),
+  };
+}
+
+function assertValidReviewerSet(reviewers: ReviewerConfig[], path: string, max = maxReviewers()) {
+  if (reviewers.length < 2) throw new Error(`Invalid sidecar config: ${path} must include at least 2 reviewers.`);
+  if (reviewers.length > max) throw new Error(`Invalid sidecar config: ${path} has ${reviewers.length} reviewers, above PAL_SIDECAR_MAX_REVIEWERS=${max}.`);
+  const ids = new Set<string>();
+  const modelStances = new Set<string>();
+  for (const reviewer of reviewers) {
+    if (ids.has(reviewer.id)) throw new Error(`Invalid sidecar config: duplicate reviewer id '${reviewer.id}' in ${path}.`);
+    ids.add(reviewer.id);
+    const key = `${reviewer.model}:${reviewer.stance ?? "neutral"}`;
+    if (modelStances.has(key)) throw new Error(`Invalid sidecar config: duplicate PAL model+stance pair '${key}' in ${path}. PAL consensus requires unique model+stance combinations.`);
+    modelStances.add(key);
+  }
+}
+
+function normalizeMinSuccessful(value: unknown, reviewerCount: number, path: string): number {
+  const min = Number(value ?? Math.min(2, reviewerCount));
+  if (!Number.isInteger(min) || min < 1 || min > reviewerCount) throw new Error(`Invalid sidecar config: ${path} must be an integer from 1 to reviewer count (${reviewerCount}).`);
+  return min;
+}
+
+function normalizeStack(id: string, raw: Record<string, unknown>): ReviewerStack {
+  if (!id || !/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error(`Invalid sidecar config: stack id '${id}' must contain only letters, numbers, underscores, and dashes.`);
+  const reviewers = Array.isArray(raw.reviewers) ? raw.reviewers.map((reviewer, index) => normalizeReviewer(reviewer as Partial<ReviewerConfig>, index, `stacks.${id}.reviewers[${index}]`)) : [];
+  assertValidReviewerSet(reviewers, `stacks.${id}.reviewers`);
+  return {
+    id,
+    label: String(raw.label || stackLabel(id)).slice(0, 96),
+    description: String(raw.description || "").slice(0, 500),
+    costTier: normalizeCostTier(raw.costTier),
     reviewers,
-    minSuccessfulReviewers: Number.isFinite(minSuccessfulReviewers) && minSuccessfulReviewers > 0 ? Math.min(Math.floor(minSuccessfulReviewers), Math.max(reviewers.length, 1)) : Math.min(2, reviewers.length),
+    minSuccessfulReviewers: normalizeMinSuccessful(raw.minSuccessfulReviewers, reviewers.length, `stacks.${id}.minSuccessfulReviewers`),
   };
 }
 
@@ -212,35 +284,50 @@ function normalizeStacks(raw: unknown): Record<string, ReviewerStack> {
 }
 
 async function loadSidecarConfig(cwd: string): Promise<SidecarConfig> {
-  const configPaths = [
-    resolve(EXTENSION_DIR, "pal-sidecar.config.json"),
-    resolve(cwd, ".pal-sidecar.json"),
-    resolve(cwd, ".pi", "pal-sidecar.json"),
-    process.env.PAL_SIDECAR_CONFIG ? resolve(process.env.PAL_SIDECAR_CONFIG) : undefined,
-  ].filter((path): path is string => Boolean(path));
+  const ignoreProjectConfig = process.env.PAL_SIDECAR_IGNORE_PROJECT_CONFIG === "1" || process.env.PAL_SIDECAR_IGNORE_PROJECT_CONFIG === "true";
+  const configCandidates: ConfigSource[] = [
+    { path: resolve(EXTENSION_DIR, "pal-sidecar.config.json"), kind: "default", status: "missing" },
+    { path: resolve(cwd, ".pal-sidecar.json"), kind: "project", status: ignoreProjectConfig ? "skipped" : "missing", reason: ignoreProjectConfig ? "PAL_SIDECAR_IGNORE_PROJECT_CONFIG is enabled." : undefined },
+    { path: resolve(cwd, ".pi", "pal-sidecar.json"), kind: "project", status: ignoreProjectConfig ? "skipped" : "missing", reason: ignoreProjectConfig ? "PAL_SIDECAR_IGNORE_PROJECT_CONFIG is enabled." : undefined },
+    ...(process.env.PAL_SIDECAR_CONFIG ? [{ path: resolve(process.env.PAL_SIDECAR_CONFIG), kind: "env" as const, status: "missing" as const }] : []),
+  ];
 
   let merged: Record<string, unknown> = {};
   let stacks = await loadBuiltinStacks();
-  for (const path of configPaths) {
-    const config = await readJsonFile(path);
+  const sources: ConfigSource[] = [];
+  for (const candidate of configCandidates) {
+    const source = { ...candidate };
+    if (source.status === "skipped") {
+      sources.push(source);
+      continue;
+    }
+    const config = await readJsonFile(source.path);
     if (config) {
       stacks = { ...stacks, ...normalizeStacks(config.stacks) };
       merged = { ...merged, ...config };
+      source.status = "loaded";
+    } else {
+      source.status = "missing";
     }
+    sources.push(source);
   }
 
   const defaultStack = String(merged.defaultStack || "standard-modern");
   const selectedStack = stacks[defaultStack];
+  if (!selectedStack) throw new Error(`Invalid sidecar config: defaultStack '${defaultStack}' does not exist. Available stacks: ${Object.keys(stacks).join(", ")}`);
   const reviewers = Array.isArray(merged.reviewers)
-    ? merged.reviewers.map((reviewer, index) => normalizeReviewer(reviewer as Partial<ReviewerConfig>, index))
-    : selectedStack?.reviewers ?? [];
-  const minSuccessfulReviewers = Number(merged.minSuccessfulReviewers ?? selectedStack?.minSuccessfulReviewers ?? Math.min(2, reviewers.length));
+    ? merged.reviewers.map((reviewer, index) => normalizeReviewer(reviewer as Partial<ReviewerConfig>, index, `reviewers[${index}]`))
+    : selectedStack.reviewers;
+  assertValidReviewerSet(reviewers, "reviewers");
+  const minSuccessfulReviewers = normalizeMinSuccessful(merged.minSuccessfulReviewers ?? selectedStack.minSuccessfulReviewers, reviewers.length, "minSuccessfulReviewers");
   return {
     reviewers,
-    minSuccessfulReviewers: Number.isFinite(minSuccessfulReviewers) && minSuccessfulReviewers > 0 ? Math.min(Math.floor(minSuccessfulReviewers), Math.max(reviewers.length, 1)) : Math.min(2, reviewers.length),
+    minSuccessfulReviewers,
     stacks,
     defaultStack,
     autoStack: merged.autoStack !== false,
+    maxReviewers: maxReviewers(),
+    sources,
   };
 }
 
@@ -338,17 +425,6 @@ function sanitizeId(value: string, fallback: string): string {
   return cleaned || fallback;
 }
 
-function normalizeReviewer(input: Partial<ReviewerConfig>, index: number): ReviewerConfig {
-  const id = sanitizeId(String(input.id || input.label || `reviewer-${index + 1}`), `reviewer-${index + 1}`);
-  return {
-    id,
-    label: String(input.label || input.id || `Reviewer ${index + 1}`).slice(0, 96),
-    model: String(input.model || "flash").slice(0, 128),
-    stance: input.stance || "neutral",
-    prompt: String(input.prompt || "Review the plan for correctness, risks, and actionable improvements.").slice(0, 4000),
-  };
-}
-
 function splitCsv(value?: string): string[] {
   return (value ?? "").split(",").map((item) => item.trim()).filter(Boolean);
 }
@@ -428,6 +504,8 @@ async function validateRunRequest(raw: unknown, cwd: string): Promise<RunRequest
       minSuccessfulReviewers: Number.isFinite(requestedMin) && requestedMin > 0 ? Math.min(Math.floor(requestedMin), stack.reviewers.length) : stack.minSuccessfulReviewers,
       stackId: selected.stackId,
       stackReason: selected.reason,
+      stackCostTier: stack.costTier,
+      configSources: config.sources,
     };
   }
 
@@ -445,6 +523,8 @@ async function validateRunRequest(raw: unknown, cwd: string): Promise<RunRequest
     minSuccessfulReviewers: Number.isFinite(requestedMin) && requestedMin > 0 ? Math.min(Math.floor(requestedMin), reviewers.length) : Math.min(2, reviewers.length),
     stackId,
     stackReason,
+    stackCostTier: "unknown",
+    configSources: config.sources,
   };
 }
 
@@ -598,6 +678,8 @@ function deterministicNormalize(run: RunState, req: RunRequest, artifacts: Revie
     plan_file: req.planFile,
     stack_id: req.stackId,
     stack_reason: req.stackReason,
+    stack_cost_tier: req.stackCostTier,
+    config_sources: req.configSources,
     generated_at: new Date().toISOString(),
     recommendation,
     summary: `${artifacts.length - failed.length}/${artifacts.length} reviewers succeeded; ${findings.length} deterministic findings extracted.`,
@@ -754,7 +836,7 @@ async function startRun(req: RunRequest, cwd: string): Promise<RunState> {
   };
   state.runs.set(runId, run);
   state.cancelledRuns.delete(runId);
-  addEvent(run, "run_queued", { runId, artifactDir, planFile: req.planFile, stackId: req.stackId, stackReason: req.stackReason });
+  addEvent(run, "run_queued", { runId, artifactDir, planFile: req.planFile, stackId: req.stackId, stackReason: req.stackReason, stackCostTier: req.stackCostTier });
   void (async () => {
     const timeoutMs = Number(process.env.PAL_SIDECAR_RUN_TIMEOUT_MS || 10 * 60_000);
     const timeout = setTimeout(() => {
@@ -821,7 +903,7 @@ const CONFIG=__SIDECAR_CONFIG__;
 let reviewerCount=0, selectedRun=null, sources={};
 function addReviewer(d){const i=reviewerCount++; const v=d||['reviewer-'+i,'Reviewer '+(i+1),'flash','Review for correctness and risks.','neutral']; const div=document.createElement('div'); div.className='reviewer'; div.innerHTML='<div class="grid"><div><label>ID</label><input name="id" value="'+v[0]+'"></div><div><label>Label</label><input name="label" value="'+v[1]+'"></div><div><label>PAL model</label><input name="model" value="'+v[2]+'"></div></div><label>Stance</label><select name="stance"><option value="neutral">neutral</option><option value="for">for</option><option value="against">against</option></select><label>Role prompt</label><textarea name="prompt">'+v[3]+'</textarea>'; reviewersEl.appendChild(div); div.querySelector('[name=stance]').value=v[4]||'neutral'}
 function setReviewers(reviewers){reviewersEl.innerHTML=''; reviewerCount=0; (reviewers||[]).map(r=>[r.id,r.label,r.model,r.prompt,r.stance||'neutral']).forEach(addReviewer)}
-function setupStacks(){stackSelect.innerHTML='<option value="custom">Custom form reviewers</option><option value="auto">Auto-select from plan</option>'; Object.values(CONFIG.stacks||{}).forEach(s=>{const o=document.createElement('option'); o.value=s.id; o.textContent=s.label||s.id; stackSelect.appendChild(o)}); stackSelect.value=CONFIG.defaultStack||'standard-modern'; stackSelect.onchange=()=>{const s=(CONFIG.stacks||{})[stackSelect.value]; stackDescription.textContent=stackSelect.value==='auto'?'Sidecar chooses a stack from plan keywords.':(s?(s.description||s.id):'Custom reviewer form'); if(s) setReviewers(s.reviewers)}; stackSelect.onchange()}
+function setupStacks(){stackSelect.innerHTML='<option value="custom">Custom form reviewers</option><option value="auto">Auto-select from plan</option>'; Object.values(CONFIG.stacks||{}).forEach(s=>{const o=document.createElement('option'); o.value=s.id; o.textContent=(s.label||s.id)+(s.costTier&&s.costTier!=='unknown'?' · '+s.costTier:''); stackSelect.appendChild(o)}); stackSelect.value=CONFIG.defaultStack||'standard-modern'; stackSelect.onchange=()=>{const s=(CONFIG.stacks||{})[stackSelect.value]; stackDescription.textContent=stackSelect.value==='auto'?'Sidecar chooses a stack from plan keywords.':(s?((s.description||s.id)+(s.costTier&&s.costTier!=='unknown'?' Cost tier: '+s.costTier+'.':'')):'Custom reviewer form'); if(s) setReviewers(s.reviewers)}; stackSelect.onchange()}
 setupStacks(); document.getElementById('addReviewer').onclick=()=>{stackSelect.value='custom'; addReviewer()};
 function collectReviewers(){return [...document.querySelectorAll('.reviewer')].map(r=>({id:r.querySelector('[name=id]').value,label:r.querySelector('[name=label]').value,model:r.querySelector('[name=model]').value,stance:r.querySelector('[name=stance]').value,prompt:r.querySelector('[name=prompt]').value}))}
 function duplicatePair(reviewers){const seen=new Set(); for(const r of reviewers){const key=r.model+':'+(r.stance||'neutral'); if(seen.has(key)) return key; seen.add(key)} return null}

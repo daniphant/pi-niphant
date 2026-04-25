@@ -1,4 +1,7 @@
 {
+  "label": "China/Open Models",
+  "description": "Provider-diverse stack emphasizing strong open and China-model ecosystem reviewers.",
+  "costTier": "medium",
   "reviewers": [
     {
       "id": "architecture",

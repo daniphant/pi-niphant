@@ -1,4 +1,7 @@
 {
+  "label": "Budget",
+  "description": "Lower-cost reviewer lineup for MVPs, prototypes, spikes, and cost-sensitive reviews.",
+  "costTier": "low",
   "reviewers": [
     {
       "id": "architecture",

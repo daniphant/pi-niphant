@@ -76,7 +76,13 @@ Or point to any config file with:
 export PAL_SIDECAR_CONFIG=/path/to/pal-sidecar.json
 ```
 
-Later files override earlier files. The common shape is:
+Later files override earlier files. To ignore committed project config while debugging, set:
+
+```bash
+export PAL_SIDECAR_IGNORE_PROJECT_CONFIG=1
+```
+
+The common shape is:
 
 ```json
 {
@@ -118,7 +124,23 @@ You can also override or add stack presets in project config:
     "my-project-stack": {
       "label": "My Project Stack",
       "description": "Project-specific reviewer lineup",
-      "reviewers": [],
+      "costTier": "medium",
+      "reviewers": [
+        {
+          "id": "architecture",
+          "label": "Architecture Reviewer",
+          "model": "flash",
+          "stance": "neutral",
+          "prompt": "Focus on architecture and implementation risk."
+        },
+        {
+          "id": "budget",
+          "label": "Budget Reviewer",
+          "model": "5.1",
+          "stance": "neutral",
+          "prompt": "Focus on token usage and cost risk."
+        }
+      ],
       "minSuccessfulReviewers": 2
     }
   }
@@ -135,6 +157,8 @@ The dashboard offers a stack selector:
 - `custom` uses the editable reviewer form.
 
 PAL requires each reviewer to have a unique `model:stance` pair. If you want the same model twice, give the reviewers different stances such as `neutral` and `against`.
+
+Config validation rejects malformed config before PAL starts, including duplicate reviewer IDs, invalid stances, empty model/prompt fields, duplicate `model:stance` pairs, and invalid `minSuccessfulReviewers`. The effective config returned by `GET /api/config` includes `sources` showing which config paths were loaded, missing, or skipped.
 
 Plan files are allowed from the current project, `~/.pi`, and optional extra roots:
 
@@ -162,6 +186,8 @@ export PAL_MCP_CWD="$HOME/src/pal-mcp-server"
 export PAL_SIDECAR_RUN_TIMEOUT_MS=600000
 # Optional: per MCP request/tool-call timeout in milliseconds (default 9 minutes).
 export PAL_SIDECAR_MCP_REQUEST_TIMEOUT_MS=540000
+# Optional: maximum configured reviewers per run/stack (default 16).
+export PAL_SIDECAR_MAX_REVIEWERS=16
 ```
 
 The sidecar also loads provider keys from these files when the Pi process did not inherit shell exports:

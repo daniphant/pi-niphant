@@ -1,4 +1,7 @@
 {
+  "label": "Frontier Modern",
+  "description": "Highest-capability reviewer lineup for high-stakes, security-sensitive, or production-critical plans.",
+  "costTier": "frontier",
   "reviewers": [
     {
       "id": "ceo_product",

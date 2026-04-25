@@ -1,4 +1,7 @@
 {
+  "label": "Standard Modern",
+  "description": "Balanced multi-role stack for ordinary technical plans where quality matters more than minimizing spend.",
+  "costTier": "high",
   "reviewers": [
     {
       "id": "technical_chair",
