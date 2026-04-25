@@ -3,7 +3,7 @@ import { Type } from "@sinclair/typebox";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { chmod, mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, realpath, readdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
@@ -25,11 +25,24 @@ interface RunRequest {
   palCommand?: string;
   palArgs?: string[];
   minSuccessfulReviewers: number;
+  stackId?: string;
+  stackReason?: string;
+}
+
+interface ReviewerStack {
+  id: string;
+  label: string;
+  description: string;
+  reviewers: ReviewerConfig[];
+  minSuccessfulReviewers: number;
 }
 
 interface SidecarConfig {
   reviewers: ReviewerConfig[];
   minSuccessfulReviewers: number;
+  stacks: Record<string, ReviewerStack>;
+  defaultStack: string;
+  autoStack: boolean;
 }
 
 interface RunEvent {
@@ -154,6 +167,45 @@ async function readJsonFile(path: string): Promise<Record<string, unknown> | und
   return JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
 }
 
+function stackLabel(id: string): string {
+  return id.split(/[-_]/).map((part) => part ? part[0].toUpperCase() + part.slice(1) : part).join(" ");
+}
+
+function normalizeStack(id: string, raw: Record<string, unknown>): ReviewerStack {
+  const reviewers = Array.isArray(raw.reviewers) ? raw.reviewers.map((reviewer, index) => normalizeReviewer(reviewer as Partial<ReviewerConfig>, index)) : [];
+  const minSuccessfulReviewers = Number(raw.minSuccessfulReviewers ?? Math.min(2, reviewers.length));
+  return {
+    id,
+    label: String(raw.label || stackLabel(id)),
+    description: String(raw.description || ""),
+    reviewers,
+    minSuccessfulReviewers: Number.isFinite(minSuccessfulReviewers) && minSuccessfulReviewers > 0 ? Math.min(Math.floor(minSuccessfulReviewers), Math.max(reviewers.length, 1)) : Math.min(2, reviewers.length),
+  };
+}
+
+async function loadBuiltinStacks(): Promise<Record<string, ReviewerStack>> {
+  const dir = resolve(EXTENSION_DIR, "stacks");
+  if (!existsSync(dir)) return {};
+  const entries = await readdir(dir);
+  const stacks: Record<string, ReviewerStack> = {};
+  for (const entry of entries) {
+    if (!entry.endsWith(".json")) continue;
+    const id = entry.replace(/\.json$/, "");
+    const raw = await readJsonFile(resolve(dir, entry));
+    if (raw) stacks[id] = normalizeStack(id, raw);
+  }
+  return stacks;
+}
+
+function normalizeStacks(raw: unknown): Record<string, ReviewerStack> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const stacks: Record<string, ReviewerStack> = {};
+  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (value && typeof value === "object" && !Array.isArray(value)) stacks[id] = normalizeStack(id, value as Record<string, unknown>);
+  }
+  return stacks;
+}
+
 async function loadSidecarConfig(cwd: string): Promise<SidecarConfig> {
   const configPaths = [
     resolve(EXTENSION_DIR, "pal-sidecar.config.json"),
@@ -163,18 +215,27 @@ async function loadSidecarConfig(cwd: string): Promise<SidecarConfig> {
   ].filter((path): path is string => Boolean(path));
 
   let merged: Record<string, unknown> = {};
+  let stacks = await loadBuiltinStacks();
   for (const path of configPaths) {
     const config = await readJsonFile(path);
-    if (config) merged = { ...merged, ...config };
+    if (config) {
+      stacks = { ...stacks, ...normalizeStacks(config.stacks) };
+      merged = { ...merged, ...config };
+    }
   }
 
+  const defaultStack = String(merged.defaultStack || "standard-modern");
+  const selectedStack = stacks[defaultStack];
   const reviewers = Array.isArray(merged.reviewers)
     ? merged.reviewers.map((reviewer, index) => normalizeReviewer(reviewer as Partial<ReviewerConfig>, index))
-    : [];
-  const minSuccessfulReviewers = Number(merged.minSuccessfulReviewers ?? Math.min(2, reviewers.length));
+    : selectedStack?.reviewers ?? [];
+  const minSuccessfulReviewers = Number(merged.minSuccessfulReviewers ?? selectedStack?.minSuccessfulReviewers ?? Math.min(2, reviewers.length));
   return {
     reviewers,
     minSuccessfulReviewers: Number.isFinite(minSuccessfulReviewers) && minSuccessfulReviewers > 0 ? Math.min(Math.floor(minSuccessfulReviewers), Math.max(reviewers.length, 1)) : Math.min(2, reviewers.length),
+    stacks,
+    defaultStack,
+    autoStack: merged.autoStack !== false,
   };
 }
 
@@ -312,19 +373,64 @@ async function validatePlanFile(path: string, cwd: string): Promise<string> {
   return realFile;
 }
 
-async function validateRunRequest(raw: unknown, cwd: string): Promise<RunRequest> {
-  const obj = (raw ?? {}) as Record<string, unknown>;
-  if (!obj.planFile) throw new Error("Plan file is required.");
-  const planFile = await validatePlanFile(String(obj.planFile), cwd);
-  const reviewers = Array.isArray(obj.reviewers) ? obj.reviewers.map((r, i) => normalizeReviewer(r as Partial<ReviewerConfig>, i)) : [];
-  if (reviewers.length < 2) throw new Error("PAL consensus requires at least two reviewers/models.");
+function chooseStack(planText: string, config: SidecarConfig): { stackId: string; reason: string } {
+  const text = planText.toLowerCase();
+  const available = config.stacks;
+  const has = (id: string) => Boolean(available[id]);
+  if (/\b(budget|cost|cheap|cheaper|spend|token|prototype|spike|demo|mvp|minimal|smallest)\b/.test(text) && has("budget")) {
+    return { stackId: "budget", reason: "Plan emphasizes cost, budget, MVP, prototype, or smallest-useful-scope concerns." };
+  }
+  if (/\b(open[- ]source|oss|local model|china|qwen|deepseek|glm|kimi|open model|provider diversity)\b/.test(text) && has("china-open")) {
+    return { stackId: "china-open", reason: "Plan references open/china model ecosystem or provider diversity." };
+  }
+  if (/\b(production|enterprise|security|privacy|auth|payment|migration|high[- ]stakes|compliance|data loss|secret|rollout)\b/.test(text) && has("frontier-modern")) {
+    return { stackId: "frontier-modern", reason: "Plan appears high-stakes or production/security sensitive." };
+  }
+  if (has("standard-modern")) return { stackId: "standard-modern", reason: "Default balanced stack for general technical plans." };
+  return { stackId: config.defaultStack, reason: "Fallback to configured default stack." };
+}
+
+function assertUniqueModelStances(reviewers: ReviewerConfig[]) {
   const seenModelStances = new Set<string>();
   for (const reviewer of reviewers) {
     const key = `${reviewer.model}:${reviewer.stance ?? "neutral"}`;
     if (seenModelStances.has(key)) throw new Error(`Duplicate PAL model+stance pair '${key}'. PAL consensus requires each reviewer to use a unique model+stance combination.`);
     seenModelStances.add(key);
   }
+}
+
+async function validateRunRequest(raw: unknown, cwd: string): Promise<RunRequest> {
+  const obj = (raw ?? {}) as Record<string, unknown>;
+  if (!obj.planFile) throw new Error("Plan file is required.");
+  const planFile = await validatePlanFile(String(obj.planFile), cwd);
+  const config = await loadSidecarConfig(cwd);
+  const planText = await readFile(planFile, "utf8");
+  const requestedStack = obj.stackId ? String(obj.stackId) : undefined;
+  let stackId = requestedStack;
+  let stackReason = "Explicit reviewers supplied by request.";
+  if (!Array.isArray(obj.reviewers) || obj.reviewers.length === 0 || requestedStack === "auto" || (requestedStack && requestedStack !== "custom")) {
+    const selected = requestedStack === "auto" || !requestedStack ? chooseStack(planText, config) : { stackId: requestedStack, reason: "Explicit stack selected by user." };
+    const stack = config.stacks[selected.stackId];
+    if (!stack) throw new Error(`Unknown reviewer stack '${selected.stackId}'. Available stacks: ${Object.keys(config.stacks).join(", ")}`);
+    const requestedMin = Number(obj.minSuccessfulReviewers ?? stack.minSuccessfulReviewers);
+    assertUniqueModelStances(stack.reviewers);
+    return {
+      planFile,
+      reviewers: stack.reviewers,
+      artifactRoot: obj.artifactRoot ? String(obj.artifactRoot) : undefined,
+      palCommand: obj.palCommand ? String(obj.palCommand) : undefined,
+      palArgs: Array.isArray(obj.palArgs) ? obj.palArgs.map(String) : undefined,
+      minSuccessfulReviewers: Number.isFinite(requestedMin) && requestedMin > 0 ? Math.min(Math.floor(requestedMin), stack.reviewers.length) : stack.minSuccessfulReviewers,
+      stackId: selected.stackId,
+      stackReason: selected.reason,
+    };
+  }
+
+  const reviewers = obj.reviewers.map((r, i) => normalizeReviewer(r as Partial<ReviewerConfig>, i));
+  if (reviewers.length < 2) throw new Error("PAL consensus requires at least two reviewers/models.");
+  assertUniqueModelStances(reviewers);
   const requestedMin = Number(obj.minSuccessfulReviewers ?? Math.min(2, reviewers.length));
+  stackId = "custom";
   return {
     planFile,
     reviewers,
@@ -332,6 +438,8 @@ async function validateRunRequest(raw: unknown, cwd: string): Promise<RunRequest
     palCommand: obj.palCommand ? String(obj.palCommand) : undefined,
     palArgs: Array.isArray(obj.palArgs) ? obj.palArgs.map(String) : undefined,
     minSuccessfulReviewers: Number.isFinite(requestedMin) && requestedMin > 0 ? Math.min(Math.floor(requestedMin), reviewers.length) : Math.min(2, reviewers.length),
+    stackId,
+    stackReason,
   };
 }
 
@@ -483,6 +591,8 @@ function deterministicNormalize(run: RunState, req: RunRequest, artifacts: Revie
     run_id: run.id,
     status: failed.length ? "partial" : "complete",
     plan_file: req.planFile,
+    stack_id: req.stackId,
+    stack_reason: req.stackReason,
     generated_at: new Date().toISOString(),
     recommendation,
     summary: `${artifacts.length - failed.length}/${artifacts.length} reviewers succeeded; ${findings.length} deterministic findings extracted.`,
@@ -625,7 +735,7 @@ async function startRun(req: RunRequest, cwd: string): Promise<RunState> {
   };
   state.runs.set(runId, run);
   state.cancelledRuns.delete(runId);
-  addEvent(run, "run_queued", { runId, artifactDir, planFile: req.planFile });
+  addEvent(run, "run_queued", { runId, artifactDir, planFile: req.planFile, stackId: req.stackId, stackReason: req.stackReason });
   void (async () => {
     const timeoutMs = Number(process.env.PAL_SIDECAR_RUN_TIMEOUT_MS || 10 * 60_000);
     const timeout = setTimeout(() => {
@@ -685,17 +795,18 @@ const html = String.raw`<!doctype html>
 <style>
 :root{--ink:#1c1712;--muted:#73695f;--paper:#f4eadc;--card:#fffaf1;--line:#30241b;--amber:#e9a93a;--teal:#1d8b84;--red:#c94b3d;--green:#477a38;--shadow:8px 8px 0 #1c1712}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 10% 0%,#ffe2a8 0 18rem,transparent 18rem),linear-gradient(135deg,#f7ecd8,#ead8bd);color:var(--ink);font-family:Georgia,'Times New Roman',serif}.wrap{max-width:1180px;margin:0 auto;padding:34px 22px 60px}.hero{display:grid;grid-template-columns:1.1fr .9fr;gap:24px;align-items:stretch}.panel{background:var(--card);border:2px solid var(--line);box-shadow:var(--shadow);border-radius:22px;padding:24px}.kicker{font:700 12px/1.2 ui-monospace,monospace;letter-spacing:.18em;text-transform:uppercase;color:var(--teal)}h1{font-size:clamp(42px,7vw,86px);line-height:.9;margin:12px 0 18px;letter-spacing:-.06em}.lede{font-size:20px;color:var(--muted);line-height:1.45}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}label{display:block;font:700 12px/1.2 ui-monospace,monospace;text-transform:uppercase;margin:10px 0 6px;color:#4c4037}input,textarea,select{width:100%;border:2px solid var(--line);border-radius:14px;background:#fffdfa;padding:12px 13px;font:15px/1.35 ui-monospace,monospace;color:var(--ink)}textarea{min-height:88px;resize:vertical}.reviewer{border:2px dashed #8f7c68;border-radius:18px;padding:14px;background:#fff5e4;margin:12px 0}.btns{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px}button{border:2px solid var(--line);background:var(--amber);border-radius:999px;padding:12px 18px;font:800 13px/1 ui-monospace,monospace;text-transform:uppercase;box-shadow:4px 4px 0 var(--line);cursor:pointer}button.secondary{background:#fffaf1}button:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--line)}.runs{margin-top:28px;display:grid;grid-template-columns:360px 1fr;gap:18px}.run-list{display:flex;flex-direction:column;gap:10px}.run-card{background:#fffaf1;border:2px solid var(--line);border-radius:18px;padding:14px;cursor:pointer}.run-card.active{background:#d9f0e8}.status{display:inline-block;padding:4px 8px;border:1px solid var(--line);border-radius:999px;font:700 11px ui-monospace,monospace;text-transform:uppercase}.status.complete{background:#dceccc}.status.failed{background:#ffd8d2}.status.running{background:#fff0bd}.events{background:#17120e;color:#f8ead6;border-radius:20px;border:2px solid var(--line);padding:18px;min-height:360px;box-shadow:var(--shadow);font:13px/1.45 ui-monospace,monospace;overflow:auto}.event{border-bottom:1px solid #4f4034;padding:10px 0}.event b{color:#ffd27d}.path{color:#90e0d6;word-break:break-all}.small{font:12px/1.4 ui-monospace,monospace;color:var(--muted)}@media(max-width:900px){.hero,.runs{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}</style>
 </head>
-<body><div class="wrap"><section class="hero"><div class="panel"><div class="kicker">PAL MCP × Local SSE</div><h1>Consensus run room</h1><p class="lede">Submit a markdown plan, assign reviewer roles, and watch PAL MCP consult each model while raw artifacts land on disk.</p><p class="small">Default PAL command comes from <code>PAL_MCP_COMMAND</code>/<code>PAL_MCP_ARGS</code> or uvx.</p></div><form id="form" class="panel"><label>Plan file path</label><input id="planFile" placeholder="/tmp/pal-test-plan.md" required /><div id="reviewers"></div><div class="btns"><button type="button" class="secondary" id="addReviewer">Add reviewer</button><button type="submit">Start PAL run</button></div></form></section><section class="runs"><div><h2>Runs</h2><div id="runList" class="run-list"></div></div><div><h2>Event stream</h2><div id="events" class="events">No run selected.</div></div></section></div><script>
-const reviewersEl=document.getElementById('reviewers'), runList=document.getElementById('runList'), eventsEl=document.getElementById('events');
+<body><div class="wrap"><section class="hero"><div class="panel"><div class="kicker">PAL MCP × Local SSE</div><h1>Consensus run room</h1><p class="lede">Submit a markdown plan, assign reviewer roles, and watch PAL MCP consult each model while raw artifacts land on disk.</p><p class="small">Default PAL command comes from <code>PAL_MCP_COMMAND</code>/<code>PAL_MCP_ARGS</code> or uvx.</p></div><form id="form" class="panel"><label>Plan file path</label><input id="planFile" placeholder="/tmp/pal-test-plan.md" required /><label>Reviewer stack</label><select id="stackSelect"></select><p class="small" id="stackDescription"></p><div id="reviewers"></div><div class="btns"><button type="button" class="secondary" id="addReviewer">Add reviewer</button><button type="submit">Start PAL run</button></div></form></section><section class="runs"><div><h2>Runs</h2><div id="runList" class="run-list"></div></div><div><h2>Event stream</h2><div id="events" class="events">No run selected.</div></div></section></div><script>
+const reviewersEl=document.getElementById('reviewers'), runList=document.getElementById('runList'), eventsEl=document.getElementById('events'), stackSelect=document.getElementById('stackSelect'), stackDescription=document.getElementById('stackDescription');
 const CSRF='__CSRF_TOKEN__';
 const CONFIG=__SIDECAR_CONFIG__;
-const defaults=(CONFIG.reviewers||[]).map(r=>[r.id,r.label,r.model,r.prompt,r.stance||'neutral']);
 let reviewerCount=0, selectedRun=null, sources={};
 function addReviewer(d){const i=reviewerCount++; const v=d||['reviewer-'+i,'Reviewer '+(i+1),'flash','Review for correctness and risks.','neutral']; const div=document.createElement('div'); div.className='reviewer'; div.innerHTML='<div class="grid"><div><label>ID</label><input name="id" value="'+v[0]+'"></div><div><label>Label</label><input name="label" value="'+v[1]+'"></div><div><label>PAL model</label><input name="model" value="'+v[2]+'"></div></div><label>Stance</label><select name="stance"><option value="neutral">neutral</option><option value="for">for</option><option value="against">against</option></select><label>Role prompt</label><textarea name="prompt">'+v[3]+'</textarea>'; reviewersEl.appendChild(div); div.querySelector('[name=stance]').value=v[4]||'neutral'}
-defaults.forEach(addReviewer); document.getElementById('addReviewer').onclick=()=>addReviewer();
+function setReviewers(reviewers){reviewersEl.innerHTML=''; reviewerCount=0; (reviewers||[]).map(r=>[r.id,r.label,r.model,r.prompt,r.stance||'neutral']).forEach(addReviewer)}
+function setupStacks(){stackSelect.innerHTML='<option value="custom">Custom form reviewers</option><option value="auto">Auto-select from plan</option>'; Object.values(CONFIG.stacks||{}).forEach(s=>{const o=document.createElement('option'); o.value=s.id; o.textContent=s.label||s.id; stackSelect.appendChild(o)}); stackSelect.value=CONFIG.defaultStack||'standard-modern'; stackSelect.onchange=()=>{const s=(CONFIG.stacks||{})[stackSelect.value]; stackDescription.textContent=stackSelect.value==='auto'?'Sidecar chooses a stack from plan keywords.':(s?(s.description||s.id):'Custom reviewer form'); if(s) setReviewers(s.reviewers)}; stackSelect.onchange()}
+setupStacks(); document.getElementById('addReviewer').onclick=()=>{stackSelect.value='custom'; addReviewer()};
 function collectReviewers(){return [...document.querySelectorAll('.reviewer')].map(r=>({id:r.querySelector('[name=id]').value,label:r.querySelector('[name=label]').value,model:r.querySelector('[name=model]').value,stance:r.querySelector('[name=stance]').value,prompt:r.querySelector('[name=prompt]').value}))}
 function duplicatePair(reviewers){const seen=new Set(); for(const r of reviewers){const key=r.model+':'+(r.stance||'neutral'); if(seen.has(key)) return key; seen.add(key)} return null}
-document.getElementById('form').onsubmit=async e=>{e.preventDefault(); const reviewers=collectReviewers(); const dup=duplicatePair(reviewers); if(dup){alert('PAL requires unique model+stance pairs. Duplicate: '+dup+'\nChange one reviewer model or stance.');return} const body={planFile:document.getElementById('planFile').value,reviewers,minSuccessfulReviewers:CONFIG.minSuccessfulReviewers||Math.min(2,reviewers.length)}; const res=await fetch('/api/runs',{method:'POST',headers:{'content-type':'application/json','x-pal-sidecar-token':CSRF},body:JSON.stringify(body)}); const json=await res.json(); if(!res.ok){alert(json.error||'failed');return} await refreshRuns(); selectRun(json.run.id)};
+document.getElementById('form').onsubmit=async e=>{e.preventDefault(); const reviewers=collectReviewers(); const stackId=stackSelect.value; if(stackId==='custom'){const dup=duplicatePair(reviewers); if(dup){alert('PAL requires unique model+stance pairs. Duplicate: '+dup+'\nChange one reviewer model or stance.');return}} const body={planFile:document.getElementById('planFile').value,stackId,reviewers:stackId==='custom'?reviewers:[],minSuccessfulReviewers:stackId==='custom'?(CONFIG.minSuccessfulReviewers||Math.min(2,reviewers.length)):undefined}; const res=await fetch('/api/runs',{method:'POST',headers:{'content-type':'application/json','x-pal-sidecar-token':CSRF},body:JSON.stringify(body)}); const json=await res.json(); if(!res.ok){alert(json.error||'failed');return} await refreshRuns(); selectRun(json.run.id)};
 async function refreshRuns(){const res=await fetch('/api/runs'); const data=await res.json(); runList.innerHTML=''; data.runs.forEach(run=>{const div=document.createElement('div'); div.className='run-card '+(run.id===selectedRun?'active':''); div.onclick=()=>selectRun(run.id); div.innerHTML='<span class="status '+run.status+'">'+run.status+'</span><h3>'+run.id+'</h3><div class="small path">'+run.artifactDir+'</div>'+(run.status==='running'?'<button onclick="event.stopPropagation();cancelRun(\''+run.id+'\')">Cancel</button>':''); runList.appendChild(div)})}
 async function cancelRun(id){await fetch('/api/runs/'+id+'/cancel',{method:'POST',headers:{'x-pal-sidecar-token':CSRF}}); await refreshRuns()}
 function selectRun(id){selectedRun=id; refreshRuns(); eventsEl.innerHTML=''; if(sources[id]) sources[id].close(); const es=new EventSource('/api/runs/'+id+'/events?token='+encodeURIComponent(CSRF)); sources[id]=es; ['run_queued','run_started','pal_starting','pal_connected','reviewer_started','reviewer_completed','reviewer_failed','synthesis_completed','synthesis_skipped','run_completed','run_failed','run_timeout','run_cancelled'].forEach(t=>es.addEventListener(t,e=>append(t,JSON.parse(e.data))));}
@@ -720,6 +831,14 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     }
     if (req.method === "GET" && url.pathname === "/api/health") return json(res, 200, { ok: true, port: state.port });
     if (req.method === "GET" && url.pathname === "/api/config") return json(res, 200, await loadSidecarConfig(state.cwd));
+    if (req.method === "POST" && url.pathname === "/api/recommend-stack") {
+      requireCsrf(req, url);
+      const body = (await readBody(req)) as Record<string, unknown>;
+      const planFile = await validatePlanFile(String(body.planFile || ""), state.cwd);
+      const config = await loadSidecarConfig(state.cwd);
+      const choice = chooseStack(await readFile(planFile, "utf8"), config);
+      return json(res, 200, { ...choice, stack: config.stacks[choice.stackId] });
+    }
     if (req.method === "GET" && url.pathname === "/api/runs") {
       return json(res, 200, { runs: [...state.runs.values()].map((r) => ({ id: r.id, status: r.status, startedAt: r.startedAt, completedAt: r.completedAt, planFile: r.planFile, artifactDir: r.artifactDir, error: r.error, findingsPath: r.findingsPath })) });
     }

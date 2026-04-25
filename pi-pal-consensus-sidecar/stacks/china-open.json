@@ -1,0 +1,61 @@
+{
+  "reviewers": [
+    {
+      "id": "architecture",
+      "label": "Architecture Reviewer",
+      "model": "deepseek/deepseek-v4-pro",
+      "stance": "neutral",
+      "prompt": "Focus on architecture, boundaries, data flow, maintainability, coupling, and whether the design has a clean separation between core and runtime."
+    },
+    {
+      "id": "implementation",
+      "label": "Implementation Reviewer",
+      "model": "qwen/qwen3-coder",
+      "stance": "neutral",
+      "prompt": "Focus on implementation realism, code-level sequencing, API shape, edge cases, and whether an agent could execute the plan without missing context."
+    },
+    {
+      "id": "qa",
+      "label": "QA / Test Reviewer",
+      "model": "minimax/minimax-m2.7",
+      "stance": "neutral",
+      "prompt": "Focus on tests, acceptance criteria, regression risk, integration coverage, UI/server testability, and the cheapest useful proof of correctness."
+    },
+    {
+      "id": "security",
+      "label": "Security / Privacy Reviewer",
+      "model": "z-ai/glm-5.1",
+      "stance": "neutral",
+      "prompt": "Focus on secrets, local API exposure, raw transcript leakage, prompt injection, provider data controls, authentication, and unsafe defaults."
+    },
+    {
+      "id": "release_ops",
+      "label": "Release / Ops Reviewer",
+      "model": "moonshotai/kimi-k2.6",
+      "stance": "neutral",
+      "prompt": "Focus on rollout, failure modes, logging, observability, rollback, operational simplicity, and how the plan behaves under partial failure."
+    },
+    {
+      "id": "budget",
+      "label": "Budget / Efficiency Reviewer",
+      "model": "deepseek/deepseek-v4-flash",
+      "stance": "neutral",
+      "prompt": "Focus on cost efficiency, token caps, minimizing retries, using cheap models safely, and identifying places where expensive reviewers are unnecessary."
+    },
+    {
+      "id": "long_context",
+      "label": "Long-Context Reviewer",
+      "model": "qwen/qwen3.6-plus",
+      "stance": "neutral",
+      "prompt": "Focus on cross-plan consistency, missed dependencies, long-context assumptions, duplicated responsibilities, and whether the overall workflow fits together."
+    },
+    {
+      "id": "agentic_workflow",
+      "label": "Agentic Workflow Reviewer",
+      "model": "xiaomi/mimo-v2.5-pro",
+      "stance": "neutral",
+      "prompt": "Focus on agentic workflow risk, task decomposition, autonomy boundaries, UI/server event flow, and whether reviewer execution is predictable."
+    }
+  ],
+  "minSuccessfulReviewers": 5
+}

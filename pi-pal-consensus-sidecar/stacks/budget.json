@@ -1,0 +1,61 @@
+{
+  "reviewers": [
+    {
+      "id": "architecture",
+      "label": "Architecture Reviewer",
+      "model": "deepseek/deepseek-v4-pro",
+      "stance": "neutral",
+      "prompt": "Focus on architecture, data flow, integration complexity, maintainability, and whether the plan has enough structure without overengineering."
+    },
+    {
+      "id": "implementation",
+      "label": "Implementation Reviewer",
+      "model": "qwen/qwen3-coder",
+      "stance": "neutral",
+      "prompt": "Focus on implementation realism, missing steps, likely code-level failure modes, tool/API boundaries, and sequencing."
+    },
+    {
+      "id": "qa",
+      "label": "QA / Test Reviewer",
+      "model": "minimax/minimax-m2.7",
+      "stance": "neutral",
+      "prompt": "Focus on test gaps, acceptance criteria, regression risks, integration tests, and observable proof that the plan worked."
+    },
+    {
+      "id": "security",
+      "label": "Security / Privacy Reviewer",
+      "model": "z-ai/glm-5.1",
+      "stance": "neutral",
+      "prompt": "Focus on security, local server exposure, secrets, prompt injection, raw transcript leakage, provider data policy, and unsafe defaults."
+    },
+    {
+      "id": "release_ops",
+      "label": "Release / Ops Reviewer",
+      "model": "deepseek/deepseek-v4-flash",
+      "stance": "neutral",
+      "prompt": "Focus on rollout, observability, failure handling, retries, rollback, logging, and keeping the first milestone operationally boring."
+    },
+    {
+      "id": "contrarian",
+      "label": "Contrarian Reviewer",
+      "model": "moonshotai/kimi-k2.6",
+      "stance": "neutral",
+      "prompt": "Assume the plan is overbuilt. Identify the smallest useful implementation, unnecessary components, hidden assumptions, and likely time sinks."
+    },
+    {
+      "id": "budget",
+      "label": "Budget / Cost Reviewer",
+      "model": "google/gemini-3.1-flash-lite-preview",
+      "stance": "neutral",
+      "prompt": "Focus on minimizing spend, avoiding expensive model calls, limiting retries and output tokens, setting sensible caps, and choosing cheap models for low-risk roles."
+    },
+    {
+      "id": "dx_maintainer",
+      "label": "DX / Maintainer Reviewer",
+      "model": "mistralai/mistral-large-2512",
+      "stance": "neutral",
+      "prompt": "Focus on maintainability, docs, config design, local debugging, CLI ergonomics, and whether future provider integrations will be easy."
+    }
+  ],
+  "minSuccessfulReviewers": 5
+}

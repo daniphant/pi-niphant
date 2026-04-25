@@ -52,6 +52,15 @@ Default reviewer/model configuration lives in:
 pi-pal-consensus-sidecar/pal-sidecar.config.json
 ```
 
+Built-in stack presets live in:
+
+```text
+pi-pal-consensus-sidecar/stacks/frontier-modern.json
+pi-pal-consensus-sidecar/stacks/standard-modern.json
+pi-pal-consensus-sidecar/stacks/china-open.json
+pi-pal-consensus-sidecar/stacks/budget.json
+```
+
 Project overrides can be committed per repo as either:
 
 ```text
@@ -92,9 +101,36 @@ Later files override earlier files. The common shape is:
       "prompt": "Focus on token budget, OpenRouter cost risk, and ways to cap spend."
     }
   ],
-  "minSuccessfulReviewers": 2
+  "minSuccessfulReviewers": 2,
+  "defaultStack": "standard-modern",
+  "autoStack": true
 }
 ```
+
+You can also override or add stack presets in project config:
+
+```json
+{
+  "defaultStack": "budget",
+  "stacks": {
+    "my-project-stack": {
+      "label": "My Project Stack",
+      "description": "Project-specific reviewer lineup",
+      "reviewers": [],
+      "minSuccessfulReviewers": 2
+    }
+  }
+}
+```
+
+The dashboard offers a stack selector:
+
+- `auto` chooses a built-in stack from plan keywords.
+- `frontier-modern` for high-stakes/security/production/migration plans.
+- `standard-modern` for balanced technical review.
+- `china-open` for open/china model ecosystem or provider-diversity review.
+- `budget` for cost/MVP/prototype/smallest-scope review.
+- `custom` uses the editable reviewer form.
 
 PAL requires each reviewer to have a unique `model:stance` pair. If you want the same model twice, give the reviewers different stances such as `neutral` and `against`.
 

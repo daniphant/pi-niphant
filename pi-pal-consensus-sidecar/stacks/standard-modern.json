@@ -1,0 +1,82 @@
+{
+  "reviewers": [
+    {
+      "id": "technical_chair",
+      "label": "Technical Chair / Generalist Reviewer",
+      "model": "openai/gpt-5.5",
+      "stance": "neutral",
+      "prompt": "Review the whole plan as a senior technical chair. Focus on the highest-leverage risks across product value, architecture, implementation realism, sequencing, missing assumptions, and whether any single issue should block execution. Do not duplicate minor findings from specialist reviewers unless they change the final verdict."
+    },
+    {
+      "id": "ceo_product",
+      "label": "CEO / Product Reviewer",
+      "model": "anthropic/claude-sonnet-4.6",
+      "stance": "neutral",
+      "prompt": "Focus on whether the plan is worth doing, whether the scope is right, sequencing risk, user value, and opportunity cost. Be direct about overbuilding or unclear outcomes."
+    },
+    {
+      "id": "architecture",
+      "label": "Architecture Reviewer",
+      "model": "google/gemini-3.1-pro-preview",
+      "stance": "neutral",
+      "prompt": "Focus on architecture, boundaries, data flow, maintainability, integration complexity, coupling, reversibility, and whether the design will age well."
+    },
+    {
+      "id": "implementation",
+      "label": "Implementation Reviewer",
+      "model": "openai/gpt-5.4",
+      "stance": "neutral",
+      "prompt": "Focus on implementation realism, code-level sequencing, likely bugs, developer workflow, API shape, integration boundaries, and whether the plan is executable without improvisation. Prefer current unified GPT/Codex-era engineering judgment over older Codex-only assumptions."
+    },
+    {
+      "id": "security",
+      "label": "Security / Privacy Reviewer",
+      "model": "anthropic/claude-opus-4.7",
+      "stance": "neutral",
+      "prompt": "Focus on security, privacy, secrets, authentication, prompt injection, local API exposure, unsafe defaults, data retention, and abuse cases."
+    },
+    {
+      "id": "qa",
+      "label": "QA / Test Reviewer",
+      "model": "qwen/qwen3-coder",
+      "stance": "neutral",
+      "prompt": "Focus on test gaps, regression coverage, acceptance criteria, integration tests, failure cases, and what must be verified before the plan is considered shippable."
+    },
+    {
+      "id": "release_ops",
+      "label": "Release / Ops Reviewer",
+      "model": "z-ai/glm-5.1",
+      "stance": "neutral",
+      "prompt": "Focus on rollout, observability, logging, migration safety, rollback, feature flags, operational failure modes, and how to recover if the implementation goes wrong."
+    },
+    {
+      "id": "budget",
+      "label": "Budget / Provider Reviewer",
+      "model": "deepseek/deepseek-v4-flash",
+      "stance": "neutral",
+      "prompt": "Focus on token usage, OpenRouter spend, cost caps, retry waste, model selection, provider routing, and whether cheaper models can safely handle parts of the workflow."
+    },
+    {
+      "id": "contrarian",
+      "label": "Contrarian Reviewer",
+      "model": "x-ai/grok-4.20",
+      "stance": "neutral",
+      "prompt": "Assume the plan is subtly wrong, overcomplicated, or pointed at the wrong problem. Find hidden assumptions, unnecessary work, and the simpler safer path."
+    },
+    {
+      "id": "simplifier",
+      "label": "Simplifier Reviewer",
+      "model": "moonshotai/kimi-k2.6",
+      "stance": "neutral",
+      "prompt": "Focus on simplifying the plan, reducing coordination cost, finding a smaller first milestone, and identifying abstractions that should be postponed."
+    },
+    {
+      "id": "dx_maintainer",
+      "label": "DX / Maintainer Reviewer",
+      "model": "minimax/minimax-m2.7",
+      "stance": "neutral",
+      "prompt": "Focus on maintainability, local development ergonomics, configuration, documentation, contributor experience, debugging, and future extension points."
+    }
+  ],
+  "minSuccessfulReviewers": 8
+}
