@@ -1,36 +1,44 @@
 ---
 name: research-plan-implement
-description: Compatibility overview for Pi's staged workflow. Use when the user asks about the full research-plan-implement workflow. For starting a new workflow from a raw request, prefer workflow-start so it can choose a concise slug and route through /workflow --name.
+description: Compatibility overview for Pi's staged workflow. For a new raw request, prefer workflow-start or /workflow <request>; both converge on agent slug selection and explicit /workflow --name creation.
 ---
 
-# Research → Spec → Implementation Plan → Implement
+# Research → Spec/Plan as Needed → Execute
 
-This is the umbrella overview. For a brand-new raw request, prefer `workflow-start` first; it chooses a concise slug and routes through `/workflow --name <slug> -- <request>` so paths/worktrees stay short.
+This is the umbrella overview. For a brand-new raw request, prefer `workflow-start` or `/workflow <request>`. Both converge on the same front door: the assistant chooses a concise slug and then routes through `/workflow --name <slug> -- <request>` so paths/worktrees stay short and safe.
 
 The workflow is split into focused files, following the Multiverse-style separation of readable artifacts from execution state:
 
-- `workflow.research.md` — research, discussion, code/context discovery.
-- `workflow.spec.md` — focused spec; browser review and consensus feedback live here.
-- `workflow.plan.md` — focused implementation plan/task graph; browser review and consensus feedback live here.
-- `workflow.toml` — execution/task state only, initialized from the final plan and updated during implementation.
+- `workflow.research.md` — research, discussion, code/context discovery, and the route decision.
+- `workflow.spec.md` — focused spec when the route requires one; browser review and any consensus feedback live here.
+- `workflow.plan.md` — focused implementation plan/task graph when the route requires one; browser review and any consensus feedback live here.
+- `workflow.toml` — execution/task state only, initialized from the final plan and updated during execution.
 
 Prefer the stage-specific skills:
 
-1. `workflow-brainstorm` — updates `workflow.research.md`.
-2. `workflow-spec` — writes/finalizes `workflow.spec.md`, then automatically runs multi-model consensus before browser annotation/user review on the spec file only.
-3. `workflow-plan` — writes/finalizes `workflow.plan.md`, dependency graph, parallel groups, blockers, validation plan; then automatically runs multi-model consensus before browser annotation/user review on the plan file only; finally initializes `workflow.toml` task state.
-4. `workflow-implement` — implements from `workflow.plan.md`, updates `workflow.toml` task state, and runs diagnostics/tests/E2E.
+1. `workflow-brainstorm` — updates `workflow.research.md`, classifies complexity, records the route decision, and stops with a handoff.
+2. `workflow-spec` — writes/finalizes `workflow.spec.md` only when the route requires spec or the user explicitly overrides; consensus is prompted, browser review is mandatory.
+3. `workflow-plan` — writes/finalizes `workflow.plan.md` from spec or sufficient skipped-spec research; consensus is prompted, browser review is mandatory, then `workflow.toml` task state is initialized.
+4. `workflow-implement` — execution skill used by `/workflow-execute`; implements from `workflow.plan.md` + `workflow.toml` or from explicitly trivial research-only markers.
+
+Complexity routes:
+
+- trivial: research → execute directly; no consensus/browser review/task tracking unless requested.
+- small: research → plan → execute; consensus available on request, browser review after plan required.
+- moderate: research → plan → execute; consensus prompted after plan, browser review after plan required.
+- large: research → spec → plan → execute; consensus prompted after spec and plan, browser review after both required.
 
 Workflow bundles live user-locally under `~/.pi/agent/workflows/<project>/...` and should not be committed to project git. It is expected and encouraged to run `/clear` between stages.
 
 Commands:
 
 ```text
-/workflow --name <slug> -- <description> # create workflow with AI/chosen concise slug and start brainstorm
-/workflow <description>                  # fallback form; script derives a deterministic slug
+/workflow <description>                  # front door; assistant chooses slug
+/workflow --name <slug> -- <description> # terminal bundle creation with validated slug
 /workflow-spec [workflow-dir|workflow.toml]
 /workflow-plan [workflow-dir|workflow.toml]
-/workflow-implement [workflow-dir|workflow.toml]
+/workflow-execute [workflow-dir|workflow.toml|workflow.plan.md|workflow.research.md]
+/workflow-implement [same args as workflow-execute] # deprecated alias
 /workflow-review [workflow.plan.md|workflow.spec.md|workflow-dir]
 /workflow-latest
 ```

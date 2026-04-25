@@ -6,6 +6,9 @@
   "private": false,
   "license": "MIT",
   "keywords": ["pi", "pi-package", "extension", "workflow", "plan-mode"],
+  "scripts": {
+    "check": "node scripts/smoke-check.mjs"
+  },
   "pi": {
     "extensions": ["."],
     "skills": [

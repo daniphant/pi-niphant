@@ -1,15 +1,15 @@
 ---
 name: workflow-start
-description: Start a durable Pi workflow when the user asks to use workflow, start workflow, plan with workflow, or run the research/spec/plan/implement process for a new request. Choose a concise slug and route through /workflow --name <slug> -- <request> before any research or implementation.
+description: Front door for starting a durable Pi workflow from a raw request. Choose a concise slug and route through /workflow --name <slug> -- <request>; this is the same agent-led path used by /workflow <request>.
 ---
 
 # Workflow Start
 
-Use this as the discovery/front-door skill when the user asks to start or use the workflow system for a new task.
+Use this as the discovery/front-door skill when the user asks to start or use the workflow system for a new task. `/workflow <request>` also routes here so the assistant, not the user, chooses the concise workflow name.
 
 ## Goal
 
-Ensure new workflows are created through the `/workflow` command with a concise AI-chosen name, so generated paths, worktrees, branches, and follow-up commands stay short.
+Ensure new workflows are created through the explicit `/workflow --name <slug> -- <request>` command with a concise AI-chosen name, so generated paths, worktrees, branches, and follow-up commands stay short and safe.
 
 ## Trigger phrases
 
@@ -19,7 +19,7 @@ Use this skill when the user says things like:
 - "start a workflow ..."
 - "let's run this through workflow"
 - "plan this with the workflow"
-- "start research/spec/plan/implement for ..."
+- "start research/spec/plan/execute for ..."
 - "we should use the staged workflow"
 
 ## Required behavior
@@ -31,7 +31,8 @@ Use this skill when the user says things like:
    - Max 32 characters.
    - Prefer concrete nouns/verbs from the request.
    - Avoid generic prefixes like `plan`, `workflow`, `task`, or `feature`.
-3. Start via the command form:
+   - Never include whitespace, path separators, shell metacharacters, or `..`.
+3. Start via the explicit command form:
 
 ```text
 /workflow --name <slug> -- <full request>
@@ -40,7 +41,8 @@ Use this skill when the user says things like:
 ## Important
 
 - Do not start Stage 1 manually by writing workflow artifacts yourself.
-- Do not skip the `/workflow` command; it performs niphant preflight, creates/resumes worktrees when enabled, and creates the workflow bundle.
+- Do not call unnamed `/workflow` from this skill. The command handler uses unnamed `/workflow <request>` only to reach this front door; the generated follow-up must be explicit `--name` to avoid recursion.
+- Do not skip the `/workflow` command; it performs niphant preflight, creates/resumes worktrees when enabled, validates slugs, and creates the workflow bundle.
 - If you cannot execute slash commands directly in the current interface, reply with exactly the command the user should run, with no extra prose.
 
 ## Examples

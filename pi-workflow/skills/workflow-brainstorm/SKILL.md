@@ -1,6 +1,6 @@
 ---
 name: workflow-brainstorm
-description: Stage 1 after /workflow has created a split workflow bundle. Interview, brainstorm, research, challenge assumptions, and update workflow.research.md. For raw requests like "use workflow" or "start workflow", use workflow-start first so it can choose a concise slug and call /workflow --name. Do not write implementation code.
+description: Stage 1 after /workflow has created a split workflow bundle. Interview, brainstorm, research, challenge assumptions, and update workflow.research.md. Refuse bundle-less manual use. Do not write implementation code.
 ---
 
 # Workflow Brainstorm / Research
@@ -16,9 +16,18 @@ The bundle uses focused files:
 
 Workflow files should not be committed to project git.
 
+## Bundle requirement
+
+Refuse to run if the prompt does not include concrete workflow file paths and no provided path resolves to a workflow directory or `workflow.toml`. Stage 1 requires a workflow bundle so `/clear` continuation has durable paths. On refusal:
+
+- explain that bundle-less brainstorm cannot safely continue through the workflow stages;
+- tell the user to start with `/workflow <request>`;
+- do not perform ad-hoc research;
+- do not write project code or workflow artifacts.
+
 ## Goal
 
-Reach shared understanding before producing a spec.
+Reach shared understanding, classify complexity, and record the next route before any spec, plan, or implementation work.
 
 ## Rules
 
@@ -29,10 +38,11 @@ Reach shared understanding before producing a spec.
 - Do exploration yourself in the main context. Do not delegate ordinary code exploration.
 - Ask questions aggressively, but do not ask what you can answer by reading code.
 - Do not copy all research into `workflow.spec.md` or `workflow.plan.md`.
+- Do not automatically invoke spec, plan, execute, or implementation. Stop with a handoff.
 
 ## Process
 
-1. Read `workflow.research.md`.
+1. Read `workflow.research.md` and verify workflow bundle paths.
 2. Understand the user's motivation:
    - why this matters
    - what pain exists today
@@ -60,6 +70,54 @@ Reach shared understanding before producing a spec.
    - alternatives considered
    - reference implementations with paths
    - risks/unknowns
+   - the complete `## Complexity / Route Recommendation` section.
+
+## Complexity classification
+
+Use these tiers:
+
+- **trivial**: localized obvious change, usually one file, no public API/UX/data/security behavior, validation is obvious, and the user explicitly accepts skipping workflow tracking.
+- **small**: low-risk known pattern, limited files, no unresolved product semantics, but still benefits from a plan and browser review.
+- **moderate**: multiple files or behavior semantics, meaningful tradeoffs, requires a plan and optional consensus prompt after plan.
+- **large**: architecture, cross-package behavior, migrations, auth/security/privacy, public API changes, ambiguous product requirements, or high rollback risk; requires spec and plan.
+
+## Route Decision Contract
+
+`workflow.research.md` must contain a stable section named exactly:
+
+```markdown
+## Complexity / Route Recommendation
+```
+
+Populate these labels exactly:
+
+```markdown
+- Complexity: trivial | small | moderate | large
+- Recommended route: <human-readable route>
+- Spec: required | skipped - <rationale>
+- Plan: required | skipped - <rationale>
+- Consensus: none | available_on_request | prompt_after_plan | prompt_after_spec_and_plan
+- Browser review: skipped_for_trivial | required_after_plan | required_after_spec_and_plan
+- Execution source: research | plan
+- Trivial execution approved: true | false
+- Workflow task tracking: enabled | skipped_for_trivial
+- Next command after /clear: /workflow-...
+```
+
+Rules:
+
+- Non-trivial workflows must set `Execution source: plan` and `Workflow task tracking: enabled`.
+- Trivial workflows may set `Execution source: research` only when all trivial skip markers are explicit.
+- `/workflow-execute` must refuse research-only execution unless the research file includes:
+  - `Complexity: trivial`
+  - `Spec: skipped`
+  - `Plan: skipped`
+  - `Consensus: none`
+  - `Browser review: skipped_for_trivial`
+  - `Execution source: research`
+  - `Trivial execution approved: true`
+  - `Workflow task tracking: skipped_for_trivial`
+- If any marker is absent or incompatible, execution must list missing markers and suggest `/workflow-plan <workflow>`.
 
 ## Naming
 
@@ -70,13 +128,18 @@ When you are responsible for initiating a workflow from a raw user request, choo
 - Avoid generic prefixes like `plan`, `workflow`, `task`, or `feature`.
 - Pass it down as `/workflow --name <slug> -- <full user request>` when invoking the workflow command.
 
-## Exit
+## Exit / Handoff
 
-When research is complete, tell the user:
+When research is complete, stop and ask the user to choose the next step. Use natural prose and put only actual commands in code blocks. Do not wrap the whole handoff in one code block.
 
-```text
-Research is complete. Run /clear if you want a clean context, then run:
-/workflow-spec <workflow-directory-or-workflow.toml>
-```
+Include both:
 
-Do not proceed to spec unless the user asks you to continue.
+- an immediate continuation option, such as “reply `continue`”; and
+- a `/clear` resume option with the exact next command.
+
+Route-specific handoff guidance:
+
+- **trivial**: warn exactly, “This skips spec, plan, consensus, browser review, and workflow task tracking.” Offer direct execution only if all trivial markers are recorded and the user confirms. `/clear` command should be `/workflow-execute <workflow.research.md>`.
+- **small**: explain spec and default consensus are skipped, plan is next, and browser review after plan is mandatory. `/clear` command should be `/workflow-plan <workflow-directory-or-workflow.toml>`.
+- **moderate**: explain plan is next, consensus will be prompted after plan, and browser review after plan is mandatory. `/clear` command should be `/workflow-plan <workflow-directory-or-workflow.toml>`.
+- **large**: explain spec is next, consensus is prompted after spec and plan, and browser review is mandatory after both. `/clear` command should be `/workflow-spec <workflow-directory-or-workflow.toml>`.

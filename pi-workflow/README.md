@@ -1,26 +1,32 @@
 # pi-workflow
 
-A durable Research → Spec → Implementation Plan → Implement workflow for [Pi](https://github.com/mariozechner/pi-coding-agent).
+A durable Research → Spec/Plan as needed → Execute workflow for [Pi](https://github.com/mariozechner/pi-coding-agent).
 
-`pi-workflow` turns vague feature requests into a staged, reviewable, `/clear`-friendly development process inspired by Codex CLI compaction, Multiverse plan review, Superpowers-style staged skills, GStack rigor, and Matt Pocock's `grill-me` questioning style.
+`pi-workflow` turns vague feature requests into a staged, reviewable, `/clear`-friendly development process. The front door is agent-led: you can start with `/workflow <request>`, the assistant chooses a concise slug, and the extension creates a user-local workflow bundle only from the explicit slugged command it generates.
 
 ## Features
 
-- `/workflow [--name concise-slug --] <request>` creates a user-local workflow bundle with a short plan slug
-- when launched with `ni`/`NIPHANT=1`, `/workflow` first creates or resumes a niphant git worktree and prints an explicit `cd <worktree> && ni` handoff
-- discovery/front-door skill:
-  - `workflow-start`
+- `/workflow <request>` routes through agent slug selection instead of asking you to name the workflow yourself
+- `/workflow --name <slug> -- <request>` is the terminal bundle-creation command used by the agent-selected front door
+- strict slug validation: lowercase ASCII letters, digits, and hyphens; max 32 characters; no whitespace, path separators, shell metacharacters, or `..`
+- when launched with `ni`/`NIPHANT=1`, explicit slugged workflow creation first creates or resumes a niphant git worktree and prints a `cd <worktree> && ni` handoff
+- discovery/front-door skill: `workflow-start`
 - stage-specific skills:
   - `workflow-brainstorm`
   - `workflow-spec`
   - `workflow-plan`
-  - `workflow-implement`
-- browser annotation review UI for specs/plans
-- automatic PAL sidecar consensus-review before user/browser review for spec and implementation-plan stages
+  - `workflow-implement` (thin legacy alias semantics for execution)
+- preferred execution command: `/workflow-execute`
+- complexity-based routing from Stage 1:
+  - trivial: research → execute directly
+  - small: research → plan → execute
+  - moderate: research → plan → execute, with consensus prompted after plan
+  - large: research → spec → plan → execute, with consensus prompted after spec and plan
+- browser annotation review UI for every produced spec and plan
+- optional/prompted PAL sidecar consensus-review for spec and implementation-plan stages
 - split research/spec/plan Markdown artifacts that survive `/clear`
 - TOML execution state for task progress, dependencies, timestamps, errors, and commits
 - task graph with dependencies, blockers, validation, rollback, and parallel-safe groups
-- implementation guidance that avoids giant pre-coded snippets
 
 ## Niphant worktree mode
 
@@ -30,10 +36,10 @@ When Pi is launched through the `ni` launcher, these environment markers are set
 - `NIPHANT_HOME` (default `~/.niphant`)
 - `NIPHANT_PROJECT_ROOT` (the git root where `ni` was started)
 
-In this mode `/workflow <task>` does **not** immediately start Stage 1 from the old checkout. It:
+In this mode explicit `/workflow --name <slug> -- <task>` creation:
 
 1. identifies the current project from git root/origin,
-2. matches an existing active workspace by deterministic project/task slug,
+2. matches an existing active workspace by project/task slug,
 3. otherwise creates a git worktree under `~/.niphant/worktrees/<project>/<task>`,
 4. records inspectable JSON metadata under `~/.niphant/state/workspaces`,
 5. runs `.niphant/setup.sh` or `.superset/setup.sh` when present unless `NIPHANT_SETUP_MODE=skip`, and
@@ -44,11 +50,11 @@ Pi cwd switching is deliberately explicit in V1; see `docs/niphant-handoff.md`. 
 Additional commands:
 
 ```text
-/niphant-list       # list active/recent niphant workspaces
-/niphant-status     # show current workspace metadata
-/niphant-status locks # clear stale niphant locks
-/niphant-terminal   # print cd/ni commands for another terminal
-/niphant-done       # archive metadata; does not delete branches/worktrees
+/niphant-list
+/niphant-status
+/niphant-status locks
+/niphant-terminal
+/niphant-done
 ```
 
 ## Storage model
@@ -58,9 +64,9 @@ Workflow bundles intentionally live outside the project repository:
 ```txt
 ~/.pi/agent/workflows/<short-project-slug>/<timestamp>-<concise-plan-slug>/
 ├── workflow.md            # tiny index / source request
-├── workflow.research.md   # research notes
-├── workflow.spec.md       # focused spec for review
-├── workflow.plan.md       # focused implementation plan for review
+├── workflow.research.md   # research notes and route decision
+├── workflow.spec.md       # focused spec when route requires it
+├── workflow.plan.md       # implementation plan when route requires it
 └── workflow.toml          # execution/task state only
 ```
 
@@ -69,60 +75,67 @@ They are user-local planning artifacts and should not be committed.
 ## Commands
 
 ```text
-/workflow <description>        # create workflow bundle and start Stage 1 research
-/workflow --name <slug> -- <description> # same, with an AI/chosen concise slug
+/workflow <description>        # ask the assistant to choose a slug, then create/start the workflow
+/workflow --name <slug> -- <description> # create/resume workflow with an explicit validated slug
 /workflow-latest               # show latest workflow bundle for this project
-/workflow-spec [workflow-dir|workflow.toml]   # Stage 2 spec with review/consensus
-/workflow-plan [workflow-dir|workflow.toml]   # Stage 3 plan with review/consensus and task-state init
+/workflow-spec [workflow-dir|workflow.toml]   # Stage 2 spec when route requires it or user overrides
+/workflow-plan [workflow-dir|workflow.toml]   # Stage 3 plan from spec or sufficient skipped-spec research
 /workflow-review [workflow.plan.md|workflow.spec.md|workflow-dir] # browser annotation review UI
-/workflow-implement [workflow-dir|workflow.toml] # Stage 4 implementation from finalized plan/state
-/niphant-list                 # niphant workspace list
-/niphant-status               # current niphant workspace status
-/niphant-terminal             # print terminal commands for current workspace
-/niphant-done                 # archive current niphant workspace metadata
+/workflow-execute [workflow-dir|workflow.toml|workflow.plan.md|workflow.research.md] # preferred Stage 4 execution
+/workflow-implement [same args as workflow-execute] # deprecated thin alias for workflow-execute semantics
+/niphant-list
+/niphant-status
+/niphant-terminal
+/niphant-done
 ```
 
 ## The workflow
 
 ### Stage 1 — Research / Brainstorm
 
-The assistant inspects the code directly when possible, then interviews you one question at a time when product/design decisions remain.
+The assistant inspects the code directly when possible, then interviews you when product/design decisions remain. Manual brainstorm without a workflow bundle refuses and tells you to start with `/workflow <request>` so continuation stays `/clear` safe.
 
-Rules include:
+Stage 1 records this stable route section in `workflow.research.md`:
 
-- ask one question at a time
-- include a recommended answer
-- explain consequences of alternatives
-- resolve/defer/reject decision branches explicitly
-- do not implement code
+```markdown
+## Complexity / Route Recommendation
+
+- Complexity: trivial | small | moderate | large
+- Recommended route: <human-readable route>
+- Spec: required | skipped - <rationale>
+- Plan: required | skipped - <rationale>
+- Consensus: none | available_on_request | prompt_after_plan | prompt_after_spec_and_plan
+- Browser review: skipped_for_trivial | required_after_plan | required_after_spec_and_plan
+- Execution source: research | plan
+- Trivial execution approved: true | false
+- Workflow task tracking: enabled | skipped_for_trivial
+- Next command after /clear: /workflow-...
+```
+
+Stage 1 stops with natural-prose next steps. It includes both an immediate “continue” option and a `/clear` resume command.
 
 ### Stage 2 — Spec
 
-The assistant writes a product/engineering spec with scope posture:
-
-- Reduce Scope
-- Hold Scope
-- Selective Expansion
-- Expansion
-
-The spec stage should run PAL sidecar multi-model consensus first, record the run id, artifact directory, findings path, recommendation, warnings, and failed reviewers in `## Consensus Feedback`, apply required changes, and then ask for browser/user annotation review before the spec is considered finalized.
+The assistant writes a product/engineering spec only when the route requires it, or when you explicitly override a skipped-spec route. Consensus is prompted where recommended; it is not run without confirmation. Browser annotation review is mandatory for every produced spec and its result is recorded in `workflow.spec.md`.
 
 ### Stage 3 — Implementation Plan
 
-The assistant creates a task graph an implementer can follow without guessing:
+The assistant creates a task graph an implementer can follow without guessing. Planning can use either a finalized spec or sufficient Stage 1 research when the route intentionally skipped spec. Consensus is prompted where recommended; browser annotation review is mandatory for every produced plan. After final review, `workflow.toml` is populated with task state only.
 
-- exact file paths and ownership
-- dependencies and blockers
-- parallel-safe groups
-- validation commands
-- rollback plan
-- risks and assumptions
+### Stage 4 — Execute
 
-The plan should guide implementation, not dump huge code blocks. Before browser/user annotation review, the plan stage should run PAL sidecar consensus and record the run id, artifact directory, findings path, recommendation, warnings, failed reviewers, and required revisions in `## Consensus Feedback`.
+Use `/workflow-execute`. Planned workflows use `workflow.plan.md` as the authoritative instructions and `workflow.toml` as task state. Execution does not depend on `workflow.spec.md`.
 
-### Stage 4 — Implement
+Trivial research-only execution is allowed only when the research route explicitly records all skip markers, including `Trivial execution approved: true` and `Workflow task tracking: skipped_for_trivial`. Otherwise execution refuses and suggests `/workflow-plan <workflow>`.
 
-The assistant reads `workflow.toml` for execution state, follows `workflow.plan.md` task instructions, implements task-by-task, updates TOML task statuses/timestamps/results, runs diagnostics/tests, and uses browser/E2E validation when relevant.
+## Validation
+
+```bash
+npm install
+npm run check --workspace pi-workflow --if-present
+```
+
+The package check runs a lightweight smoke validation for command routing, route schema, prompted consensus wording, mandatory browser review wording, execution markers, and stale instruction coverage.
 
 ## Install
 
@@ -145,13 +158,6 @@ Then run `/reload` inside Pi.
 - `pi-web-e2e-agent` for browser annotation/E2E artifacts
 - `pi-diagnostics` for verification and systematic debugging
 - `pi-checkpoint` for local WIP auto-commit recovery points
-
-## Development
-
-```bash
-npm install
-npm run check
-```
 
 ## License
 

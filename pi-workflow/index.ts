@@ -9,6 +9,7 @@ import { homedir } from "node:os";
 import { createHash } from "node:crypto";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const pendingSlugSelectionByCwd = new Map<string, string>();
 
 function slugify(input: string, max = 32) {
   const slug = input
@@ -22,19 +23,24 @@ function slugify(input: string, max = 32) {
   return slug || "workflow";
 }
 
-function fallbackPlanName(request: string) {
-  const stop = new Set(["a", "an", "and", "are", "as", "be", "because", "for", "from", "have", "how", "i", "in", "into", "is", "it", "of", "on", "or", "our", "that", "the", "their", "this", "to", "we", "with", "would"]);
-  const words = request
-    .toLowerCase()
-    .match(/[a-z0-9]+/g)?.filter((word) => word.length > 1 && !stop.has(word)) ?? [];
-  return slugify(words.slice(0, 4).join("-") || request, 32);
+function validateSlug(input: string) {
+  const trimmed = input.trim();
+  const sanitized = slugify(trimmed, 32);
+  const valid = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/.test(sanitized)
+    && sanitized.length <= 32
+    && !trimmed.includes("..")
+    && !/[\\/\s;&|`$<>]/.test(trimmed);
+  return { slug: sanitized, valid };
 }
 
 function parseWorkflowArgs(args: string) {
   const trimmed = args.trim();
   const named = trimmed.match(/^--name(?:=|\s+)([^\s]+)\s+--\s+([\s\S]+)$/);
-  if (named) return { request: named[2].trim(), planName: slugify(named[1], 32), explicitName: true };
-  return { request: trimmed, planName: fallbackPlanName(trimmed), explicitName: false };
+  if (named) {
+    const validated = validateSlug(named[1]);
+    return { request: named[2].trim(), planName: validated.slug, explicitName: true, slugWasValid: validated.valid, rawName: named[1] };
+  }
+  return { request: trimmed, planName: "", explicitName: false, slugWasValid: false, rawName: "" };
 }
 
 function timestampId() {
@@ -117,9 +123,13 @@ function workflowSummary(paths: WorkflowPaths) {
 }
 
 function createWorkflow(cwd: string, request: string, planName: string) {
-  const id = `${timestampId()}-${slugify(planName, 32)}`;
-  const dir = join(workflowsDir(cwd), id);
-  mkdirSync(dir, { recursive: true });
+  const root = workflowsDir(cwd);
+  mkdirSync(root, { recursive: true });
+  const base = `${timestampId()}-${slugify(planName, 32)}`;
+  let id = base;
+  for (let i = 2; existsSync(join(root, id)); i++) id = `${base}-${i}`;
+  const dir = join(root, id);
+  mkdirSync(dir, { recursive: false });
   const title = planName.split("-").join(" ") || id;
   const replacements = {
     id,
@@ -164,15 +174,42 @@ function resolveWorkflowArg(cwd: string, arg: string): WorkflowPaths | null {
   return existsSync(paths.state) ? paths : null;
 }
 
+function sendSlugSelection(pi: ExtensionAPI, cwd: string, request: string) {
+  pendingSlugSelectionByCwd.set(cwd, request);
+  pi.sendUserMessage(`/skill:workflow-start\n\nStart a durable workflow for this request. Choose a concise lowercase kebab-case slug (2-4 words, max 32 chars) and invoke the explicit terminal command form only:\n\n/workflow --name <slug> -- ${request}\n\nDo not call unnamed /workflow again. If you cannot execute slash commands directly, reply with exactly the explicit /workflow --name command.\n\nRequest:\n${request}`);
+}
+
+function executionPrompt(commandName: "workflow-execute" | "workflow-implement", workflow: WorkflowPaths) {
+  const aliasNote = commandName === "workflow-implement"
+    ? "This legacy command is a thin alias for /workflow-execute; use the same execution semantics."
+    : "Use the preferred /workflow-execute semantics.";
+  return `/skill:workflow-implement\n\n${aliasNote}\n\nBegin Stage 4 Execution from this workflow reference:\n${workflowSummary(workflow)}\n\nFor planned workflows, read workflow.toml first for execution/task state and use workflow.plan.md as the authoritative implementation instructions. Do not depend on workflow.spec.md. Verify the plan records required browser review before executing.\n\nFor explicitly trivial research-only workflows, execute from workflow.research.md only if every required marker is present: Complexity: trivial; Spec: skipped; Plan: skipped; Consensus: none; Browser review: skipped_for_trivial; Execution source: research; Trivial execution approved: true; Workflow task tracking: skipped_for_trivial. If any marker is missing or incompatible, refuse with a missing-marker list and suggest /workflow-plan <workflow>.\n\nImplement task-by-task when task tracking is enabled, update workflow.toml statuses/timestamps/results, run diagnostics/tests, use browser/E2E validation when relevant, and summarize final results.`;
+}
+
 export default function workflowExtension(pi: ExtensionAPI) {
   pi.registerCommand("workflow", {
-    description: "Create a durable research/spec/implementation workflow and start planning",
+    description: "Start a durable agent-led workflow; unnamed requests route through agent slug selection",
     handler: async (args, ctx) => {
-      const { request, planName, explicitName } = parseWorkflowArgs(args);
+      const { request, planName, explicitName, slugWasValid, rawName } = parseWorkflowArgs(args);
       if (!request) {
-        ctx.ui.notify("Usage: /workflow [--name concise-slug --] <description>", "warning");
+        ctx.ui.notify("Usage: /workflow <description> or /workflow --name concise-slug -- <description>", "warning");
         return;
       }
+
+      if (!explicitName) {
+        if (pendingSlugSelectionByCwd.has(ctx.cwd)) {
+          ctx.ui.notify("Refusing repeated unnamed /workflow while slug selection is pending. The generated follow-up must use: /workflow --name <slug> -- <description>", "warning");
+          return;
+        }
+        sendSlugSelection(pi, ctx.cwd, request);
+        return;
+      }
+
+      pendingSlugSelectionByCwd.delete(ctx.cwd);
+      if (!slugWasValid) {
+        ctx.ui.notify(`Slug '${rawName}' was sanitized to '${planName}'. Use lowercase letters, digits, and hyphens only; max 32 chars; no whitespace, path separators, shell metacharacters, or '..'.`, "warning");
+      }
+
       const preflight = workflowPreflight(ctx.cwd, request, process.env, planName);
       if (preflight.mode === "blocked") {
         ctx.ui.notify(preflight.message, "warning");
@@ -185,10 +222,7 @@ export default function workflowExtension(pi: ExtensionAPI) {
 
       const workflow = createWorkflow(ctx.cwd, request, planName);
       ctx.ui.notify(`Created user-local workflow (${planName}): ${workflow.dir}`, "info");
-      const namingNote = explicitName
-        ? `The concise workflow slug was provided by the caller: ${planName}.`
-        : `No AI-provided workflow slug was supplied, so the script used a deterministic fallback: ${planName}. If you need a better concise slug next time, start with /workflow --name <2-4-word-slug> -- <request>.`;
-      pi.sendUserMessage(`/skill:workflow-brainstorm\n\nStart Stage 1 Research for this request. Use and continuously update this workflow bundle:\n${workflowSummary(workflow)}\n\n${namingNote}\n\nRequest:\n${request}\n\nInterview me aggressively when needed, but first inspect code directly for anything you can answer yourself. Do not implement code yet.`);
+      pi.sendUserMessage(`/skill:workflow-brainstorm\n\nStart Stage 1 Research for this request. Use and continuously update this workflow bundle:\n${workflowSummary(workflow)}\n\nThe concise workflow slug is: ${planName}.\n\nRequest:\n${request}\n\nInterview me aggressively when needed, but first inspect code directly for anything you can answer yourself. Do not implement code yet. Record the complete Complexity / Route Recommendation and stop with a confirmation-oriented handoff.`);
     },
   });
 
@@ -201,26 +235,26 @@ export default function workflowExtension(pi: ExtensionAPI) {
   });
 
   pi.registerCommand("workflow-spec", {
-    description: "Run Stage 2 spec workflow with automatic consensus then browser review",
+    description: "Run Stage 2 spec workflow when route requires or user overrides it",
     handler: async (args, ctx) => {
       const workflow = resolveWorkflowArg(ctx.cwd, args);
       if (!workflow) {
         ctx.ui.notify("No workflow found. Usage: /workflow-spec [workflow-dir|workflow.toml]", "warning");
         return;
       }
-      pi.sendUserMessage(`/skill:workflow-spec\n\nRun Stage 2 Spec for this workflow bundle:\n${workflowSummary(workflow)}\n\nDraft/finalize only the spec file, then automatically run multi-model consensus first, apply required changes, and only then run browser annotation/user review on the spec file. Apply all feedback to the spec markdown. Do not implement code and do not use workflow.toml for spec state.`);
+      pi.sendUserMessage(`/skill:workflow-spec\n\nRun Stage 2 Spec for this workflow bundle:\n${workflowSummary(workflow)}\n\nValidate the route decision in workflow.research.md first. Refuse if Spec is skipped unless the user explicitly overrides. Draft/finalize only workflow.spec.md. Consensus is optional/prompted, never automatic; when appropriate ask whether to run PAL consensus before browser review. Browser annotation/user review of the produced spec is mandatory after consensus is completed, declined, bypassed after failure, or skipped by route. Apply all feedback to the spec markdown. Do not implement code and do not use workflow.toml for spec state.`);
     },
   });
 
   pi.registerCommand("workflow-plan", {
-    description: "Run Stage 3 implementation planning with automatic consensus then browser review",
+    description: "Run Stage 3 implementation planning from spec or sufficient research route",
     handler: async (args, ctx) => {
       const workflow = resolveWorkflowArg(ctx.cwd, args);
       if (!workflow) {
         ctx.ui.notify("No workflow found. Usage: /workflow-plan [workflow-dir|workflow.toml]", "warning");
         return;
       }
-      pi.sendUserMessage(`/skill:workflow-plan\n\nRun Stage 3 Implementation Planning for this workflow bundle:\n${workflowSummary(workflow)}\n\nCreate/finalize only the plan file with dependencies, blockers, parallel groups, validation, and rollback. Then automatically run multi-model consensus first, apply required changes, and only then run browser annotation/user review on the plan file. Apply all feedback to the plan markdown, then populate workflow.toml with execution task state only. Do not implement code.`);
+      pi.sendUserMessage(`/skill:workflow-plan\n\nRun Stage 3 Implementation Planning for this workflow bundle:\n${workflowSummary(workflow)}\n\nValidate the route decision first. Plan from workflow.spec.md when spec is required/finalized, or from workflow.research.md when the route intentionally skipped spec and research is sufficient. Refuse with targeted questions if prerequisites are missing. Consensus is optional/prompted, never automatic; ask when recommended by route, then always run mandatory browser annotation/user review on the produced plan after consensus is completed, declined, bypassed after failure, or skipped. Apply all feedback to the plan markdown, then populate workflow.toml with execution task state only. Do not implement code.`);
     },
   });
 
@@ -249,15 +283,27 @@ export default function workflowExtension(pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("workflow-implement", {
-    description: "Begin implementation from finalized workflow plan/state",
+  pi.registerCommand("workflow-execute", {
+    description: "Execute a finalized workflow plan or explicitly trivial research-only workflow",
     handler: async (args, ctx) => {
       const workflow = resolveWorkflowArg(ctx.cwd, args);
       if (!workflow) {
-        ctx.ui.notify("No workflow found. Usage: /workflow-implement [workflow-dir|workflow.toml]", "warning");
+        ctx.ui.notify("No workflow found. Usage: /workflow-execute [workflow-dir|workflow.toml|workflow.plan.md|workflow.research.md]", "warning");
         return;
       }
-      pi.sendUserMessage(`/skill:workflow-implement\n\nBegin Stage 4 Implementation from this finalized workflow bundle:\n${workflowSummary(workflow)}\n\nRead workflow.toml first to assess execution/task state, then read the spec and plan files as needed. Implement task-by-task, update workflow.toml task statuses/timestamps/results, run diagnostics/tests, use browser/E2E validation when relevant, and summarize final results.`);
+      pi.sendUserMessage(executionPrompt("workflow-execute", workflow));
+    },
+  });
+
+  pi.registerCommand("workflow-implement", {
+    description: "Deprecated alias for /workflow-execute",
+    handler: async (args, ctx) => {
+      const workflow = resolveWorkflowArg(ctx.cwd, args);
+      if (!workflow) {
+        ctx.ui.notify("No workflow found. Usage: /workflow-implement [workflow-dir|workflow.toml|workflow.plan.md|workflow.research.md]", "warning");
+        return;
+      }
+      pi.sendUserMessage(executionPrompt("workflow-implement", workflow));
     },
   });
 

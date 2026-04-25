@@ -1,6 +1,6 @@
 ---
 name: workflow-plan
-description: Stage 3 of the Pi workflow. Create a focused workflow.plan.md task graph, then automatically run multi-model consensus before browser annotation/user review. Populate workflow.toml with execution task state only. Do not write implementation code.
+description: Stage 3 of the Pi workflow. Create workflow.plan.md from a finalized spec or sufficient skipped-spec research route. Prompt for consensus; browser review is mandatory. Populate workflow.toml with execution task state only. Do not write implementation code.
 ---
 
 # Workflow Implementation Plan
@@ -13,16 +13,53 @@ This is Stage 3. It creates `workflow.plan.md` and initializes execution state i
 - Update only `workflow.plan.md`, `workflow.toml`, and generated annotation/consensus artifacts.
 - `workflow.plan.md` contains strategy, task graph, dependencies, validation, rollback, and review feedback.
 - `workflow.toml` contains execution/task state only. Do not add spec/plan gates, browser-review status, or consensus status to TOML.
-- Multi-model consensus is automatic and required unless the user explicitly says to skip it in this stage request.
-- Browser annotation/user review is automatic and required after consensus revisions are applied.
+- Do not automatically run PAL consensus solely because this stage started.
+- Browser annotation/user review is required for every produced plan after optional consensus is completed, declined, bypassed after failure, or skipped by route.
 - Implementation plans should say what to change and how to validate it, not generate large blocks of code.
+
+## Route guard and planning source
+
+Read `workflow.research.md` first and inspect `## Complexity / Route Recommendation`.
+
+Planning may proceed from either:
+
+1. `workflow.spec.md` when the route says `Spec: required` (normally `Complexity: large`) and the spec is finalized; or
+2. `workflow.research.md` when the route says `Spec: skipped - <rationale>` for `small` or `moderate` work.
+
+Refuse with actionable missing prerequisites when:
+
+- the route decision section or stable labels are missing;
+- the route is `trivial` and `Plan: skipped` (suggest `/workflow-execute <workflow.research.md>` only if all trivial execution markers are present, otherwise suggest returning to Stage 1 or planning explicitly);
+- `Spec: required` but `workflow.spec.md` is absent, empty, or lacks recorded browser review completion;
+- `Spec: skipped` but research is insufficient to plan;
+- neither a finalized spec nor a valid skipped-spec research route exists.
+
+When planning from research, verify it contains enough detail to plan:
+
+- goals or desired behavior;
+- constraints/non-goals;
+- acceptance criteria or expected outcome;
+- validation approach;
+- relevant files or code references when known.
+
+If research is insufficient, stop and ask targeted questions or tell the user to return to Stage 1. Do not fabricate a plan.
 
 ## Process
 
-1. Read `workflow.spec.md` and existing `workflow.plan.md`.
-2. Confirm the spec is finalized enough to plan, or the user explicitly says to proceed.
+1. Read `workflow.research.md`, existing `workflow.plan.md`, and `workflow.spec.md` only if the route requires spec.
+2. Apply the route guard and choose the planning source.
 3. Inspect only the code needed to plan accurately. Do not over-explore.
 4. Draft `workflow.plan.md`.
+5. If planning from research, record clearly in the plan that spec was intentionally skipped by the Stage 1 complexity decision, including the rationale.
+6. Prompt for optional consensus according to route:
+   - `available_on_request`: mention consensus is available but not recommended by default.
+   - `prompt_after_plan`: ask whether to run consensus before mandatory browser review.
+   - `prompt_after_spec_and_plan`: ask whether to run plan consensus before mandatory browser review.
+   Make clear that consensus is optional and browser review is mandatory.
+7. If consensus is declined, proceed to browser review. If consensus fails below threshold or reports provider/tool errors, report the failure and ask whether to retry consensus, bypass to browser review, or stop.
+8. Run mandatory browser annotation review on `workflow.plan.md`.
+9. Apply every browser annotation/edit/deletion/general comment.
+10. Populate `workflow.toml` with execution task state only.
 
 ## Required plan contents
 
@@ -30,9 +67,17 @@ This is Stage 3. It creates `workflow.plan.md` and initializes execution state i
 
 Describe the implementation approach and sequencing.
 
+### Source / Route Decision
+
+Record the route source used for planning:
+
+- spec path if planning from spec; or
+- research path plus the explicit `Spec: skipped - <rationale>` line if planning from research.
+
 ### Task Graph
 
 Every task must include:
+
 - Task ID
 - Description
 - Dependencies
@@ -42,6 +87,7 @@ Every task must include:
 - Risk/debug hints for complex tasks
 
 Rules:
+
 - No subtasks like T1.1. Use T1, T2, T3.
 - Tasks should be atomic and independently understandable.
 - Parallel tasks must not modify the same files and must not depend on each other.
@@ -52,24 +98,25 @@ Rules:
 ### Parallel / Blocked Clarity
 
 Explicitly include:
+
 - Sequential / Blocking Tasks
 - Parallelizable Tasks
 - Blocked tasks and their blockers
 
-## Automatic PAL sidecar consensus
+## Optional PAL sidecar consensus
 
-After drafting the implementation plan, run `run_pal_consensus_review` before asking the user for browser review. Pass `planText` containing frozen context plus the full plan, or `planFile` if the plan file itself is ready to review:
+When the user confirms consensus, run `run_pal_consensus_review` before browser review. Pass `planText` containing frozen context plus the full plan, or `planFile` if the plan file itself is ready to review:
 
 ```text
 run_pal_consensus_review({
   title: "Workflow Implementation Plan Review",
   stackId: "auto",
   wait: true,
-  planText: "Review this frozen implementation plan before coding. Identify dependency mistakes, unsafe parallelization, missing validation, missing rollback steps, over-specific code generation, under-specified tasks, and likely blockers. Return blocking issues first, then recommended revisions.\n\n<context>...brief spec summary, relevant files, constraints...</context>\n\n<implementation_plan>...the full workflow.plan.md...</implementation_plan>"
+  planText: "Review this frozen implementation plan before coding. Identify dependency mistakes, unsafe parallelization, missing validation, missing rollback steps, over-specific code generation, under-specified tasks, and likely blockers. Return blocking issues first, then recommended revisions.\n\n<context>...brief spec/research summary, relevant files, constraints...</context>\n\n<implementation_plan>...the full workflow.plan.md...</implementation_plan>"
 })
 ```
 
-Use the returned PAL sidecar details, especially `details.findings` when available. Record the sidecar evidence in `## Consensus Feedback` with:
+Use the returned PAL sidecar details, especially `details.findings` when available. Record sidecar evidence in `## Consensus Feedback` only if consensus was run:
 
 - `run_id`
 - `artifactDir`
@@ -80,11 +127,11 @@ Use the returned PAL sidecar details, especially `details.findings` when availab
 - failed reviewers
 - concise required revisions
 
-If `recommendation` is `revise`, update `workflow.plan.md` before browser review. If the run status is failed, partial below threshold, or structured errors indicate missing provider/model/tool issues, stop and report the sidecar error instead of proceeding as if consensus passed. Do not add gate/state checkboxes, and do not store consensus state in `workflow.toml`.
+If `recommendation` is `revise`, update `workflow.plan.md` before browser review. If the run status is failed, partial below threshold, or structured errors indicate missing provider/model/tool issues, do not claim consensus passed.
 
-## Automatic browser annotation / user review
+## Mandatory browser annotation / user review
 
-After consensus revisions are applied, run browser review on the plan file only:
+Run browser review on the plan file only:
 
 ```bash
 node /Users/daniphant/Projects/pi-extensions/pi-workflow/server/server.mjs "<workflow.plan.md>"
@@ -94,7 +141,11 @@ After `PLAN_REVIEW_COMPLETE:<annotations-file>`:
 
 1. Read annotations.
 2. Apply every requested change to `workflow.plan.md`.
-3. Summarize browser feedback in `## Browser Review Feedback` without turning it into gate/state checkboxes.
+3. If annotations say `No Changes`, no markdown change is needed beyond recording review completion.
+4. Summarize browser feedback in `## Browser Review Feedback` without turning it into gate/state checkboxes:
+   - ISO timestamp or annotation artifact path
+   - result: `changes_applied` or `no_changes`
+   - concise summary
 
 ## Initialize execution state in workflow.toml
 
@@ -112,6 +163,7 @@ validation = ["npm test"]
 ```
 
 Rules:
+
 - All tasks start as `pending`.
 - Dependencies must reference valid task IDs.
 - No circular dependencies.
@@ -119,9 +171,8 @@ Rules:
 
 ## Exit
 
-Tell the user:
+Tell the user in natural prose that the implementation plan is finalized and execution is next. Include both immediate continuation and `/clear` resume options. Put only the concrete command in a code block:
 
 ```text
-Implementation plan is finalized. Run /clear if you want a clean context, then run:
-/workflow-implement <workflow-directory-or-workflow.toml>
+/workflow-execute <workflow-directory-or-workflow.toml>
 ```

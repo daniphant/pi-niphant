@@ -1,19 +1,19 @@
 ---
 name: workflow-spec
-description: Stage 2 of the Pi workflow. Convert research into a focused workflow.spec.md file, then automatically run multi-model consensus before browser annotation/user review. Do not write implementation code.
+description: Stage 2 of the Pi workflow. Convert research into workflow.spec.md only when the recorded route requires spec or the user explicitly overrides. Prompt for consensus; browser review is mandatory. Do not write implementation code.
 ---
 
 # Workflow Spec
 
-This is Stage 2. It converts `workflow.research.md` into a focused, reviewable `workflow.spec.md`.
+This is Stage 2. It converts `workflow.research.md` into a focused, reviewable `workflow.spec.md` when the route decision requires a spec.
 
 ## Hard rules
 
 - Do not implement code.
 - Update only `workflow.spec.md` and generated annotation/consensus artifacts.
 - Do not use `workflow.toml` for spec status/gates; it is execution/task state only.
-- Multi-model consensus is automatic and required unless the user explicitly says to skip it in this stage request.
-- Browser annotation/user review is automatic and required after consensus revisions are applied.
+- Do not automatically run PAL consensus solely because this stage started.
+- Browser annotation/user review is required for every produced spec after optional consensus is completed, declined, bypassed after failure, or skipped by route.
 - Use consensus on frozen text only; do not ask consensus models to explore the repo.
 
 ## Inputs
@@ -25,10 +25,36 @@ For split workflows, read:
 - `workflow.research.md`
 - `workflow.spec.md`
 
+Do not read `workflow.toml` except to locate files or correct broken paths.
+
+## Route guard
+
+Before drafting, inspect `workflow.research.md` for `## Complexity / Route Recommendation` and these exact labels:
+
+```markdown
+- Complexity: trivial | small | moderate | large
+- Spec: required | skipped - <rationale>
+- Consensus: none | available_on_request | prompt_after_plan | prompt_after_spec_and_plan
+- Browser review: skipped_for_trivial | required_after_plan | required_after_spec_and_plan
+- Next command after /clear: /workflow-...
+```
+
+Refuse with an actionable message when:
+
+- the route section is missing;
+- `Spec:` is `skipped` and the user did not explicitly override and ask to create a spec anyway;
+- the complexity is `trivial`, `small`, or `moderate` and the route says spec is skipped;
+- the route labels are inconsistent or insufficient to decide.
+
+A refusal must list the missing/invalid prerequisite and suggest the next command, usually `/workflow-plan <workflow>` for skipped-spec small/moderate work or `/workflow <request>` / Stage 1 if the route decision is missing.
+
+Proceed normally when `Spec: required` or the user explicitly overrides the skipped-spec route.
+
 ## Process
 
 1. Read `workflow.research.md` and existing `workflow.spec.md`.
-2. Draft or revise `workflow.spec.md` with:
+2. Apply the route guard.
+3. Draft or revise `workflow.spec.md` with:
    - Summary
    - Functional Requirements
    - Non-Functional Requirements
@@ -37,11 +63,15 @@ For split workflows, read:
    - Out of Scope
    - Risks and Mitigations
    - Reference implementations / quality anchors
-3. Save only the spec markdown.
+4. Save only the spec markdown.
+5. Prompt for optional consensus when the route says `Consensus: prompt_after_spec_and_plan`, or when the user requested consensus. Make clear that consensus is optional and browser review is mandatory.
+6. If the user declines consensus, proceed to browser review. If consensus fails below threshold or reports provider/tool errors, report the failure and ask whether to retry consensus, bypass to browser review, or stop. For large workflows, strongly recommend retrying or manually inspecting failure details before continuing.
+7. Run mandatory browser annotation review after consensus is completed, declined, bypassed, or skipped.
+8. Apply every browser annotation/edit/deletion/general comment. If annotations say `No Changes`, no markdown change is needed beyond recording review completion.
 
-## Automatic PAL sidecar consensus
+## Optional PAL sidecar consensus
 
-After drafting the spec, run `run_pal_consensus_review` before asking the user for browser review. Pass `planText` containing frozen context plus the full spec, or `planFile` if the spec file itself is ready to review:
+When the user confirms consensus, run `run_pal_consensus_review` before browser review. Pass `planText` containing frozen context plus the full spec, or `planFile` if the spec file itself is ready to review:
 
 ```text
 run_pal_consensus_review({
@@ -52,7 +82,7 @@ run_pal_consensus_review({
 })
 ```
 
-Use the returned PAL sidecar details, especially `details.findings` when available. Record the sidecar evidence in `## Consensus Feedback` with:
+Use the returned PAL sidecar details, especially `details.findings` when available. Record sidecar evidence in `## Consensus Feedback` only if consensus was run:
 
 - `run_id`
 - `artifactDir`
@@ -63,11 +93,11 @@ Use the returned PAL sidecar details, especially `details.findings` when availab
 - failed reviewers
 - concise required revisions
 
-If `recommendation` is `revise`, update `workflow.spec.md` before browser review. If the run status is failed, partial below threshold, or structured errors indicate missing provider/model/tool issues, stop and report the sidecar error instead of proceeding as if consensus passed. Do not add gate/state checkboxes, and do not store consensus state in `workflow.toml`.
+If `recommendation` is `revise`, update `workflow.spec.md` before browser review. If the run status is failed, partial below threshold, or structured errors indicate missing provider/model/tool issues, do not claim consensus passed.
 
-## Automatic browser annotation / user review
+## Mandatory browser annotation / user review
 
-After consensus revisions are applied, run the browser review server on the spec file only:
+Run the browser review server on the spec file only:
 
 ```bash
 node /Users/daniphant/Projects/pi-extensions/pi-workflow/server/server.mjs "<workflow.spec.md>"
@@ -77,14 +107,16 @@ Tell the user the browser is open and wait for the command to complete. After it
 
 1. Read the annotations file.
 2. Apply every edit, deletion, annotation, and general comment to `workflow.spec.md`.
-3. If annotations say `No Changes`, no markdown change is needed.
-4. Summarize browser feedback in `## Browser Review Feedback` without turning it into gate/state checkboxes.
+3. If annotations say `No Changes`, no markdown change is needed beyond recording review completion.
+4. Summarize browser feedback in `## Browser Review Feedback` without turning it into gate/state checkboxes:
+   - ISO timestamp or annotation artifact path
+   - result: `changes_applied` or `no_changes`
+   - concise summary
 
 ## Exit
 
-Tell the user:
+Tell the user in natural prose that the spec is finalized and planning is next. Include both immediate continuation and `/clear` resume options. Put only the concrete command in a code block:
 
 ```text
-Spec is finalized. Run /clear if you want a clean context, then run:
 /workflow-plan <workflow-directory-or-workflow.toml>
 ```
