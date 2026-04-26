@@ -7,6 +7,14 @@ description: Improve pi-niphant skills using frozen eval suites, static contract
 
 Use this skill when improving any pi-niphant skill or skill family with an autoresearch loop.
 
+This is a pi-niphant/ni policy wrapper around the upstream `pi-autoresearch` package, not a replacement for it. If `/autoresearch`, `init_experiment`, `run_experiment`, or `log_experiment` are unavailable, stop and ask the user to install the upstream package:
+
+```bash
+pi install https://github.com/davebcn87/pi-autoresearch
+```
+
+Then ask the user to run `/reload`.
+
 ## Hard rules
 
 - Never edit `eval/` during an autoresearch run.
@@ -17,6 +25,27 @@ Use this skill when improving any pi-niphant skill or skill family with an autor
 - Revert changes that improve wording but reduce measured behavior.
 - Do not weaken safety, verification, routing, or stage gates to improve score.
 - Do not edit model/provider/auth config unless the user explicitly asks.
+
+## Worktree guidance
+
+Prefer running skill-lab autoresearch from the active niphant worktree so edits, git commits, and autoresearch logs stay isolated from the source checkout.
+
+Avoid asking the user to manually `cd <worktree> && ni` when a target worktree is already known:
+
+1. If the current Pi session is already inside the target niphant worktree, run `/autoresearch ...` normally.
+2. If the current Pi session is not inside the target worktree but the target path is known, create or update `autoresearch.config.json` in the current session cwd instead of forcing a manual terminal handoff:
+
+   ```json
+   {
+     "workingDir": "/absolute/path/to/niphant/worktree"
+   }
+   ```
+
+   Then run `/autoresearch ...` from the existing Pi session. Upstream pi-autoresearch resolves file I/O, command execution, and git operations through `workingDir` while keeping the config file in the session cwd.
+3. If no target worktree is known, use niphant metadata/status commands to identify it before starting autoresearch. Ask the user only when metadata cannot determine the target.
+4. Keep `autoresearch.md`, `autoresearch.sh`, `autoresearch.checks.sh`, and `autoresearch.jsonl` associated with the target worktree. Do not start a skill-improvement loop against the source checkout by accident.
+
+When niphant `/workflow` gains cwd-safe Pi session replacement, prefer that automatic switch. Until then, `autoresearch.config.json` with `workingDir` is the no-manual-`cd` path.
 
 ## Workflow
 
