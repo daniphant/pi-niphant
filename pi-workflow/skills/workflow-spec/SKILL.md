@@ -86,18 +86,26 @@ run_pal_consensus_review({
 })
 ```
 
-Use the returned PAL sidecar details, especially `details.findings` when available. Record sidecar evidence in `## Consensus Feedback` only if consensus was run:
+Use the returned PAL sidecar details, especially `details.findings` when available. Then read/summarize the artifact files, not only the tool status:
+
+- `findings.json` (`details.run.findingsPath` or returned `findingsPath`) for recommendation, reviewer success, warnings, failed reviewers, and blocking/suggestion/question lists.
+- `findings-summary.md` in the same artifact directory for the normalized human-readable summary.
+- per-reviewer artifacts only when needed to understand a finding.
+
+Record sidecar evidence in `## Consensus Feedback` only if consensus was run, citing artifact paths:
 
 - `run_id`
 - `artifactDir`
 - `findingsPath`
+- `findings-summary.md` path
+- selected `stackId` and whether it was `auto`
 - `recommendation`
 - reviewer success count
-- warnings
-- failed reviewers
+- warnings and failed reviewers
+- blocking findings status: resolved, or explicitly deferred with rationale/risk/owner
 - concise required revisions
 
-If `recommendation` is `revise`, update `workflow.spec.md` before browser review. If the run status is failed, partial below threshold, or structured errors indicate missing provider/model/tool issues, do not claim consensus passed.
+If `recommendation` is `revise` or `blocking_findings` is non-empty, update `workflow.spec.md` before browser review or explicitly record any deferral. Do not advance toward implementation while blocking findings are unhandled. If the run status is failed, partial below threshold, or structured errors indicate timeout, rate limit, missing provider key, auth failure, missing/unavailable model, invalid reviewer config, or insufficient successful reviewers, preserve the artifact/error details and ask whether to retry, switch stack, fix configuration, bypass to browser review, or stop; do not claim consensus passed.
 
 ## Mandatory browser annotation / user review
 
