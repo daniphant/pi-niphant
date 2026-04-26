@@ -25,6 +25,8 @@ export function workflowPreflight(cwd: string, request: string, env: NodeJS.Proc
   }
   const home = niphantHome(env);
   ensureNiphantDirs(home);
+  const activeWorkspace = currentWorkspace(home, cwd);
+  if (activeWorkspace) return { mode: "pass-through", message: "Already inside a niphant worktree." };
   const configuredRoot = env[ENV.projectRoot];
   const identity = projectIdentity(configuredRoot && existsSync(configuredRoot) ? configuredRoot : cwd);
   const taskName = conciseName?.trim() || request;

@@ -34,6 +34,7 @@ assertIncludes("index.ts", "Browser review: skipped_for_trivial", "trivial execu
 assertIncludes("index.ts", "stageContextGuard", "generated prompt context hygiene helper");
 assertIncludes("niphant/preflight.ts", "hasCommit", "unborn git repository preflight guard");
 assertIncludes("niphant/preflight.ts", "needs a valid HEAD commit", "unborn git repository actionable message");
+assertIncludes("niphant/preflight.ts", "Already inside a niphant worktree", "niphant worktree pass-through guard");
 assertIncludes("index.ts", "Do not read unrelated SKILL.md files", "generated prompt unrelated skill guard");
 assertIncludes("index.ts", "bootstrap by reading workflow.toml first, then workflow.plan.md", "execute prompt strict bootstrap guard");
 
