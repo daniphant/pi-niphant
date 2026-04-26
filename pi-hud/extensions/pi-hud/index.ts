@@ -8,7 +8,7 @@ import { getModelLabel } from "./model.js";
 import { fetchCodexQuota } from "./providers/codex.js";
 import { detectQuotaProvider } from "./providers/detect.js";
 import { fetchZaiQuota } from "./providers/zai.js";
-import { formatNiphantWorkspace, getNiphantWorkspace } from "./niphant.js";
+import { getNiphantWorkspace } from "./niphant.js";
 import { formatGitBranch, renderContextBlock, renderHudField, renderQuotaBlock, renderQuotaResetBlock } from "./render.js";
 import { getSessionTotals } from "./session.js";
 import { loadSettings, saveSettings } from "./settings.js";
@@ -215,7 +215,8 @@ export default function piHudExtension(pi: ExtensionAPI) {
 
           const modelLabel = renderHudField(theme as ThemeLike, "Model", theme.fg("text", getModelLabel(pi, activeCtx)), "accent");
           const sessionDuration = renderHudField(theme as ThemeLike, "⏱️", theme.fg("text", formatSessionDuration(Date.now() - tuiStartedAtMs)), "accent");
-          const projectPath = theme.fg("text", getAdaptiveProjectLabel(activeCtx.cwd, renderWidth));
+          const isNiphantWorkspace = getNiphantWorkspace(activeCtx.cwd) !== null;
+          const projectPath = theme.fg("text", getAdaptiveProjectLabel(activeCtx.cwd, renderWidth)) + (isNiphantWorkspace ? ` ${theme.fg("muted", "(👻)")}` : "");
           const repoLabel = renderHudField(theme as ThemeLike, "Repo", projectPath, "customMessageLabel");
           const gitSegment = formatGitBranch(theme as ThemeLike, effectiveGitStatus);
           const branchLabel = gitSegment ? renderHudField(theme as ThemeLike, "Branch", gitSegment, "success") : null;
@@ -226,8 +227,7 @@ export default function piHudExtension(pi: ExtensionAPI) {
 
           const quotaBlock = renderQuotaBlock(theme as ThemeLike, quotaSnapshot, showWeeklyLimits, quotaError, quotaProviderKey, meterWidth, renderWidth);
           const quotaResetBlock = renderQuotaResetBlock(theme as ThemeLike, quotaSnapshot, quotaProviderKey);
-          const niphantBlock = formatNiphantWorkspace(theme as ThemeLike, getNiphantWorkspace(activeCtx.cwd));
-          const pieces = [modelLabel, contextBlock, repoLabel, branchLabel, niphantBlock, quotaBlock, quotaResetBlock, sessionDuration].filter(Boolean) as string[];
+          const pieces = [modelLabel, contextBlock, repoLabel, branchLabel, quotaBlock, quotaResetBlock, sessionDuration].filter(Boolean) as string[];
           const separator = theme.fg("dim", " | ");
 
           // Happy path: everything fits on one row.

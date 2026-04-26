@@ -1,8 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import type { ThemeLike } from "./types.js";
-
 interface NiphantWorkspace {
   schemaVersion: number;
   taskSlug: string;
@@ -30,9 +28,4 @@ export function getNiphantWorkspace(cwd: string | undefined, env: NodeJS.Process
   return null;
 }
 
-export function formatNiphantWorkspace(theme: ThemeLike, workspace: NiphantWorkspace | null): string | null {
-  if (!workspace) return null;
-  const parent = workspace.parentWorkspaceId ? " ↟" : "";
-  const setup = workspace.setupStatus === "succeeded" ? "✓" : workspace.setupStatus === "failed" ? "!" : workspace.setupStatus === "skipped" ? "-" : "…";
-  return theme.fg("accent", `ni:${workspace.taskSlug}${parent}`) + theme.fg("muted", ` ${setup}`);
-}
+
