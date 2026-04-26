@@ -47,6 +47,8 @@ const messages = [
 	"Sweeping for stray backticks…",
 	"Giving the heuristics a pep talk…",
 	"Massaging the context window…",
+	"Brewing moonlight into the call stack…",
+	"Teaching rubber ducks to read stack traces…",
 ];
 
 function shuffle<T>(items: readonly T[]): T[] {
