@@ -61,11 +61,15 @@ The script prints JSON describing:
 2. Run `../../scripts/prepare-github-repo-checkout.mjs` with the repo context.
 3. Tell the user which repo and checkout were selected.
 4. Inspect the checkout directly in the main context for ordinary repo/code exploration.
-5. Synthesize the final answer with exact file paths and a short explanation.
+5. Search broadly, then read the most relevant files; do not rely only on filenames, snippets, README summaries, or repository metadata.
+6. Trace important behavior across entrypoints, callers, implementations, schemas/config, and tests before concluding.
+7. Synthesize the final answer with exact file paths, line numbers when available, and a short explanation tying each claim to the inspected files.
 
 ## Delegation policy
 
 Do not delegate ordinary repository exploration, architecture discovery, or “where does this live?” work. This skill exists so the main model prepares a real checkout, reads files directly, and answers with file-path evidence.
+
+Do not say another agent will inspect the repository, perform follow-up research, or verify later unless the user explicitly requested delegation and the current environment supports it.
 
 Delegation is allowed only when the user explicitly asks to spawn/delegate an objective read-only subtask. If that happens, the delegated task must mention:
 - local clone directory from the helper script
@@ -100,5 +104,12 @@ Always state:
 - which local clone directory was explored
 - the resolved commit SHA
 - exact file paths that support the answer
+
+Evidence quality rules:
+- Prefer `path/to/file.ext:line` or `path/to/file.ext:start-end` citations when line numbers are available.
+- Cite implementation files, tests, and config/schema files separately when they support different parts of the answer.
+- For “where should this live?” answers, cite the existing neighboring files or module boundary that justify the placement.
+- For PR or ref-specific questions, make clear that evidence comes from the checked-out PR/ref commit, not just the default branch.
+- If the inspected files do not prove a claim, say what was checked and describe the uncertainty instead of filling gaps.
 
 Do not answer from guesswork when repository inspection is the point of the request.
