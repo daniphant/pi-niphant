@@ -1,0 +1,18 @@
+{
+  "cases": [
+    {
+      "id": "root-cause-before-fix",
+      "suite": "debugging",
+      "files": ["pi-diagnostics/skills/systematic-debugging/SKILL.md"],
+      "required": ["NO FIXES WITHOUT ROOT CAUSE", "Root Cause Investigation", "Reproduce or gather evidence", "Only after root cause is identified", "quick fix feels tempting"],
+      "forbidden": ["guess a fix immediately"]
+    },
+    {
+      "id": "fresh-verification-before-completion-claim",
+      "suite": "debugging",
+      "files": ["pi-diagnostics/skills/systematic-debugging/SKILL.md"],
+      "required": ["Verification before completion", "Run the full command fresh", "No fresh evidence means no completion claim", "command output proving it"],
+      "forbidden": ["trust prior results"]
+    }
+  ]
+}

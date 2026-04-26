@@ -1,0 +1,18 @@
+{
+  "cases": [
+    {
+      "id": "checkout-protocol",
+      "suite": "github-explorer",
+      "files": ["pi-github-repo-explorer/skills/explore-github-repo/SKILL.md"],
+      "required": ["GitHub repository", "prepare-github-repo-checkout\\.mjs", "default branch", "PR", "checked out commit SHA", "Do not answer from guesswork"],
+      "forbidden": ["answer from README vibes"]
+    },
+    {
+      "id": "evidence-rich-response",
+      "suite": "github-explorer",
+      "files": ["pi-github-repo-explorer/skills/explore-github-repo/SKILL.md"],
+      "required": ["Always state", "remote URL", "checkout type", "local clone directory", "exact file paths"],
+      "forbidden": ["final answer without files"]
+    }
+  ]
+}

@@ -60,26 +60,20 @@ The script prints JSON describing:
 1. Identify the GitHub repo and any explicit ref, tag, commit, or PR.
 2. Run `../../scripts/prepare-github-repo-checkout.mjs` with the repo context.
 3. Tell the user which repo and checkout were selected.
-4. Prefer delegated read-only exploration when broad inspection would help and delegated-agent tools are available.
+4. Inspect the checkout directly in the main context for ordinary repo/code exploration.
 5. Synthesize the final answer with exact file paths and a short explanation.
 
-## Delegation guidance
+## Delegation policy
 
-If `run_delegated_agents` or `infer_and_run_delegated_agents` is available, use it for broad or multi-area repo inspection.
+Do not delegate ordinary repository exploration, architecture discovery, or “where does this live?” work. This skill exists so the main model prepares a real checkout, reads files directly, and answers with file-path evidence.
 
-A good delegated task should mention:
+Delegation is allowed only when the user explicitly asks to spawn/delegate an objective read-only subtask. If that happens, the delegated task must mention:
 - local clone directory from the helper script
 - normalized repo name and remote URL
 - checkout context: default branch, explicit ref, or PR
 - the exact user question
 - required output: relevant files, how the flow works, and recommended insertion points when asked where code should live
 - read-only constraint
-
-Example delegated task:
-
-```text
-Read-only. Inspect the prepared checkout for the GitHub repository resolved from the user's prompt. Return concise notes with exact file paths that explain how the requested feature, API, or architecture area works.
-```
 
 ## Search heuristics once the repo is prepared
 

@@ -1,6 +1,7 @@
 .DS_Store
 .pi/
 .scratch/
+.eval-results/
 node_modules/
 dist/
 coverage/

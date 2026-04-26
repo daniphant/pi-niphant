@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 import { classifyRpcError, LazyDiscordRpcAdapter } from "../extensions/pi-discord-presence/discord-rpc.js";
 
@@ -26,6 +27,28 @@ describe("LazyDiscordRpcAdapter", () => {
     await expect(adapter.connect("123456789012345678")).rejects.toThrow();
     expect(adapter.getState()).toBe("error");
     expect(adapter.getLastError()).toBe("Invalid or unconfigured Discord client ID");
+  });
+
+  it("handles Discord IPC socket errors instead of letting them crash the process", async () => {
+    class Socket extends EventEmitter {
+      destroy() {}
+    }
+    const socket = new Socket();
+    class Client {
+      transport = {
+        socket,
+        send() {
+          const error = Object.assign(new Error("write EPIPE"), { code: "EPIPE" });
+          socket.emit("error", error);
+        },
+      };
+      on() {}
+      async login() { this.transport.send(); }
+    }
+    const adapter = new LazyDiscordRpcAdapter(async () => ({ Client }));
+    await expect(adapter.connect("123456789012345678")).rejects.toThrow("write EPIPE");
+    expect(adapter.getState()).toBe("error");
+    expect(adapter.getLastError()).toBe("Discord RPC unavailable; is Discord running?");
   });
 
   it("does not hang forever if Discord cleanup never resolves", async () => {

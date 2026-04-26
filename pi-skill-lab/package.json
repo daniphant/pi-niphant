@@ -1,0 +1,19 @@
+{
+  "name": "pi-skill-lab",
+  "version": "0.1.0",
+  "description": "Autoresearch harness for improving pi-niphant skills with frozen evals.",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "keywords": [
+    "pi",
+    "skills",
+    "autoresearch",
+    "evals"
+  ],
+  "pi": {
+    "skills": [
+      "./skills/skill-lab-autoresearch"
+    ]
+  }
+}

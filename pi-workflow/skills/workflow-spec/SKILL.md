@@ -104,8 +104,10 @@ If `recommendation` is `revise`, update `workflow.spec.md` before browser review
 Run the browser review server on the spec file only:
 
 ```bash
-node /Users/daniphant/Projects/pi-extensions/pi-workflow/server/server.mjs "<workflow.spec.md>"
+node pi-workflow/server/server.mjs "<workflow.spec.md>"
 ```
+
+If this repository is not the current working directory, run the command from the package checkout that contains `pi-workflow/server/server.mjs` or resolve that file relative to the installed `pi-workflow` extension path.
 
 Tell the user the browser is open and wait for the command to complete. After it emits `PLAN_REVIEW_COMPLETE:<annotations-file>`:
 

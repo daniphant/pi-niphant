@@ -1,0 +1,18 @@
+{
+  "cases": [
+    {
+      "id": "spawn-only-trigger",
+      "suite": "delegation",
+      "files": ["pi-delegated-agents/skills/spawn-agent/SKILL.md"],
+      "required": ["only when the user's prompt contains the word \"spawn\"", "Do not call delegated-agent tools", "run_delegated_agents", "Do not use this skill for phrases like"],
+      "forbidden": []
+    },
+    {
+      "id": "objective-artifact-task-shape",
+      "suite": "delegation",
+      "files": ["pi-delegated-agents/skills/spawn-agent/SKILL.md"],
+      "required": ["artifact-producing job", "constraints such as read-only", "return pass/fail|pass/fail", "parallel mode", "Do not manually poll logs unless the user asks"],
+      "forbidden": []
+    }
+  ]
+}

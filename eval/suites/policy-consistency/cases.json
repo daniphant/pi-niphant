@@ -1,0 +1,18 @@
+{
+  "cases": [
+    {
+      "id": "github-explorer-uses-local-checkout-and-path-evidence",
+      "suite": "policy-consistency",
+      "files": ["pi-github-repo-explorer/skills/explore-github-repo/SKILL.md"],
+      "required": ["prepare-github-repo-checkout\\.mjs", "exact file-path evidence|exact file paths", "commit SHA", "local clone directory"],
+      "forbidden": ["Prefer delegated read-only exploration when broad inspection would help", "use it for broad or multi-area repo inspection"]
+    },
+    {
+      "id": "spawn-agent-forbids-ordinary-repo-inspection",
+      "suite": "policy-consistency",
+      "files": ["pi-delegated-agents/skills/spawn-agent/SKILL.md"],
+      "required": ["contains the word \"spawn\"|explicitly says \"spawn\"", "exploring a repository or codebase", "finding where code lives", "summarizing architecture"],
+      "forbidden": ["Delegated agents are allowed merely because a task involves browser/E2E work"]
+    }
+  ]
+}

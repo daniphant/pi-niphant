@@ -138,8 +138,10 @@ If `recommendation` is `revise`, update `workflow.plan.md` before browser review
 Run browser review on the plan file only:
 
 ```bash
-node /Users/daniphant/Projects/pi-extensions/pi-workflow/server/server.mjs "<workflow.plan.md>"
+node pi-workflow/server/server.mjs "<workflow.plan.md>"
 ```
+
+If this repository is not the current working directory, run the command from the package checkout that contains `pi-workflow/server/server.mjs` or resolve that file relative to the installed `pi-workflow` extension path.
 
 After `PLAN_REVIEW_COMPLETE:<annotations-file>`:
 

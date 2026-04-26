@@ -1,0 +1,18 @@
+{
+  "cases": [
+    {
+      "id": "capture-before-interaction",
+      "suite": "e2e-web-agent",
+      "files": ["pi-web-e2e-agent/skills/e2e-web-agent/SKILL.md"],
+      "required": ["run_web_e2e", "full-page screenshot", "interactive snapshot", "@e1", "run_agent_browser"],
+      "forbidden": ["interact before snapshot"]
+    },
+    {
+      "id": "refresh-refs-after-dom-change",
+      "suite": "e2e-web-agent",
+      "files": ["pi-web-e2e-agent/skills/e2e-web-agent/SKILL.md"],
+      "required": ["Re-run `snapshot -i` after navigation or dynamic DOM changes", "Save screenshots/artifacts", "session", "Do not use this for ordinary code exploration"],
+      "forbidden": []
+    }
+  ]
+}
