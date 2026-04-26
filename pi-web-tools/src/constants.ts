@@ -1,0 +1,12 @@
+export const OUTPUT_MAX_BYTES = 50 * 1024;
+export const OUTPUT_MAX_LINES = 2000;
+export const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+export const MAX_EXTRACT_BYTES = 1024 * 1024;
+export const DEFAULT_TIMEOUT_MS = 10_000;
+export const MAX_TIMEOUT_MS = 20_000;
+export const MAX_REDIRECTS = 5;
+export const BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
+export const BRAVE_DEFAULT_COUNT = 10;
+export const BRAVE_MAX_COUNT = 20;
+export const ALLOWED_METADATA_HEADERS = new Set(["content-type", "content-length", "last-modified", "etag"]);
+export const USER_AGENT = "pi-web-tools/0.1 (+https://github.com/daniphant/pi-extensions)";

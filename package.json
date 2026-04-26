@@ -21,7 +21,8 @@
     "pi-pal-consensus-sidecar",
     "pi-web-e2e-agent",
     "pi-whimsy-status",
-    "pi-workflow"
+    "pi-workflow",
+    "pi-web-tools"
   ],
   "scripts": {
     "check": "npm run check --workspaces --if-present",

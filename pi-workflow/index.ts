@@ -203,7 +203,7 @@ function createWorkflow(cwd: string, request: string, planName: string) {
   for (const name of Object.values(workflowFileNames)) {
     writeFileSync(join(dir, name), renderTemplate(name, replacements), "utf8");
   }
-  return { id, dir, ...workflowPaths(join(dir, workflowFileNames.state)) };
+  return { id, ...workflowPaths(join(dir, workflowFileNames.state)) };
 }
 
 function runReviewServer(planFile: string): Promise<{ output: string; annotationsPath?: string; url?: string; code: number | null }> {
@@ -241,6 +241,14 @@ function sendStageOnePrompt(pi: ExtensionAPI, workflow: WorkflowPaths, planName:
   pi.sendUserMessage(`/skill:workflow-brainstorm\n\n${stageContextGuard("Stage 1 research", ["workflow.research.md", "workflow.md", "workflow.toml for file references only"])}\n\nStart Stage 1 Research for this request. Use and continuously update this workflow bundle:\n${workflowSummary(workflow)}\n\nThe concise workflow slug is: ${planName}.\n\nRequest:\n${request}\n\nInterview me relentlessly when user-preference decisions remain, but first inspect code directly for anything you can answer yourself. Ask exactly one question at a time, include your recommended answer, and stop the turn after the question. Do not dump multiple questions. Do not finalize Stage 1 with a spec/plan handoff while blocking product, UX, scope, risk, security/privacy, or API-compatibility decisions remain. For non-trivial product/API/architecture/UX work, usually ask at least one question before the final handoff unless the request already resolves every important preference. Do not implement code yet. When the interview has converged, record the complete Complexity / Route Recommendation and stop with a confirmation-oriented handoff.`);
 }
 
+function specPrompt(workflow: WorkflowPaths) {
+  return `/skill:workflow-spec\n\n${stageContextGuard("Stage 2 spec", ["workflow.research.md", "workflow.spec.md"])}\n\nRun Stage 2 Spec for this workflow bundle:\n${workflowSummary(workflow)}\n\nValidate the route decision in workflow.research.md first. Refuse if Spec is skipped unless the user explicitly overrides. Draft/finalize only workflow.spec.md. Consensus is optional/prompted, never automatic; when appropriate ask whether to run PAL consensus before browser review. Browser annotation/user review of the produced spec is mandatory after consensus is completed, declined, bypassed after failure, or skipped by route. Apply all feedback to the spec markdown. Do not implement code and do not use workflow.toml for spec state.`;
+}
+
+function planPrompt(workflow: WorkflowPaths) {
+  return `/skill:workflow-plan\n\n${stageContextGuard("Stage 3 planning", ["workflow.research.md", "workflow.spec.md when required", "workflow.plan.md", "workflow.toml for task-state output only"])}\n\nRun Stage 3 Implementation Planning for this workflow bundle:\n${workflowSummary(workflow)}\n\nValidate the route decision first. Plan from workflow.spec.md when spec is required/finalized, or from workflow.research.md when the route intentionally skipped spec and research is sufficient. Refuse with targeted questions if prerequisites are missing. Consensus is optional/prompted, never automatic; ask when recommended by route, then always run mandatory browser annotation/user review on the produced plan after consensus is completed, declined, bypassed after failure, or skipped. Apply all feedback to the plan markdown, then populate workflow.toml with execution task state only. Do not implement code.`;
+}
+
 function executionPrompt(commandName: "workflow-execute" | "workflow-implement", workflow: WorkflowPaths) {
   const aliasNote = commandName === "workflow-implement"
     ? "This legacy command is a thin alias for /workflow-execute; use the same execution semantics."
@@ -248,7 +256,84 @@ function executionPrompt(commandName: "workflow-execute" | "workflow-implement",
   return `/skill:workflow-implement\n\n${aliasNote}\n\n${stageContextGuard("Stage 4 execution", ["workflow.toml", "workflow.plan.md", "workflow.research.md only for explicitly trivial marker verification"], true)}\n\nBegin Stage 4 Execution from this workflow reference:\n${workflowSummary(workflow)}\n\nFor planned workflows, read workflow.toml first for execution/task state and use workflow.plan.md as the authoritative implementation instructions. Do not depend on workflow.spec.md. Verify the plan records required browser review before executing.\n\nFor explicitly trivial research-only workflows, execute from workflow.research.md only if every required marker is present: Complexity: trivial; Spec: skipped; Plan: skipped; Consensus: none; Browser review: skipped_for_trivial; Execution source: research; Trivial execution approved: true; Workflow task tracking: skipped_for_trivial. If any marker is missing or incompatible, refuse with a missing-marker list and suggest /workflow-plan <workflow>.\n\nImplement task-by-task when task tracking is enabled, update workflow.toml statuses/timestamps/results, run diagnostics/tests, use browser/E2E validation when relevant, and summarize final results.`;
 }
 
+function readWorkflowFile(path: string) {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+function getRouteLine(research: string, label: string) {
+  return research.match(new RegExp(`^- ${label}:\\s*(.+)$`, "m"))?.[1]?.trim() ?? "";
+}
+
+function sectionHasContent(markdown: string, heading: string) {
+  const start = markdown.indexOf(heading);
+  if (start < 0) return false;
+  const afterHeading = markdown.slice(start + heading.length);
+  const nextHeading = afterHeading.search(/\n##\s+/);
+  const section = nextHeading >= 0 ? afterHeading.slice(0, nextHeading) : afterHeading;
+  return section.trim().length > 0;
+}
+
+function workflowContinuationPrompt(workflow: WorkflowPaths): { label: string; prompt: string } | null {
+  const research = readWorkflowFile(workflow.research);
+  const spec = readWorkflowFile(workflow.spec);
+  const plan = readWorkflowFile(workflow.plan);
+  const state = readWorkflowFile(workflow.state);
+  if (!research.includes("## Complexity / Route Recommendation")) return null;
+
+  const specRoute = getRouteLine(research, "Spec");
+  const planRoute = getRouteLine(research, "Plan");
+  const browserRoute = getRouteLine(research, "Browser review");
+  const executionSource = getRouteLine(research, "Execution source");
+  const trivialApproved = getRouteLine(research, "Trivial execution approved");
+  const workflowTracking = getRouteLine(research, "Workflow task tracking");
+
+  const planFinalized = sectionHasContent(plan, "## Browser Review Feedback") && /\[\[tasks\]\]/.test(state);
+  if (planFinalized) return { label: "execution", prompt: executionPrompt("workflow-execute", workflow) };
+
+  const specFinalized = sectionHasContent(spec, "## Browser Review Feedback");
+  if (/^required\b/.test(specRoute)) {
+    if (!specFinalized) return { label: "spec", prompt: specPrompt(workflow) };
+    return { label: "plan", prompt: planPrompt(workflow) };
+  }
+
+  const explicitlyTrivial = /^skipped\b/.test(specRoute)
+    && /^skipped\b/.test(planRoute)
+    && browserRoute === "skipped_for_trivial"
+    && executionSource === "research"
+    && trivialApproved === "true"
+    && workflowTracking === "skipped_for_trivial";
+  if (explicitlyTrivial) return { label: "execution", prompt: executionPrompt("workflow-execute", workflow) };
+
+  if (/^skipped\b/.test(specRoute) || /^required\b/.test(planRoute)) {
+    return { label: "plan", prompt: planPrompt(workflow) };
+  }
+
+  return null;
+}
+
+function continueWorkflow(pi: ExtensionAPI, workflow: WorkflowPaths) {
+  const continuation = workflowContinuationPrompt(workflow);
+  if (!continuation) return false;
+  pi.sendUserMessage(continuation.prompt);
+  return true;
+}
+
 export default function workflowExtension(pi: ExtensionAPI) {
+  pi.on("input", async (event, ctx) => {
+    if (event.source === "extension") return { action: "continue" as const };
+    if (event.text.trim().toLowerCase() !== "continue") return { action: "continue" as const };
+
+    const workflow = resolveWorkflowArg(ctx.cwd, "");
+    if (!workflow) return { action: "continue" as const };
+    if (!continueWorkflow(pi, workflow)) return { action: "continue" as const };
+    ctx.ui.notify(`Continuing workflow: ${workflow.dir}`, "info");
+    return { action: "handled" as const };
+  });
+
   pi.registerCommand("workflow", {
     description: "Start a durable workflow; unnamed requests auto-infer a concise slug",
     handler: async (args, ctx) => {
@@ -292,6 +377,22 @@ export default function workflowExtension(pi: ExtensionAPI) {
     },
   });
 
+  pi.registerCommand("workflow-continue", {
+    description: "Continue the latest workflow to its next stage",
+    handler: async (args, ctx) => {
+      const workflow = resolveWorkflowArg(ctx.cwd, args);
+      if (!workflow) {
+        ctx.ui.notify("No workflow found. Usage: /workflow-continue [workflow-dir|workflow.toml]", "warning");
+        return;
+      }
+      if (!continueWorkflow(pi, workflow)) {
+        ctx.ui.notify("Could not infer the next workflow stage. Use /workflow-spec, /workflow-plan, or /workflow-execute explicitly.", "warning");
+        return;
+      }
+      ctx.ui.notify(`Continuing workflow: ${workflow.dir}`, "info");
+    },
+  });
+
   pi.registerCommand("workflow-spec", {
     description: "Run Stage 2 spec workflow when route requires or user overrides it",
     handler: async (args, ctx) => {
@@ -300,7 +401,7 @@ export default function workflowExtension(pi: ExtensionAPI) {
         ctx.ui.notify("No workflow found. Usage: /workflow-spec [workflow-dir|workflow.toml]", "warning");
         return;
       }
-      pi.sendUserMessage(`/skill:workflow-spec\n\n${stageContextGuard("Stage 2 spec", ["workflow.research.md", "workflow.spec.md"])}\n\nRun Stage 2 Spec for this workflow bundle:\n${workflowSummary(workflow)}\n\nValidate the route decision in workflow.research.md first. Refuse if Spec is skipped unless the user explicitly overrides. Draft/finalize only workflow.spec.md. Consensus is optional/prompted, never automatic; when appropriate ask whether to run PAL consensus before browser review. Browser annotation/user review of the produced spec is mandatory after consensus is completed, declined, bypassed after failure, or skipped by route. Apply all feedback to the spec markdown. Do not implement code and do not use workflow.toml for spec state.`);
+      pi.sendUserMessage(specPrompt(workflow));
     },
   });
 
@@ -312,7 +413,7 @@ export default function workflowExtension(pi: ExtensionAPI) {
         ctx.ui.notify("No workflow found. Usage: /workflow-plan [workflow-dir|workflow.toml]", "warning");
         return;
       }
-      pi.sendUserMessage(`/skill:workflow-plan\n\n${stageContextGuard("Stage 3 planning", ["workflow.research.md", "workflow.spec.md when required", "workflow.plan.md", "workflow.toml for task-state output only"])}\n\nRun Stage 3 Implementation Planning for this workflow bundle:\n${workflowSummary(workflow)}\n\nValidate the route decision first. Plan from workflow.spec.md when spec is required/finalized, or from workflow.research.md when the route intentionally skipped spec and research is sufficient. Refuse with targeted questions if prerequisites are missing. Consensus is optional/prompted, never automatic; ask when recommended by route, then always run mandatory browser annotation/user review on the produced plan after consensus is completed, declined, bypassed after failure, or skipped. Apply all feedback to the plan markdown, then populate workflow.toml with execution task state only. Do not implement code.`);
+      pi.sendUserMessage(planPrompt(workflow));
     },
   });
 

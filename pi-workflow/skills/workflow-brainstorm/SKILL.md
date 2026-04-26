@@ -156,7 +156,7 @@ When research is complete, stop and ask the user to choose the next step. Use na
 
 Include both:
 
-- an immediate continuation option, such as “reply `continue`”; and
+- an immediate continuation option: tell the user to reply exactly `continue` to let `/workflow-continue` advance the current session to the next stage; and
 - a `/clear` resume option with the exact next command.
 
 Route-specific handoff guidance:

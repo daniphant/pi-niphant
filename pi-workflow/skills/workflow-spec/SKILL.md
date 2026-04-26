@@ -119,7 +119,7 @@ Tell the user the browser is open and wait for the command to complete. After it
 
 ## Exit
 
-Tell the user in natural prose that the spec is finalized and planning is next. Include both immediate continuation and `/clear` resume options. Put only the concrete command in a code block:
+Tell the user in natural prose that the spec is finalized and planning is next. Include both immediate continuation (reply exactly `continue` to let `/workflow-continue` advance in the current session) and `/clear` resume options. Put only the concrete command in a code block:
 
 ```text
 /workflow-plan <workflow-directory-or-workflow.toml>

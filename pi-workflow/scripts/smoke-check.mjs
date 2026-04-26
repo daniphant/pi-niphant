@@ -21,6 +21,10 @@ assertIncludes("index.ts", 'pi.registerCommand("workflow"', "workflow command re
 assertIncludes("index.ts", "inferWorkflowSlug", "unnamed /workflow auto slug inference");
 assertIncludes("index.ts", "Inferred workflow slug", "unnamed /workflow frictionless slug notification");
 assertIncludes("index.ts", "/workflow --name <slug> --", "explicit slug override usage");
+assertIncludes("index.ts", 'pi.registerCommand("workflow-continue"', "workflow-continue command registration");
+assertIncludes("index.ts", 'pi.on("input"', "input handler registration for exact continue");
+assertIncludes("index.ts", 'event.text.trim().toLowerCase() !== "continue"', "exact continue input guard");
+assertIncludes("index.ts", "workflowContinuationPrompt", "workflow continuation stage inference");
 assertIncludes("index.ts", 'pi.registerCommand("workflow-execute"', "workflow-execute command registration");
 assertIncludes("index.ts", 'pi.registerCommand("workflow-implement"', "workflow-implement alias registration");
 assertIncludes("index.ts", "Deprecated alias for /workflow-execute", "deprecated implement description");

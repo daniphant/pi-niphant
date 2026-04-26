@@ -78,6 +78,7 @@ They are user-local planning artifacts and should not be committed.
 /workflow <description>        # infer a concise slug, then create/start the workflow
 /workflow --name <slug> -- <description> # create/resume workflow with an explicit validated slug override
 /workflow-latest               # show latest workflow bundle for this project
+/workflow-continue [workflow-dir|workflow.toml] # continue latest/specified workflow to its next stage
 /workflow-spec [workflow-dir|workflow.toml]   # Stage 2 spec when route requires it or user overrides
 /workflow-plan [workflow-dir|workflow.toml]   # Stage 3 plan from spec or sufficient skipped-spec research
 /workflow-review [workflow.plan.md|workflow.spec.md|workflow-dir] # browser annotation review UI
@@ -112,7 +113,7 @@ Stage 1 records this stable route section in `workflow.research.md`:
 - Next command after /clear: /workflow-...
 ```
 
-Stage 1 stops with natural-prose next steps. It includes both an immediate “continue” option and a `/clear` resume command.
+Stage 1 stops with natural-prose next steps. It includes both an immediate “continue” option and a `/clear` resume command. When you reply exactly `continue`, the extension intercepts it and routes the latest workflow to the next inferred stage via `/workflow-continue`; after `/clear`, use the explicit command shown in the handoff.
 
 ### Stage 2 — Spec
 

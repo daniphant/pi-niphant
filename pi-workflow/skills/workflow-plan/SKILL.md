@@ -175,7 +175,7 @@ Rules:
 
 ## Exit
 
-Tell the user in natural prose that the implementation plan is finalized and execution is next. Include both immediate continuation and `/clear` resume options. Put only the concrete command in a code block:
+Tell the user in natural prose that the implementation plan is finalized and execution is next. Include both immediate continuation (reply exactly `continue` to let `/workflow-continue` advance in the current session) and `/clear` resume options. Put only the concrete command in a code block:
 
 ```text
 /workflow-execute <workflow-directory-or-workflow.toml>
