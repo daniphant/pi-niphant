@@ -78,6 +78,14 @@ function shimmerText(theme: ExtensionContext["ui"]["theme"], text: string): stri
 		.join("");
 }
 
+function hasActiveUI(ctx: ExtensionContext): boolean {
+	try {
+		return ctx.hasUI;
+	} catch {
+		return false;
+	}
+}
+
 function renderStatus(ctx: ExtensionContext, message: string, startedAt: number): string {
 	const theme = ctx.ui.theme;
 	const elapsed = formatDuration(Date.now() - startedAt);
@@ -105,6 +113,7 @@ export default function whimsicalStatus(pi: ExtensionAPI) {
 	}
 
 	function clearWorkingMessage(ctx: ExtensionContext) {
+		if (!hasActiveUI(ctx)) return;
 		ctx.ui.setWorkingMessage();
 	}
 
@@ -119,7 +128,7 @@ export default function whimsicalStatus(pi: ExtensionAPI) {
 	}
 
 	function tick(ctx: ExtensionContext) {
-		if (startedAt === null) return;
+		if (!hasActiveUI(ctx) || startedAt === null) return;
 		if (Date.now() - rotatedAt >= ROTATE_MS) {
 			currentMessage = nextMessage();
 			rotatedAt = Date.now();
@@ -128,6 +137,7 @@ export default function whimsicalStatus(pi: ExtensionAPI) {
 	}
 
 	function start(ctx: ExtensionContext) {
+		if (!hasActiveUI(ctx)) return;
 		stop(ctx);
 		startedAt = Date.now();
 		rotatedAt = startedAt;

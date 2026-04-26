@@ -83,6 +83,10 @@ done
 
 if [[ ${#SELECTED[@]} -gt 0 ]]; then
   PACKAGES=("${SELECTED[@]}")
+elif [[ "$UNINSTALL" == "1" && "$INSTALL_DELEGATED" != "1" ]]; then
+  # A bare uninstall should clean every symlink this installer may have created,
+  # including optional packages installed by a previous --all/--delegated-agents run.
+  PACKAGES=("${ALL_PACKAGES[@]}")
 elif [[ "$INSTALL_ALL" == "1" ]]; then
   PACKAGES=("${ALL_PACKAGES[@]}")
 else

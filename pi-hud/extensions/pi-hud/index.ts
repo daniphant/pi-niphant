@@ -52,6 +52,14 @@ export default function piHudExtension(pi: ExtensionAPI) {
 
   const getActiveCtx = () => latestCtx;
 
+  const hasActiveUI = (ctx: ExtensionContext) => {
+    try {
+      return ctx.hasUI;
+    } catch {
+      return false;
+    }
+  };
+
   const refreshQuota = async (ctx: ExtensionContext, force = false) => {
     latestCtx = ctx;
     const provider = detectQuotaProvider(ctx.model);
@@ -258,7 +266,7 @@ export default function piHudExtension(pi: ExtensionAPI) {
 
   const applyHudState = (ctx: ExtensionContext) => {
     latestCtx = ctx;
-    if (!ctx.hasUI) {
+    if (!hasActiveUI(ctx)) {
       clearTicker();
       return;
     }
@@ -290,16 +298,19 @@ export default function piHudExtension(pi: ExtensionAPI) {
   });
 
   pi.on("model_select", async (_event, ctx) => {
+    if (!hasActiveUI(ctx)) return;
     latestCtx = ctx;
     await refreshQuota(ctx, false);
   });
 
   pi.on("agent_start", async (_event, ctx) => {
+    if (!hasActiveUI(ctx)) return;
     latestCtx = ctx;
     triggerRender();
   });
 
   pi.on("agent_end", async (_event, ctx) => {
+    if (!hasActiveUI(ctx)) return;
     latestCtx = ctx;
     void refreshQuota(ctx);
     void refreshGitStatus(ctx);
@@ -307,11 +318,13 @@ export default function piHudExtension(pi: ExtensionAPI) {
   });
 
   pi.on("message_end", async (_event, ctx) => {
+    if (!hasActiveUI(ctx)) return;
     latestCtx = ctx;
     triggerRender();
   });
 
   pi.on("turn_end", async (_event, ctx) => {
+    if (!hasActiveUI(ctx)) return;
     latestCtx = ctx;
     void refreshQuota(ctx);
     // Agents tend to mutate files right up to turn boundaries, so hit git again here.

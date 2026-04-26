@@ -270,14 +270,14 @@ function shouldSmartCommit(messages: unknown[] | undefined, status: string) {
   return { ok: true, reason: "complete turn" };
 }
 
-async function autoCommit(ctx: ExtensionContext, reason: string, options: { messages?: unknown[]; manualSubject?: string } = {}) {
+async function autoCommit(cwd: string, reason: string, options: { messages?: unknown[]; manualSubject?: string } = {}) {
   const config = readConfig();
   if (!["smart", "continuous"].includes(config.mode)) return { skipped: true, reason: `mode=${config.mode}` };
 
-  const inside = await sh(ctx.cwd, "git rev-parse --is-inside-work-tree");
+  const inside = await sh(cwd, "git rev-parse --is-inside-work-tree");
   if (!inside.ok || inside.stdout.trim() !== "true") return { skipped: true, reason: "not a git repository" };
 
-  const statusBefore = await gitStatus(ctx.cwd);
+  const statusBefore = await gitStatus(cwd);
   if (!statusBefore) return { skipped: true, reason: "no changes" };
 
   if (config.mode === "smart" && !options.manualSubject) {
@@ -288,24 +288,26 @@ async function autoCommit(ctx: ExtensionContext, reason: string, options: { mess
   const addCommand = config.includePiArtifacts
     ? "git add -A && git reset -- .pi/checkpoints .pi/workflows .pi/plans 2>/dev/null || true"
     : "git add -A && git reset -- .pi 2>/dev/null || true";
-  await sh(ctx.cwd, addCommand);
+  await sh(cwd, addCommand);
 
-  const staged = await sh(ctx.cwd, "git diff --cached --name-status");
+  const staged = await sh(cwd, "git diff --cached --name-status");
   if (!staged.ok || !staged.stdout.trim()) return { skipped: true, reason: "no staged changes after filters" };
 
   const subject = (options.manualSubject?.trim() || buildCommitSubject(staged.stdout, options.messages)).replace(/[\r\n]+/g, " ").slice(0, 120);
-  const commit = await sh(ctx.cwd, `git commit -m ${JSON.stringify(subject)}`);
+  const commit = await sh(cwd, `git commit -m ${JSON.stringify(subject)}`);
   if (!commit.ok) return { skipped: false, error: commit.stderr || commit.stdout };
 
-  const sha = await sh(ctx.cwd, "git rev-parse --short HEAD");
+  const sha = await sh(cwd, "git rev-parse --short HEAD");
   return { skipped: false, sha: sha.stdout.trim(), subject, output: commit.stdout.trim(), reason };
 }
 
 export default function checkpointExtension(pi: ExtensionAPI) {
   pi.on("agent_end", async (event, ctx) => {
-    const result = await autoCommit(ctx, "agent_end", { messages: event.messages as unknown[] });
+    const cwd = ctx.cwd;
+    const hasUI = ctx.hasUI;
+    const result = await autoCommit(cwd, "agent_end", { messages: event.messages as unknown[] });
     const config = readConfig();
-    if (!config.notify || !ctx.hasUI || result.skipped) return;
+    if (!config.notify || !hasUI || result.skipped) return;
     if ("error" in result && result.error) {
       ctx.ui.notify(`Auto-commit failed:\n${result.error.slice(-2000)}`, "warning");
       return;
@@ -369,7 +371,7 @@ export default function checkpointExtension(pi: ExtensionAPI) {
       const old = readConfig();
       const temp = { ...old, mode: "continuous" as const };
       writeConfig(temp);
-      const result = await autoCommit(ctx, "manual", { manualSubject: args.trim() || undefined });
+      const result = await autoCommit(ctx.cwd, "manual", { manualSubject: args.trim() || undefined });
       writeConfig(old);
       if (result.skipped) {
         ctx.ui.notify(`No auto-commit created: ${result.reason}`, "info");
