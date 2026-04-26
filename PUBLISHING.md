@@ -25,6 +25,7 @@ pi-checkpoint/
 pi-codex-compaction/
 pi-pal-consensus-sidecar/
 pi-web-e2e-agent/
+pi-web-tools/
 pi-diagnostics/
 pi-markdown-commands/
 pi-delegation-guard/
@@ -81,7 +82,7 @@ Install everything including explicit delegated-agent orchestration:
 Install selected tools:
 
 ```bash
-./scripts/install.sh pi-workflow pi-pal-consensus-sidecar pi-diagnostics pi-web-e2e-agent
+./scripts/install.sh pi-workflow pi-pal-consensus-sidecar pi-diagnostics pi-web-e2e-agent pi-web-tools
 ```
 
 Uninstall symlinks:

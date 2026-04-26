@@ -27,6 +27,7 @@ Pi should be a predictable, high-agency coding harness:
 | [`pi-codex-compaction`](./pi-codex-compaction) | Codex-style checkpoint handoff compaction summaries. |
 | [`pi-pal-consensus-sidecar`](./pi-pal-consensus-sidecar) | PAL MCP consensus dashboard and direct plan-review tool with artifacts. |
 | [`pi-web-e2e-agent`](./pi-web-e2e-agent) | `agent-browser` powered browser/E2E automation and artifacts. |
+| [`pi-web-tools`](./pi-web-tools) | Direct `web_open` and Brave-backed `web_search` tools with conservative network safety defaults. |
 | [`pi-diagnostics`](./pi-diagnostics) | Diagnostics runner plus Superpowers-inspired systematic debugging skill. |
 | [`pi-markdown-commands`](./pi-markdown-commands) | OpenCode-style markdown slash commands. |
 | [`pi-delegation-guard`](./pi-delegation-guard) | Blocks accidental subagent use for ordinary repo exploration. |
@@ -71,6 +72,7 @@ The default set installs:
 - `pi-diagnostics`
 - `pi-markdown-commands`
 - `pi-web-e2e-agent`
+- `pi-web-tools`
 - `pi-workflow`
 - `pi-agent-notify`
 - `pi-hud`
@@ -88,7 +90,7 @@ The default set installs:
 ## Install selected packages
 
 ```bash
-./scripts/install.sh pi-workflow pi-pal-consensus-sidecar pi-diagnostics pi-web-e2e-agent
+./scripts/install.sh pi-workflow pi-pal-consensus-sidecar pi-diagnostics pi-web-e2e-agent pi-web-tools
 ```
 
 ## Uninstall symlinks

@@ -21,7 +21,7 @@ export default function webToolsExtension(pi: ExtensionAPI) {
     }),
     async execute(_toolCallId, params, signal) {
       const text = await webOpen(params, signal);
-      return { content: [{ type: "text", text }] };
+      return { content: [{ type: "text", text }], details: { tool: "web_open" } };
     }
   });
 
@@ -37,7 +37,7 @@ export default function webToolsExtension(pi: ExtensionAPI) {
     }),
     async execute(_toolCallId, params, signal) {
       const text = await webSearch(params, signal);
-      return { content: [{ type: "text", text }] };
+      return { content: [{ type: "text", text }], details: { tool: "web_search" } };
     }
   });
 }

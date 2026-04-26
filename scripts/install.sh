@@ -21,6 +21,7 @@ DEFAULT_PACKAGES=(
   pi-diagnostics
   pi-markdown-commands
   pi-web-e2e-agent
+  pi-web-tools
   pi-workflow
   pi-agent-notify
   pi-hud
@@ -162,6 +163,9 @@ install_package() {
     pi-web-e2e-agent)
       link_ext pi-web-e2e-agent "$ROOT/pi-web-e2e-agent"
       link_skill e2e-web-agent "$ROOT/pi-web-e2e-agent/skills/e2e-web-agent"
+      ;;
+    pi-web-tools)
+      link_ext pi-web-tools "$ROOT/pi-web-tools"
       ;;
     pi-whimsy-status)
       link_ext pi-whimsy-status "$ROOT/pi-whimsy-status/extensions/pi-whimsy-status"

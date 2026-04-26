@@ -33,7 +33,12 @@ async function requestOnce(rawUrl: string, timeoutMs: number, signal: AbortSigna
       protocol: url.protocol, hostname: url.hostname, port: effectivePort(url), path: `${url.pathname}${url.search}`, method: "GET",
       headers: { "user-agent": USER_AGENT, accept: "text/html, text/plain, application/xhtml+xml;q=0.9, */*;q=0.1", "accept-encoding": "gzip, br, deflate", host: url.host },
       agent: false, servername: url.hostname,
-      lookup: (_hostname, _opts, cb) => cb(null, validation.selectedAddress, validation.selectedAddress.includes(":") ? 6 : 4),
+      lookup: (_hostname: string, opts: any, cb?: any) => {
+        const family = validation.selectedAddress.includes(":") ? 6 : 4;
+        if (typeof opts === "function") return opts(null, validation.selectedAddress, family);
+        if (opts?.all) return cb(null, [{ address: validation.selectedAddress, family }]);
+        return cb(null, validation.selectedAddress, family);
+      },
     }, (res) => {
       res.on("data", (chunk: Buffer) => { rawBytes += chunk.length; if (rawBytes > MAX_RESPONSE_BYTES) { req.destroy(); finish(new FetchError("Response body exceeds size limit")); return; } chunks.push(chunk); });
       res.on("end", async () => {
