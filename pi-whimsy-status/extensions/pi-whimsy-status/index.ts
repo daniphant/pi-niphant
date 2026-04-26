@@ -49,6 +49,12 @@ const messages = [
 	"Massaging the context window…",
 	"Brewing moonlight into the call stack…",
 	"Teaching rubber ducks to read stack traces…",
+
+	// Ghostly additions
+	"Summoning the spectral syntax spirits…",
+	"Asking the ghost in the machine for directions…",
+	"Boo-tstrapping the dependency tree…",
+	"Poltergeist-proofing the parentheses…",
 ];
 
 function shuffle<T>(items: readonly T[]): T[] {
