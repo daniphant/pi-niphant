@@ -13,21 +13,10 @@ function shouldRouteToSpawnSkill(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   if (!normalized || normalized.startsWith("/") || normalized.startsWith("!")) return false;
 
-  // Opinionated default: do not auto-route ordinary exploration/review/planning
-  // to delegated agents. Strong primary models should inspect code directly.
-  // Auto-route only when the user explicitly asks for delegation, consensus,
-  // or browser/E2E-style verification.
-  return [
-    /\bspawn\b.*\bagent\b/,
-    /\bsub-?agent\b/,
-    /\brun\b.*\bagent\b/,
-    /\bdelegate\b/,
-    /\bhave\b.*\bagent\b/,
-    /\bask\b.*\bagent\b/,
-    /\bconsensus\b/,
-    /\bask\b.*\b(models?|reviewers?)\b/,
-    /\b(e2e|end-to-end|browser|playwright)\b.*\b(agent|test|verify|check)\b/,
-  ].some((pattern) => pattern.test(normalized));
+  // Keep delegated-agent routing strictly opt-in. In particular, do not
+  // auto-route consensus/review/browser requests to the spawn-agent skill;
+  // those have direct tools/workflows and should not be hijacked here.
+  return /\bspawn\b.*\bagents?\b/.test(normalized);
 }
 
 function buildDelegationAck(tasks: DelegatedAgentTask[], cwd?: string): string {

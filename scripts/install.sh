@@ -142,7 +142,6 @@ install_package() {
       ;;
     pi-delegated-agents)
       link_ext pi-delegated-agents "$ROOT/pi-delegated-agents/extensions/pi-delegated-agents"
-      link_skill spawn-agent "$ROOT/pi-delegated-agents/skills/spawn-agent"
       ;;
     pi-delegation-guard)
       link_ext pi-delegation-guard "$ROOT/pi-delegation-guard"
