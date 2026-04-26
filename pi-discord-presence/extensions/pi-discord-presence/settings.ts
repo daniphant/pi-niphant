@@ -7,8 +7,8 @@ import type { DiscordPresenceSettings } from "./types.js";
 
 export const DEFAULT_SETTINGS: DiscordPresenceSettings = {
   enabled: true,
-  showProject: false,
-  showModel: false,
+  showProject: true,
+  showModel: true,
   firstRunNoticeShown: false,
 };
 

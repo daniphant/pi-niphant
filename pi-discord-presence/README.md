@@ -6,16 +6,16 @@ Privacy-conscious Discord Rich Presence for [Pi](https://github.com/mariozechner
 
 ## Current default
 
-Presence is enabled when the extension loads, but public fields are non-identifying unless you opt in:
+Presence is enabled when the extension loads and shows sanitized project/model labels by default:
 
-- Details: `Working in Pi`
-- State: `AI model • N Pi session(s)`
+- Details: `Working in <sanitized project>`
+- State: `<sanitized model> • N Pi session(s)`
 - Large image: `pi-logo` when that asset exists on the configured Discord application
 - Status text: `Agent working`, `Waiting for input`, or `Idle`
 - Timestamp: elapsed time for the elected publishing Pi session
 - Buttons: none
 
-Project and model labels are hidden by default. When enabled, labels are normalized, sanitized, and truncated before they are written to Discord or the local registry.
+Project and model labels are shown by default. Labels are normalized, sanitized, and truncated before they are written to Discord or the local registry. Use `/discord-presence hide-project` and `/discord-presence hide-model` if you want more private generic labels.
 
 ## Installation
 

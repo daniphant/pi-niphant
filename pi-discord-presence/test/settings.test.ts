@@ -7,10 +7,10 @@ import { DEFAULT_SETTINGS, getSettingsPath, loadSettings, parseSettings, saveSet
 describe("settings", () => {
   it("parses defaults defensively", () => {
     expect(parseSettings("{}")).toEqual(DEFAULT_SETTINGS);
-    expect(parseSettings(JSON.stringify({ enabled: false, showProject: true, showModel: true, firstRunNoticeShown: true, clientId: " 123 " }))).toEqual({
+    expect(parseSettings(JSON.stringify({ enabled: false, showProject: false, showModel: false, firstRunNoticeShown: true, clientId: " 123 " }))).toEqual({
       enabled: false,
-      showProject: true,
-      showModel: true,
+      showProject: false,
+      showModel: false,
       firstRunNoticeShown: true,
       clientId: "123",
     });

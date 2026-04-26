@@ -63,7 +63,7 @@ export class DiscordPresenceController {
     this.latestCtx = ctx;
     this.settings = await loadSettings(this.settingsPath);
     if (this.settings.enabled && !this.settings.firstRunNoticeShown) {
-      this.notify(ctx, "Discord Presence is active with generic privacy defaults. Use /discord-presence off to disable it.");
+      this.notify(ctx, "Discord Presence is active and shows sanitized project/model labels. Use /discord-presence hide-project or hide-model to make it more private, or /discord-presence off to disable it.");
       this.settings.firstRunNoticeShown = true;
       await this.persist();
     }
