@@ -326,6 +326,7 @@ function continueWorkflow(pi: ExtensionAPI, workflow: WorkflowPaths) {
 
 async function switchToNiphantWorkspace(ctx: ExtensionCommandContext, workspace: WorkspaceRecord) {
   await ctx.waitForIdle();
+  process.chdir(workspace.worktreePath);
   const sourceSession = ctx.sessionManager.getSessionFile();
   let preservedConversation = false;
   let sessionManager: SessionManager;
@@ -351,8 +352,10 @@ async function switchToNiphantWorkspace(ctx: ExtensionCommandContext, workspace:
 
   await ctx.switchSession(sessionFile, {
     withSession: async (nextCtx) => {
+      process.chdir(workspace.worktreePath);
+      nextCtx.ui.setTitle(`pi - ${workspace.taskSlug}`);
       const contextNote = preservedConversation ? " with current conversation preserved" : "";
-      nextCtx.ui.notify(`Moved Pi to niphant workspace '${workspace.taskSlug}'${contextNote}:\n${workspace.worktreePath}`, workspace.setupStatus === "failed" ? "warning" : "info");
+      nextCtx.ui.notify(`Moved Pi to niphant workspace '${workspace.taskSlug}'${contextNote}:\n${nextCtx.cwd}`, workspace.setupStatus === "failed" ? "warning" : "info");
     },
   });
 }
