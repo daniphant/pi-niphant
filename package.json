@@ -15,6 +15,7 @@
     "pi-delegated-agents",
     "pi-delegation-guard",
     "pi-diagnostics",
+    "pi-discord-presence",
     "pi-github-repo-explorer",
     "pi-hud",
     "pi-markdown-commands",

@@ -1,0 +1,16 @@
+export const EXTENSION_NAME = "pi-discord-presence";
+export const SETTINGS_FILE_NAME = "pi-discord-presence.json";
+export const REGISTRY_SCHEMA_VERSION = 1 as const;
+export const PLACEHOLDER_DEFAULT_CLIENT_ID = "000000000000000000";
+export const DEFAULT_CLIENT_ID = PLACEHOLDER_DEFAULT_CLIENT_ID;
+export const CLIENT_ID_ENV = "PI_DISCORD_CLIENT_ID";
+export const PI_LOGO_ASSET_KEY = "pi-logo";
+export const LABEL_MAX_CHARS = 64;
+export const DISCORD_FIELD_MAX_CHARS = 128;
+export const ACTIVITY_DEBOUNCE_MS = 5_000;
+export const IDLE_AFTER_MS = 15 * 60_000;
+export const HEARTBEAT_INTERVAL_MS = 15_000;
+export const HEARTBEAT_TTL_MS = 45_000;
+export const LEASE_DURATION_MS = 30_000;
+export const LEASE_RENEW_MS = 10_000;
+export const RECONNECT_DELAYS_MS = [1_000, 2_000, 5_000, 15_000, 30_000, 60_000] as const;
