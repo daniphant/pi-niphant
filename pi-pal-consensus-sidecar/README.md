@@ -74,6 +74,27 @@ run_pal_consensus_review({
 
 The direct tool uses the same sidecar engine, PAL MCP subprocess, config validation, trusted roots, artifacts, and deterministic `findings.json` as the dashboard.
 
+## Pi agent quickstart
+
+Use the direct `run_pal_consensus_review` tool when the agent already has a frozen `workflow.spec.md`, `workflow.plan.md`, or plan text and needs a machine-readable review result. Use the dashboard (`/pal-sidecar` or `start_pal_consensus_sidecar`) when a human needs to watch progress, inspect/cancel runs interactively, compare artifacts in the browser, or debug model availability. Both paths enforce trusted roots (`cwd`, `~/.pi`, `PAL_SIDECAR_ALLOWED_ROOTS`), localhost-only dashboard access, CSRF-protected POST/SSE APIs, no provider secret exposure, reviewer config validation, and the same artifact schema.
+
+After every direct or dashboard run, do not stop at “PAL completed.” Read and summarize:
+
+- `findings.json` for `summary.recommendation`, reviewer success, warnings, failed reviewers, and `blocking_findings` / `suggestion_findings` / `question_findings`.
+- `findings-summary.md` for the human-readable normalized review.
+- relevant per-reviewer markdown artifacts when a finding needs source context.
+
+Final handoffs must cite artifact paths (`artifactDir`, `findingsPath`, and `findings-summary.md`) and state whether blockers remain. Blocking findings are implementation gates: resolve them in the spec/plan, or explicitly record a deferral with owner/rationale/risk, before moving to implementation.
+
+`stackId: "auto"` is the normal choice for workflow spec/plan reviews. It selects:
+
+- `standard-modern` for ordinary technical plans.
+- `budget` only for explicit cost/MVP/prototype/small-scope language.
+- `china-open` only for explicit open/local/provider-diverse model language.
+- `frontier-modern` only for high-stakes signals such as auth, payments, PII, secrets, compliance, multi-tenancy, destructive migrations, or irreversible customer-data risk.
+
+If a run fails or is below threshold, preserve the artifact paths and structured error code in the workflow notes. Retryable `pal_timeout`, `pal_rate_limited`, `pal_upstream_unavailable`, or `pal_network_error` usually mean retry later, use fewer reviewers/a lower-cost stack, or raise the wait timeout intentionally. Non-retryable `pal_provider_key_missing`, `pal_provider_auth_failed`, `pal_model_not_found`, `pal_model_no_endpoint`, `model_unavailable`, `invalid_reviewer_config`, or `duplicate_model_stance` require fixing provider/model/configuration first. `insufficient_successful_reviewers` means inspect failed reviewers and either rerun with a healthier stack or intentionally adjust the threshold; do not treat it as consensus passed.
+
 ## PAL contract and model discovery
 
 The sidecar exposes backend-only discovery endpoints for checking PAL MCP compatibility and configured stack availability before running consensus:

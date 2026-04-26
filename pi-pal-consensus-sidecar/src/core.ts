@@ -292,6 +292,7 @@ function renderFindingList(findings: FindingLike[]): string {
       finding.location ? `   - Location: ${finding.location}` : undefined,
       `   - Issue: ${finding.issue}`,
       finding.recommendation ? `   - Recommendation: ${finding.recommendation}` : undefined,
+      finding.artifact ? `   - Source artifact: ${finding.artifact}` : undefined,
     ].filter(Boolean);
     return parts.join("\n");
   }).join("\n\n") + "\n";
@@ -308,6 +309,8 @@ export function renderFindingsSummaryMarkdown(input: FindingsSummaryInput): stri
     `Warnings: ${input.warning_count}`,
     `Failed reviewers: ${input.failed_reviewers.length}`,
     input.artifactDir ? `Artifacts: ${input.artifactDir}` : undefined,
+    input.artifactDir ? `Findings JSON: ${input.artifactDir}/findings.json` : undefined,
+    input.artifactDir ? `Findings summary: ${input.artifactDir}/findings-summary.md` : undefined,
     "",
     "## Blocking Findings",
     "",
