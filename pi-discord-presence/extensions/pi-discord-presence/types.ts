@@ -1,5 +1,5 @@
 export type PresenceStatus = "Agent working" | "Waiting for input" | "Idle";
-export type ClientIdSource = "env" | "settings" | "default" | "missing";
+export type ClientIdSource = "env" | "env-file" | "settings" | "default" | "missing";
 export type ConnectionState = "disabled" | "unconfigured" | "disconnected" | "connecting" | "connected" | "error";
 
 export interface DiscordPresenceSettings {

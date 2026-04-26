@@ -23,7 +23,7 @@ describe("DiscordPresenceController", () => {
     const tmp = await mkdtemp(path.join(os.tmpdir(), "pi-discord-controller-"));
     const rpc = new FakeRpc();
     const statuses: string[] = [];
-    const controller = new DiscordPresenceController({ rpc, registryPath: path.join(tmp, "instances.json"), leaderPath: path.join(tmp, "leader.lock"), settingsPath: path.join(tmp, "settings.json") });
+    const controller = new DiscordPresenceController({ rpc, registryPath: path.join(tmp, "instances.json"), leaderPath: path.join(tmp, "leader.lock"), settingsPath: path.join(tmp, "settings.json"), clientIdEnvFiles: [] });
     await controller.init({ cwd: tmp, model: "secret", hasUI: true, ui: { setStatus: (message) => statuses.push(message), notify: vi.fn() } });
     expect(rpc.connects).toBe(0);
     expect(statuses.at(-1)).toContain("missing client ID");
@@ -33,7 +33,7 @@ describe("DiscordPresenceController", () => {
   it("can disable and reconnect without throwing", async () => {
     const tmp = await mkdtemp(path.join(os.tmpdir(), "pi-discord-controller-"));
     const rpc = new FakeRpc();
-    const controller = new DiscordPresenceController({ rpc, registryPath: path.join(tmp, "instances.json"), leaderPath: path.join(tmp, "leader.lock"), settingsPath: path.join(tmp, "settings.json") });
+    const controller = new DiscordPresenceController({ rpc, registryPath: path.join(tmp, "instances.json"), leaderPath: path.join(tmp, "leader.lock"), settingsPath: path.join(tmp, "settings.json"), clientIdEnvFiles: [] });
     expect(await controller.disable({ hasUI: false })).toContain("disabled");
     expect(rpc.destroyed).toBeGreaterThan(0);
     expect(await controller.reconnect({ hasUI: false })).toContain("reconnect");

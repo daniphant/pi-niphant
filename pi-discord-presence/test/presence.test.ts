@@ -1,5 +1,8 @@
+import { mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { resolveClientId } from "../extensions/pi-discord-presence/client-id.js";
+import { parseEnvValue, resolveClientId } from "../extensions/pi-discord-presence/client-id.js";
 import { ReconnectBackoff, jitter } from "../extensions/pi-discord-presence/backoff.js";
 import { buildActivity, selectLastActive } from "../extensions/pi-discord-presence/presence.js";
 
@@ -26,9 +29,18 @@ describe("presence mapping", () => {
 });
 
 describe("client id and backoff", () => {
-  it("resolves env before settings and hides placeholder default", () => {
-    expect(resolveClientId({ clientId: "123456789012345678" }, { PI_DISCORD_CLIENT_ID: "234567890123456789" })).toMatchObject({ source: "env", configured: true });
-    expect(resolveClientId({}, {})).toMatchObject({ source: "missing", configured: false });
+  it("resolves env before env files and settings", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "pi-discord-env-"));
+    const envFile = path.join(dir, ".env");
+    await writeFile(envFile, "PI_DISCORD_CLIENT_ID=345678901234567890\n", "utf8");
+    expect(resolveClientId({ clientId: "123456789012345678" }, { PI_DISCORD_CLIENT_ID: "234567890123456789" }, [envFile])).toMatchObject({ source: "env", configured: true });
+    expect(resolveClientId({ clientId: "123456789012345678" }, {}, [envFile])).toMatchObject({ source: "env-file", configured: true });
+    expect(resolveClientId({ clientId: "123456789012345678" }, {}, [])).toMatchObject({ source: "settings", configured: true });
+    expect(resolveClientId({}, {}, [])).toMatchObject({ source: "missing", configured: false });
+  });
+
+  it("parses quoted .env client id values", () => {
+    expect(parseEnvValue("# comment\nPI_DISCORD_CLIENT_ID=\"1497753988873982113\"\n")).toBe("1497753988873982113");
   });
 
   it("backs off with bounded delays and jitter", () => {

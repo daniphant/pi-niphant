@@ -44,18 +44,20 @@ export class DiscordPresenceController {
   private registryPath: string;
   private leaderPath: string;
   private settingsPath: string | undefined;
+  private clientIdEnvFiles: string[] | undefined;
 
-  constructor(options: { rpc?: RpcAdapter; registryPath?: string; leaderPath?: string; settingsPath?: string } = {}) {
+  constructor(options: { rpc?: RpcAdapter; registryPath?: string; leaderPath?: string; settingsPath?: string; clientIdEnvFiles?: string[] } = {}) {
     this.rpc = options.rpc ?? new LazyDiscordRpcAdapter();
     this.registryPath = options.registryPath ?? getRegistryPath();
     this.leaderPath = options.leaderPath ?? getLeaderPath();
     this.settingsPath = options.settingsPath;
+    this.clientIdEnvFiles = options.clientIdEnvFiles;
   }
 
   getSettings(): DiscordPresenceSettings { return this.settings; }
   getConnectionState(): ConnectionState { return this.settings.enabled ? this.rpc.getState() : "disabled"; }
   getBackoffAttempt(): number { return this.backoff.getAttempt(); }
-  resolveClientId(): ClientIdResolution { return resolveClientId(this.settings); }
+  resolveClientId(): ClientIdResolution { return resolveClientId(this.settings, process.env, this.clientIdEnvFiles); }
 
   async init(ctx: ContextLike): Promise<void> {
     this.latestCtx = ctx;
