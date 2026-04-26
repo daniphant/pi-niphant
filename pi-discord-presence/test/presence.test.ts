@@ -10,13 +10,13 @@ describe("presence mapping", () => {
   it("uses generic labels by default", () => {
     const activity = buildActivity({ projectLabel: "SecretRepo", modelLabel: "secret-model", sessionCount: 2, status: "Waiting for input", startedAt: 1_000, showProject: false, showModel: false });
     expect(activity.details).toBe("Working in Pi");
-    expect(activity.state).toBe("AI model • 2 Pi sessions");
+    expect(activity.state).toBe("AI model • 2 sessions");
   });
 
   it("uses sanitized opt-in labels", () => {
     const activity = buildActivity({ projectLabel: "/Secret/Repo", modelLabel: "model$1", sessionCount: 1, status: "Agent working", startedAt: 1_000, showProject: true, showModel: true });
     expect(activity.details).toBe("Working in Secret Repo");
-    expect(activity.state).toBe("model 1 • 1 Pi session");
+    expect(activity.state).toBe("model 1");
   });
 
   it("selects last-active deterministically", () => {

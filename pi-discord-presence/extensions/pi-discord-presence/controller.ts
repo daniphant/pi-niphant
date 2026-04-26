@@ -160,7 +160,7 @@ export class DiscordPresenceController {
   private makeHeartbeat(now = Date.now()): InstanceHeartbeat {
     const ctx = this.latestCtx;
     const projectSource = this.settings.showProject ? basename(ctx?.cwd || "") : "Pi";
-    const modelSource = this.settings.showModel ? String(ctx?.model ?? "") : "AI model";
+    const modelSource = this.settings.showModel ? ctx?.model : "AI model";
     return {
       id: this.instanceId,
       pid: process.pid,

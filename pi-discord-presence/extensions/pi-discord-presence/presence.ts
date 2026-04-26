@@ -5,11 +5,12 @@ import type { ActivityInput, DiscordActivity, InstanceHeartbeat } from "./types.
 export function buildActivity(input: ActivityInput): DiscordActivity {
   const project = input.showProject ? sanitizeProjectLabel(input.projectLabel) : "Pi";
   const model = input.showModel ? sanitizeModelLabel(input.modelLabel) : "AI model";
-  const sessionWord = input.sessionCount === 1 ? "session" : "sessions";
+  const sessionCount = Math.max(1, input.sessionCount);
+  const sessionSuffix = sessionCount === 1 ? "" : ` • ${sessionCount} sessions`;
 
   return {
     details: truncateText(`Working in ${project}`, DISCORD_FIELD_MAX_CHARS),
-    state: truncateText(`${model} • ${Math.max(1, input.sessionCount)} Pi ${sessionWord}`, DISCORD_FIELD_MAX_CHARS),
+    state: truncateText(`${model}${sessionSuffix}`, DISCORD_FIELD_MAX_CHARS),
     largeImageKey: PI_LOGO_ASSET_KEY,
     largeImageText: "Pi Coding Agent",
     smallImageText: input.status,

@@ -29,8 +29,30 @@ export function sanitizeProjectLabel(value: unknown): string {
   return sanitizeLabel(value, "Pi");
 }
 
+function stringProperty(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key];
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+export function extractModelLabel(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return "";
+
+  const record = value as Record<string, unknown>;
+  const display = stringProperty(record, "name")
+    ?? stringProperty(record, "displayName")
+    ?? stringProperty(record, "label")
+    ?? stringProperty(record, "title");
+  if (display) return display;
+
+  const id = stringProperty(record, "id") ?? stringProperty(record, "modelId") ?? stringProperty(record, "model");
+  const provider = stringProperty(record, "provider");
+  if (id && provider && !id.toLowerCase().startsWith(`${provider.toLowerCase()}/`)) return `${provider} ${id}`;
+  return id ?? "";
+}
+
 export function sanitizeModelLabel(value: unknown): string {
-  return sanitizeLabel(value, "AI model");
+  return sanitizeLabel(extractModelLabel(value), "AI model");
 }
 
 export function safeStatusLine(value: string): string {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeLabel, sanitizeModelLabel, sanitizeProjectLabel } from "../extensions/pi-discord-presence/sanitize.js";
+import { extractModelLabel, sanitizeLabel, sanitizeModelLabel, sanitizeProjectLabel } from "../extensions/pi-discord-presence/sanitize.js";
 
 const allowed = /^[\p{L}\p{N} ._+\-#()…]+$/u;
 
@@ -18,5 +18,11 @@ describe("sanitizeLabel", () => {
   it("normalizes unicode and truncates safely", () => {
     expect(sanitizeModelLabel("ＡＩ+Model#1")).toBe("AI+Model#1");
     expect([...sanitizeLabel("x".repeat(100), "Pi")].length).toBeLessThanOrEqual(64);
+  });
+
+  it("extracts model labels from Pi model objects", () => {
+    expect(extractModelLabel({ id: "gpt-5.1", name: "GPT-5.1", provider: "openai" })).toBe("GPT-5.1");
+    expect(sanitizeModelLabel({ id: "claude-sonnet-4.6", provider: "anthropic" })).toBe("anthropic claude-sonnet-4.6");
+    expect(sanitizeModelLabel({})).toBe("AI model");
   });
 });
