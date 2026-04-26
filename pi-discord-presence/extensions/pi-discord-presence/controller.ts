@@ -45,6 +45,7 @@ export class DiscordPresenceController {
   private leaderPath: string;
   private settingsPath: string | undefined;
   private clientIdEnvFiles: string[] | undefined;
+  private shuttingDown = false;
 
   constructor(options: { rpc?: RpcAdapter; registryPath?: string; leaderPath?: string; settingsPath?: string; clientIdEnvFiles?: string[] } = {}) {
     this.rpc = options.rpc ?? new LazyDiscordRpcAdapter();
@@ -60,6 +61,7 @@ export class DiscordPresenceController {
   resolveClientId(): ClientIdResolution { return resolveClientId(this.settings, process.env, this.clientIdEnvFiles); }
 
   async init(ctx: ContextLike): Promise<void> {
+    this.shuttingDown = false;
     this.latestCtx = ctx;
     this.settings = await loadSettings(this.settingsPath);
     if (this.settings.enabled && !this.settings.firstRunNoticeShown) {
@@ -69,10 +71,11 @@ export class DiscordPresenceController {
     }
     this.touch(ctx, "Waiting for input");
     this.startTimers();
-    await this.tick(true);
+    void this.tick(true);
   }
 
   touch(ctx: ContextLike | null, status: PresenceStatus): void {
+    if (this.shuttingDown) return;
     if (ctx) this.latestCtx = ctx;
     this.status = status;
     this.lastActiveAt = Date.now();
@@ -81,6 +84,7 @@ export class DiscordPresenceController {
   }
 
   async enable(ctx: ContextLike): Promise<string> {
+    this.shuttingDown = false;
     this.latestCtx = ctx;
     this.settings.enabled = true;
     await this.persist();
@@ -123,6 +127,7 @@ export class DiscordPresenceController {
   }
 
   async shutdown(): Promise<void> {
+    this.shuttingDown = true;
     clearTimer(this.heartbeatTimer); clearTimer(this.idleTimer); clearTimer(this.reconnectTimer); clearTimer(this.leaderTimer);
     this.heartbeatTimer = this.idleTimer = this.reconnectTimer = this.leaderTimer = null;
     await this.rpc.destroy();
@@ -186,7 +191,7 @@ export class DiscordPresenceController {
 
   private async tick(force = false): Promise<void> {
     const now = Date.now();
-    if (!this.settings.enabled) return;
+    if (this.shuttingDown || !this.settings.enabled) return;
     const clientId = this.resolveClientId();
     const registry = await writeHeartbeat(this.makeHeartbeat(now), this.registryPath, now);
     if (!clientId.configured || !clientId.clientId) {

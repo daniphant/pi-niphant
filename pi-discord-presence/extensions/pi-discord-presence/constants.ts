@@ -15,3 +15,5 @@ export const HEARTBEAT_TTL_MS = 45_000;
 export const LEASE_DURATION_MS = 30_000;
 export const LEASE_RENEW_MS = 10_000;
 export const RECONNECT_DELAYS_MS = [1_000, 2_000, 5_000, 15_000, 30_000, 60_000] as const;
+export const RPC_OPERATION_TIMEOUT_MS = 1_500;
+export const EXTENSION_SHUTDOWN_TIMEOUT_MS = 1_750;

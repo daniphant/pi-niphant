@@ -5,6 +5,21 @@ import { describe, expect, it, vi } from "vitest";
 import { DiscordPresenceController } from "../extensions/pi-discord-presence/controller.js";
 import type { DiscordActivity, RpcAdapter, ConnectionState } from "../extensions/pi-discord-presence/types.js";
 
+async function waitFor(assertion: () => void): Promise<void> {
+  const startedAt = Date.now();
+  let lastError: unknown;
+  while (Date.now() - startedAt < 500) {
+    try {
+      assertion();
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+  }
+  throw lastError;
+}
+
 class FakeRpc implements RpcAdapter {
   state: ConnectionState = "disconnected";
   activities: DiscordActivity[] = [];
@@ -26,7 +41,7 @@ describe("DiscordPresenceController", () => {
     const controller = new DiscordPresenceController({ rpc, registryPath: path.join(tmp, "instances.json"), leaderPath: path.join(tmp, "leader.lock"), settingsPath: path.join(tmp, "settings.json"), clientIdEnvFiles: [] });
     await controller.init({ cwd: tmp, model: "secret", hasUI: true, ui: { setStatus: (message) => statuses.push(message), notify: vi.fn() } });
     expect(rpc.connects).toBe(0);
-    expect(statuses.at(-1)).toContain("missing client ID");
+    await waitFor(() => expect(statuses.at(-1)).toContain("missing client ID"));
     await controller.shutdown();
   });
 

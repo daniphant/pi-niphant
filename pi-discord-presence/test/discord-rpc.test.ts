@@ -15,7 +15,7 @@ describe("LazyDiscordRpcAdapter", () => {
     const adapter = new LazyDiscordRpcAdapter(importer);
     expect(importer).not.toHaveBeenCalled();
     await adapter.connect("123456789012345678");
-    await adapter.setActivity({ details: "Working in Pi", state: "AI model • 1 Pi session" });
+    await adapter.setActivity({ details: "Working in Pi", state: "AI model" });
     await adapter.destroy();
     expect(importer).toHaveBeenCalledTimes(1);
     expect(calls).toEqual(["login", "setActivity", "clearActivity", "destroy"]);
@@ -26,6 +26,23 @@ describe("LazyDiscordRpcAdapter", () => {
     await expect(adapter.connect("123456789012345678")).rejects.toThrow();
     expect(adapter.getState()).toBe("error");
     expect(adapter.getLastError()).toBe("Invalid or unconfigured Discord client ID");
+  });
+
+  it("does not hang forever if Discord cleanup never resolves", async () => {
+    const calls: string[] = [];
+    class Client {
+      on() {}
+      async login() { calls.push("login"); }
+      clearActivity() { calls.push("clearActivity"); return new Promise<void>(() => {}); }
+      destroy() { calls.push("destroy"); return new Promise<void>(() => {}); }
+    }
+    const adapter = new LazyDiscordRpcAdapter(async () => ({ Client }), 1);
+    await adapter.connect("123456789012345678");
+    const startedAt = Date.now();
+    await adapter.destroy();
+    expect(Date.now() - startedAt).toBeLessThan(500);
+    expect(adapter.getState()).toBe("disconnected");
+    expect(calls).toEqual(["login", "clearActivity", "destroy"]);
   });
 });
 

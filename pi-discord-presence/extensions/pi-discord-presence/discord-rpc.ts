@@ -1,3 +1,4 @@
+import { RPC_OPERATION_TIMEOUT_MS } from "./constants.js";
 import type { ConnectionState, DiscordActivity, RpcAdapter } from "./types.js";
 
 type RpcClientLike = {
@@ -42,12 +43,30 @@ function toRpcActivity(activity: DiscordActivity): Record<string, unknown> {
   };
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Discord RPC cleanup timed out")), timeoutMs);
+        timer.unref?.();
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export class LazyDiscordRpcAdapter implements RpcAdapter {
   private client: RpcClientLike | null = null;
   private state: ConnectionState = "disconnected";
   private lastError: string | null = null;
 
-  constructor(private readonly importer: () => Promise<RpcModule> = () => import("@xhayper/discord-rpc").then((module) => module as unknown as RpcModule)) {}
+  constructor(
+    private readonly importer: () => Promise<RpcModule> = () => import("@xhayper/discord-rpc").then((module) => module as unknown as RpcModule),
+    private readonly operationTimeoutMs = RPC_OPERATION_TIMEOUT_MS,
+  ) {}
 
   getState(): ConnectionState {
     return this.state;
@@ -68,8 +87,8 @@ export class LazyDiscordRpcAdapter implements RpcAdapter {
       client.on?.("disconnected", () => {
         this.state = "disconnected";
       });
-      if (client.connect) await client.connect();
-      else if (client.login) await client.login();
+      if (client.connect) await withTimeout(client.connect(), this.operationTimeoutMs);
+      else if (client.login) await withTimeout(client.login(), this.operationTimeoutMs);
       this.client = client;
       this.state = "connected";
     } catch (error) {
@@ -83,8 +102,8 @@ export class LazyDiscordRpcAdapter implements RpcAdapter {
     if (!this.client || this.state !== "connected") return;
     try {
       const rpcActivity = toRpcActivity(activity);
-      if (this.client.setActivity) await this.client.setActivity(rpcActivity);
-      else if (this.client.request) await this.client.request("SET_ACTIVITY", { pid: process.pid, activity: rpcActivity });
+      if (this.client.setActivity) await withTimeout(this.client.setActivity(rpcActivity), this.operationTimeoutMs);
+      else if (this.client.request) await withTimeout(this.client.request("SET_ACTIVITY", { pid: process.pid, activity: rpcActivity }), this.operationTimeoutMs);
     } catch (error) {
       this.state = "error";
       this.lastError = classifyRpcError(error);
@@ -95,8 +114,8 @@ export class LazyDiscordRpcAdapter implements RpcAdapter {
   async clearActivity(): Promise<void> {
     if (!this.client) return;
     try {
-      if (this.client.clearActivity) await this.client.clearActivity();
-      else if (this.client.request) await this.client.request("SET_ACTIVITY", { pid: process.pid });
+      if (this.client.clearActivity) await withTimeout(this.client.clearActivity(), this.operationTimeoutMs);
+      else if (this.client.request) await withTimeout(this.client.request("SET_ACTIVITY", { pid: process.pid }), this.operationTimeoutMs);
     } catch {
       // Best-effort cleanup.
     }
@@ -105,7 +124,8 @@ export class LazyDiscordRpcAdapter implements RpcAdapter {
   async destroy(): Promise<void> {
     await this.clearActivity();
     try {
-      await this.client?.destroy?.();
+      const destroyResult = this.client?.destroy?.();
+      if (destroyResult) await withTimeout(Promise.resolve(destroyResult), this.operationTimeoutMs);
       this.client?.transport?.close?.();
     } catch {
       // Non-fatal shutdown.
