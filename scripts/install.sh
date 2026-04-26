@@ -19,6 +19,7 @@ DEFAULT_PACKAGES=(
   pi-pal-consensus-sidecar
   pi-delegation-guard
   pi-diagnostics
+  pi-discord-presence
   pi-markdown-commands
   pi-web-e2e-agent
   pi-web-tools
@@ -149,6 +150,9 @@ install_package() {
     pi-diagnostics)
       link_ext pi-diagnostics "$ROOT/pi-diagnostics"
       link_skill systematic-debugging "$ROOT/pi-diagnostics/skills/systematic-debugging"
+      ;;
+    pi-discord-presence)
+      link_ext pi-discord-presence "$ROOT/pi-discord-presence"
       ;;
     pi-github-repo-explorer)
       link_skill explore-github-repo "$ROOT/pi-github-repo-explorer/skills/explore-github-repo"

@@ -1,4 +1,5 @@
 export const EXTENSION_NAME = "pi-discord-presence";
+export const DATA_DIR_NAME = "pi-discord-presence-state";
 export const SETTINGS_FILE_NAME = "pi-discord-presence.json";
 export const REGISTRY_SCHEMA_VERSION = 1 as const;
 export const PLACEHOLDER_DEFAULT_CLIENT_ID = "000000000000000000";

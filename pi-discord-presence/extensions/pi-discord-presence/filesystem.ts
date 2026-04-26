@@ -2,9 +2,9 @@ import os from "node:os";
 import path from "node:path";
 import { lstat, mkdir, rename, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { EXTENSION_NAME } from "./constants.js";
+import { DATA_DIR_NAME } from "./constants.js";
 
-export const getExtensionDir = (home = os.homedir()) => path.join(home, ".pi", "agent", "extensions", EXTENSION_NAME);
+export const getExtensionDir = (home = os.homedir()) => path.join(home, ".pi", "agent", "extensions", DATA_DIR_NAME);
 
 export async function ensurePrivateDir(dir: string): Promise<void> {
   await mkdir(dir, { recursive: true, mode: 0o700 });

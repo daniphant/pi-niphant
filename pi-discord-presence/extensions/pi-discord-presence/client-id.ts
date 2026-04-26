@@ -3,12 +3,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 
-import { CLIENT_ID_ENV, DEFAULT_CLIENT_ID, EXTENSION_NAME, PLACEHOLDER_DEFAULT_CLIENT_ID } from "./constants.js";
+import { CLIENT_ID_ENV, DATA_DIR_NAME, DEFAULT_CLIENT_ID, PLACEHOLDER_DEFAULT_CLIENT_ID } from "./constants.js";
 import type { ClientIdResolution, DiscordPresenceSettings } from "./types.js";
 
 const SNOWFLAKE_RE = /^[1-9]\d{16,20}$/;
 const PACKAGE_ENV_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", ".env");
-const USER_ENV_PATH = path.join(os.homedir(), ".pi", "agent", "extensions", EXTENSION_NAME, ".env");
+const USER_ENV_PATH = path.join(os.homedir(), ".pi", "agent", "extensions", DATA_DIR_NAME, ".env");
 
 export function isValidClientId(value: unknown): value is string {
   return typeof value === "string" && SNOWFLAKE_RE.test(value.trim());

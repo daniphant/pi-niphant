@@ -21,13 +21,26 @@ Then run `/reload` inside Pi.
 
 ### Brave Search
 
-`web_search` requires a Brave Search API key:
+`web_search` requires a Brave Search API key. Configuration is resolved in this order:
+
+1. process environment variable: `BRAVE_SEARCH_API_KEY`
+2. user-local env file: `~/.pi/agent/extensions/pi-web-tools/.env`
+3. package-local env file: `pi-web-tools/.env`
+
+Examples:
 
 ```bash
 export BRAVE_SEARCH_API_KEY='...'
 ```
 
-Search queries are sent to Brave Search. Do not send sensitive queries unless that disclosure is acceptable.
+or:
+
+```env
+# pi-web-tools/.env
+BRAVE_SEARCH_API_KEY=...
+```
+
+Search queries are sent to Brave Search. Do not send sensitive queries unless that disclosure is acceptable. API keys are redacted from tool output and error paths.
 
 ### Private-network allowlist
 

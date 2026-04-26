@@ -32,7 +32,7 @@ Then add/load the package through your normal Pi package workflow.
 Discord Rich Presence uses a local Discord RPC connection and requires a Discord Application client ID. The package supports client ID sources in this order:
 
 1. `PI_DISCORD_CLIENT_ID` environment variable
-2. user-local `.env`: `~/.pi/agent/extensions/pi-discord-presence/.env`
+2. user-local `.env`: `~/.pi/agent/extensions/pi-discord-presence-state/.env`
 3. package-local `.env`: `pi-discord-presence/.env`
 4. persisted extension settings, if configured by a future command/manual settings edit
 5. package default client ID
@@ -104,8 +104,8 @@ The local registry stores only privacy-safe fields: random instance ID, PID for 
 Multiple Pi processes coordinate through:
 
 ```text
-~/.pi/agent/extensions/pi-discord-presence/instances.json
-~/.pi/agent/extensions/pi-discord-presence/leader.lock
+~/.pi/agent/extensions/pi-discord-presence-state/instances.json
+~/.pi/agent/extensions/pi-discord-presence-state/leader.lock
 ```
 
 Each instance writes a heartbeat about every 15 seconds with jitter. Exactly one leader should hold the publishing lease and connect to Discord. The leader publishes aggregate session count plus the last-active live instance details. Stale heartbeats expire, and expired leader leases can be acquired by another process.
@@ -153,4 +153,4 @@ If `@xhayper/discord-rpc` is incompatible with a local runtime, the integration 
 
 Automated validation currently passes with `npm run check --workspace pi-discord-presence` and a Pi extension-load smoke test using `pi --no-extensions -e ./pi-discord-presence/extensions/pi-discord-presence/index.ts --offline --no-tools --print "Say ok"`.
 
-Manual live Discord validation has not been completed in this environment. This checkout now has `pi-discord-presence/.env` set to Application ID `1497753988873982113`, but the packaged default client ID remains a placeholder for portability. For installed copies, set `PI_DISCORD_CLIENT_ID` or create a user-local `~/.pi/agent/extensions/pi-discord-presence/.env`.
+Manual live Discord validation has not been completed in this environment. This checkout now has `pi-discord-presence/.env` set to Application ID `1497753988873982113`, but the packaged default client ID remains a placeholder for portability. For installed copies, set `PI_DISCORD_CLIENT_ID` or create a user-local `~/.pi/agent/extensions/pi-discord-presence-state/.env`.

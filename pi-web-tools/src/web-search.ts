@@ -1,11 +1,12 @@
 import { BRAVE_DEFAULT_COUNT, BRAVE_ENDPOINT, BRAVE_MAX_COUNT, MAX_TIMEOUT_MS } from "./constants.js";
 import { ConfigError } from "./errors.js";
+import { getEnvValue } from "./env.js";
 import { formatError, formatOutput } from "./output.js";
 import type { WebSearchParams } from "./types.js";
 
 export async function webSearch(params: WebSearchParams, signal?: AbortSignal): Promise<string> {
   try {
-    const key = process.env.BRAVE_SEARCH_API_KEY;
+    const key = getEnvValue("BRAVE_SEARCH_API_KEY");
     if (!key) throw new ConfigError("BRAVE_SEARCH_API_KEY is required. Queries are sent to Brave Search when configured.");
     const count = Math.min(Math.max(Math.floor(params.count ?? BRAVE_DEFAULT_COUNT), 1), BRAVE_MAX_COUNT);
     const url = new URL(BRAVE_ENDPOINT); url.searchParams.set("q", params.query); url.searchParams.set("count", String(count));

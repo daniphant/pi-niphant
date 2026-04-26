@@ -1,4 +1,5 @@
 import { ALLOWED_METADATA_HEADERS, OUTPUT_MAX_BYTES, OUTPUT_MAX_LINES } from "./constants.js";
+import { getKnownSecretValues } from "./env.js";
 
 const SECRET_PATTERNS = [
   /BSA[a-zA-Z0-9_-]{20,}/g,
@@ -14,8 +15,7 @@ export function redactSecrets(input: unknown): string {
   for (const pattern of SECRET_PATTERNS) {
     text = text.replace(pattern, (...m) => m.length > 3 && String(m[1]).match(/[:=]/) ? `${m[1]}[REDACTED]` : "[REDACTED]");
   }
-  const key = process.env.BRAVE_SEARCH_API_KEY;
-  if (key && key.length >= 6) {
+  for (const key of getKnownSecretValues()) {
     text = text.split(key).join("[REDACTED]");
     text = text.split(key.slice(0, 8)).join("[REDACTED_PREFIX]");
   }
