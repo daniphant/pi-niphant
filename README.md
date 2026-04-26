@@ -133,6 +133,8 @@ Pi cwd switching is explicit in V1; normal `pi` usage keeps the old `/workflow` 
 Useful workspace commands:
 
 ```text
+/ni <task>                 # create/resume a niphant worktree only; no workflow bundle
+/niphant-checkout <task>   # long-form alias for /ni
 /niphant-list
 /niphant-status
 /niphant-terminal

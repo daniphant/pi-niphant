@@ -50,6 +50,8 @@ Pi cwd switching is deliberately explicit in V1; see `docs/niphant-handoff.md`. 
 Additional commands:
 
 ```text
+/ni <task>                 # create/resume a niphant worktree only; no workflow bundle
+/niphant-checkout <task>   # long-form alias for /ni
 /niphant-list
 /niphant-status
 /niphant-status locks

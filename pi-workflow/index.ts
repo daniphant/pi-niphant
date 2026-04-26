@@ -2,8 +2,9 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
-import { workflowPreflight } from "./niphant/preflight.js";
+import { describeCwd, workflowPreflight } from "./niphant/preflight.js";
 import { doneCommand, listCommand, statusCommand, terminalCommand } from "./niphant/commands.js";
+import { handoffText } from "./niphant/handoff.js";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { createHash } from "node:crypto";
@@ -322,6 +323,31 @@ function continueWorkflow(pi: ExtensionAPI, workflow: WorkflowPaths) {
   return true;
 }
 
+function niphantCheckoutHandler(args: string, ctx: { cwd: string; ui: { notify: (message: string, level?: "info" | "warning" | "error") => void } }) {
+  const task = args.trim();
+  if (!task) {
+    ctx.ui.notify("Usage: /ni <task> or /niphant-checkout <task>", "warning");
+    return;
+  }
+
+  const preflight = workflowPreflight(ctx.cwd, task, process.env);
+  if (preflight.mode === "blocked") {
+    ctx.ui.notify(preflight.message, "warning");
+    return;
+  }
+  if (preflight.mode === "created" || preflight.mode === "continued") {
+    ctx.ui.notify(preflight.handoffText ?? preflight.message, preflight.workspace?.setupStatus === "failed" ? "warning" : "info");
+    return;
+  }
+
+  const current = describeCwd(ctx.cwd, process.env);
+  if (current) {
+    ctx.ui.notify(`Already inside niphant workspace '${current.taskSlug}'.\n${handoffText(current)}`, "info");
+    return;
+  }
+  ctx.ui.notify(`${preflight.message} Start Pi through the ni launcher to create niphant worktrees.`, "warning");
+}
+
 export default function workflowExtension(pi: ExtensionAPI) {
   pi.on("input", async (event, ctx) => {
     if (event.source === "extension") return { action: "continue" as const };
@@ -464,6 +490,16 @@ export default function workflowExtension(pi: ExtensionAPI) {
       }
       pi.sendUserMessage(executionPrompt("workflow-implement", workflow));
     },
+  });
+
+  pi.registerCommand("ni", {
+    description: "Create or resume a niphant worktree without starting a workflow",
+    handler: async (args, ctx) => niphantCheckoutHandler(args, ctx),
+  });
+
+  pi.registerCommand("niphant-checkout", {
+    description: "Create or resume a niphant worktree without starting a workflow",
+    handler: async (args, ctx) => niphantCheckoutHandler(args, ctx),
   });
 
   pi.registerCommand("niphant-list", {

@@ -27,6 +27,9 @@ assertIncludes("index.ts", 'event.text.trim().toLowerCase() !== "continue"', "ex
 assertIncludes("index.ts", "workflowContinuationPrompt", "workflow continuation stage inference");
 assertIncludes("index.ts", 'pi.registerCommand("workflow-execute"', "workflow-execute command registration");
 assertIncludes("index.ts", 'pi.registerCommand("workflow-implement"', "workflow-implement alias registration");
+assertIncludes("index.ts", 'pi.registerCommand("ni"', "short niphant checkout command registration");
+assertIncludes("index.ts", 'pi.registerCommand("niphant-checkout"', "long niphant checkout command registration");
+assertIncludes("index.ts", "niphantCheckoutHandler", "niphant checkout handler");
 assertIncludes("index.ts", "Deprecated alias for /workflow-execute", "deprecated implement description");
 assertMatches("index.ts", /\^\[a-z0-9\]\(\?:\[a-z0-9-\]\{0,30\}\[a-z0-9\]\)\?\$/, "strict slug validation regex");
 assertIncludes("index.ts", "sendStageOnePrompt", "direct Stage 1 start after bundle creation");
