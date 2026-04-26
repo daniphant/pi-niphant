@@ -62,10 +62,14 @@ assertIncludes("skills/workflow-spec/SKILL.md", "Do not automatically run PAL co
 assertIncludes("skills/workflow-spec/SKILL.md", "Browser annotation/user review is required", "spec mandatory browser review");
 assertIncludes("skills/workflow-spec/SKILL.md", "Refuse", "spec route refusal");
 assertIncludes("skills/workflow-spec/SKILL.md", "Do not use `workflow.toml` for spec status/gates", "spec no TOML gate state");
+assertIncludes("skills/workflow-spec/SKILL.md", "NIPHANT_LAUNCHER_ROOT", "spec deterministic review server path");
+assertIncludes("skills/workflow-spec/SKILL.md", "Do **not** search the filesystem", "spec no filesystem search for review server");
 assertIncludes("skills/workflow-plan/SKILL.md", "Planning may proceed from either", "plan spec-or-research support");
 assertIncludes("skills/workflow-plan/SKILL.md", "If research is insufficient", "plan research sufficiency refusal");
 assertIncludes("skills/workflow-plan/SKILL.md", "Do not automatically run PAL consensus", "plan prompted consensus");
 assertIncludes("skills/workflow-plan/SKILL.md", "Browser annotation/user review is required", "plan mandatory browser review");
+assertIncludes("skills/workflow-plan/SKILL.md", "NIPHANT_LAUNCHER_ROOT", "plan deterministic review server path");
+assertIncludes("skills/workflow-plan/SKILL.md", "Do **not** search the filesystem", "plan no filesystem search for review server");
 assertIncludes("skills/workflow-plan/SKILL.md", "execution/task state only", "plan TOML task-state-only");
 assertIncludes("skills/workflow-implement/SKILL.md", "Do not rely on `workflow.spec.md`", "execute no spec dependency");
 assertIncludes("skills/workflow-implement/SKILL.md", "If any marker is absent or incompatible", "execute missing-marker refusal");

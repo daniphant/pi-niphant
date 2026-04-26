@@ -101,13 +101,17 @@ If `recommendation` is `revise`, update `workflow.spec.md` before browser review
 
 ## Mandatory browser annotation / user review
 
-Run the browser review server on the spec file only:
+Run the browser review server on the spec file only. Do **not** search the filesystem with `find`, `rg`, or `mdfind` to locate the review server. Use this deterministic launcher-root/install-root snippet:
 
 ```bash
-node pi-workflow/server/server.mjs "<workflow.spec.md>"
+WORKFLOW_EXT="${NIPHANT_LAUNCHER_ROOT:+$NIPHANT_LAUNCHER_ROOT/pi-workflow}"
+if [ -z "$WORKFLOW_EXT" ]; then
+  WORKFLOW_EXT="$(readlink "$HOME/.pi/agent/extensions/pi-workflow")"
+fi
+node "$WORKFLOW_EXT/server/server.mjs" "<workflow.spec.md>"
 ```
 
-If this repository is not the current working directory, run the command from the package checkout that contains `pi-workflow/server/server.mjs` or resolve that file relative to the installed `pi-workflow` extension path.
+`NIPHANT_LAUNCHER_ROOT` is set by `ni`. The symlink fallback supports plain Pi sessions using the installed `pi-workflow` extension. If both are unavailable, stop and tell the user to run `/workflow-review <workflow.spec.md>` instead of searching broad directories.
 
 Tell the user the browser is open and wait for the command to complete. After it emits `PLAN_REVIEW_COMPLETE:<annotations-file>`:
 
