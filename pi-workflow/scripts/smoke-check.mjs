@@ -32,6 +32,8 @@ assertMatches("index.ts", /\^\[a-z0-9\]\(\?:\[a-z0-9-\]\{0,30\}\[a-z0-9\]\)\?\$/
 assertIncludes("index.ts", "sendStageOnePrompt", "direct Stage 1 start after bundle creation");
 assertIncludes("index.ts", "Browser review: skipped_for_trivial", "trivial execution marker checks");
 assertIncludes("index.ts", "stageContextGuard", "generated prompt context hygiene helper");
+assertIncludes("niphant/preflight.ts", "hasCommit", "unborn git repository preflight guard");
+assertIncludes("niphant/preflight.ts", "needs a valid HEAD commit", "unborn git repository actionable message");
 assertIncludes("index.ts", "Do not read unrelated SKILL.md files", "generated prompt unrelated skill guard");
 assertIncludes("index.ts", "bootstrap by reading workflow.toml first, then workflow.plan.md", "execute prompt strict bootstrap guard");
 

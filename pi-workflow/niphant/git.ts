@@ -29,6 +29,10 @@ export function currentBranch(cwd: string): string {
   return git(cwd, ["branch", "--show-current"], { allowFail: true }) || git(cwd, ["rev-parse", "--short", "HEAD"]);
 }
 
+export function hasCommit(cwd: string): boolean {
+  return git(cwd, ["rev-parse", "--verify", "HEAD"], { allowFail: true }).length > 0;
+}
+
 export function originUrl(cwd: string): string | undefined {
   return git(cwd, ["config", "--get", "remote.origin.url"], { allowFail: true }) || undefined;
 }

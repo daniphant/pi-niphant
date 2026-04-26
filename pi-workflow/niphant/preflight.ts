@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { NIPHANT_SCHEMA_VERSION, ENV } from "./constants.js";
-import { createWorktree, gitRoot, isGitRepo, projectIdentity } from "./git.js";
+import { createWorktree, gitRoot, hasCommit, isGitRepo, projectIdentity } from "./git.js";
 import { handoffText } from "./handoff.js";
 import { acquireLock } from "./locks.js";
 import { currentWorkspace, workspaceId, writeWorkspace } from "./metadata.js";
@@ -17,6 +17,12 @@ export function isNiphantMode(env: NodeJS.ProcessEnv = process.env) {
 export function workflowPreflight(cwd: string, request: string, env: NodeJS.ProcessEnv = process.env, conciseName?: string): PreflightResult {
   if (!isNiphantMode(env)) return { mode: "pass-through", message: "Niphant mode disabled." };
   if (!isGitRepo(cwd)) return { mode: "blocked", message: "Niphant workflow requires a git repository." };
+  if (!hasCommit(cwd)) {
+    return {
+      mode: "blocked",
+      message: "Niphant workflow needs a valid HEAD commit before it can create an isolated git worktree. This repo has no commits yet. Create an initial commit first, for example: git commit --allow-empty -m \"chore: initial commit\"",
+    };
+  }
   const home = niphantHome(env);
   ensureNiphantDirs(home);
   const configuredRoot = env[ENV.projectRoot];
