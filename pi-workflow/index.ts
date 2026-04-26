@@ -5,6 +5,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { describeCwd, workflowPreflight } from "./niphant/preflight.js";
 import { doneCommand, listCommand, statusCommand, terminalCommand } from "./niphant/commands.js";
 import { handoffText } from "./niphant/handoff.js";
+import type { WorkspaceRecord } from "./niphant/types.js";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { createHash } from "node:crypto";
@@ -323,21 +324,25 @@ function continueWorkflow(pi: ExtensionAPI, workflow: WorkflowPaths) {
   return true;
 }
 
-async function switchToNiphantWorkspace(ctx: ExtensionCommandContext, workspace: { worktreePath: string; taskSlug: string; setupStatus?: string }) {
+async function switchToNiphantWorkspace(ctx: ExtensionCommandContext, workspace: WorkspaceRecord) {
   await ctx.waitForIdle();
-  const parentSession = ctx.sessionManager.getSessionFile();
-  const sessionManager = SessionManager.create(workspace.worktreePath);
-  sessionManager.newSession({ parentSession });
+  const sourceSession = ctx.sessionManager.getSessionFile();
+  if (!sourceSession) {
+    ctx.ui.notify(`Created niphant workspace but this Pi session is not persisted, so it cannot be moved without losing context.\n${handoffText(workspace)}`, "warning");
+    return;
+  }
+
+  const sessionManager = SessionManager.forkFrom(sourceSession, workspace.worktreePath);
   sessionManager.appendSessionInfo(`ni: ${workspace.taskSlug}`);
   const sessionFile = sessionManager.getSessionFile();
   if (!sessionFile) {
-    ctx.ui.notify(`Created niphant workspace but could not create a persisted Pi session.\n${handoffText(workspace as any)}`, "warning");
+    ctx.ui.notify(`Created niphant workspace but could not fork the current Pi session.\n${handoffText(workspace)}`, "warning");
     return;
   }
 
   await ctx.switchSession(sessionFile, {
     withSession: async (nextCtx) => {
-      nextCtx.ui.notify(`Moved Pi to niphant workspace '${workspace.taskSlug}':\n${workspace.worktreePath}`, workspace.setupStatus === "failed" ? "warning" : "info");
+      nextCtx.ui.notify(`Moved Pi to niphant workspace '${workspace.taskSlug}' with current conversation preserved:\n${workspace.worktreePath}`, workspace.setupStatus === "failed" ? "warning" : "info");
     },
   });
 }

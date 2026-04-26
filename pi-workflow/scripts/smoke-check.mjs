@@ -32,6 +32,7 @@ assertIncludes("index.ts", 'pi.registerCommand("niphant-checkout"', "long niphan
 assertIncludes("index.ts", "niphantCheckoutHandler", "niphant checkout handler");
 assertIncludes("index.ts", "switchToNiphantWorkspace", "niphant checkout switches active Pi session");
 assertIncludes("index.ts", "ctx.switchSession", "niphant checkout runtime cwd switch");
+assertIncludes("index.ts", "SessionManager.forkFrom", "niphant checkout preserves current conversation");
 assertIncludes("index.ts", "Deprecated alias for /workflow-execute", "deprecated implement description");
 assertMatches("index.ts", /\^\[a-z0-9\]\(\?:\[a-z0-9-\]\{0,30\}\[a-z0-9\]\)\?\$/, "strict slug validation regex");
 assertIncludes("index.ts", "sendStageOnePrompt", "direct Stage 1 start after bundle creation");
