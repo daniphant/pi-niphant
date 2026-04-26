@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { SessionManager, type ExtensionAPI, type ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
@@ -323,7 +323,26 @@ function continueWorkflow(pi: ExtensionAPI, workflow: WorkflowPaths) {
   return true;
 }
 
-function niphantCheckoutHandler(args: string, ctx: { cwd: string; ui: { notify: (message: string, level?: "info" | "warning" | "error") => void } }) {
+async function switchToNiphantWorkspace(ctx: ExtensionCommandContext, workspace: { worktreePath: string; taskSlug: string; setupStatus?: string }) {
+  await ctx.waitForIdle();
+  const parentSession = ctx.sessionManager.getSessionFile();
+  const sessionManager = SessionManager.create(workspace.worktreePath);
+  sessionManager.newSession({ parentSession });
+  sessionManager.appendSessionInfo(`ni: ${workspace.taskSlug}`);
+  const sessionFile = sessionManager.getSessionFile();
+  if (!sessionFile) {
+    ctx.ui.notify(`Created niphant workspace but could not create a persisted Pi session.\n${handoffText(workspace as any)}`, "warning");
+    return;
+  }
+
+  await ctx.switchSession(sessionFile, {
+    withSession: async (nextCtx) => {
+      nextCtx.ui.notify(`Moved Pi to niphant workspace '${workspace.taskSlug}':\n${workspace.worktreePath}`, workspace.setupStatus === "failed" ? "warning" : "info");
+    },
+  });
+}
+
+async function niphantCheckoutHandler(args: string, ctx: ExtensionCommandContext) {
   const task = args.trim();
   if (!task) {
     ctx.ui.notify("Usage: /ni <task> or /niphant-checkout <task>", "warning");
@@ -336,13 +355,13 @@ function niphantCheckoutHandler(args: string, ctx: { cwd: string; ui: { notify: 
     return;
   }
   if (preflight.mode === "created" || preflight.mode === "continued") {
-    ctx.ui.notify(preflight.handoffText ?? preflight.message, preflight.workspace?.setupStatus === "failed" ? "warning" : "info");
+    await switchToNiphantWorkspace(ctx, preflight.workspace);
     return;
   }
 
   const current = describeCwd(ctx.cwd, process.env);
   if (current) {
-    ctx.ui.notify(`Already inside niphant workspace '${current.taskSlug}'.\n${handoffText(current)}`, "info");
+    ctx.ui.notify(`Already inside niphant workspace '${current.taskSlug}':\n${current.worktreePath}`, "info");
     return;
   }
   ctx.ui.notify(`${preflight.message} Start Pi through the ni launcher to create niphant worktrees.`, "warning");
