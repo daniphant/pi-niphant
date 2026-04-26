@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import { compilePattern, loadSkillText, walk } from "./lib.mjs";
 
+const args = new Set(process.argv.slice(2));
 const suiteArgIndex = process.argv.indexOf("--suite");
 const suiteFilter = suiteArgIndex >= 0 ? process.argv[suiteArgIndex + 1] : "all";
 
@@ -36,8 +37,8 @@ for (const testCase of cases) {
   const files = testCase.files ?? (testCase.file ? [testCase.file] : []);
   const missing = files.filter((file) => !existsSync(join(process.cwd(), file)));
   const text = files.map(loadSkillText).join("\n\n--- FILE BREAK ---\n\n");
-  const required = evaluatePatternGroup(text, testCase.required ?? []);
-  const forbidden = evaluatePatternGroup(text, testCase.forbidden ?? []).map((r) => ({ ...r, ok: !r.ok }));
+  const required = evaluatePatternGroup(text, testCase.required ?? testCase.must ?? []);
+  const forbidden = evaluatePatternGroup(text, testCase.forbidden ?? testCase.must_not ?? []).map((r) => ({ ...r, ok: !r.ok }));
   const checks = [...required, ...forbidden];
   if (missing.length) checks.push(...missing.map((file) => ({ pattern: `file exists: ${file}`, ok: false })));
   const passed = checks.filter((check) => check.ok).length;
@@ -46,6 +47,7 @@ for (const testCase of cases) {
   results.push({
     id: testCase.id,
     suite: testCase.suite ?? testCase.suiteFile.split("/").at(-2),
+    prompt: testCase.prompt,
     files,
     score,
     passed,
@@ -83,3 +85,7 @@ const metrics = {
 };
 
 console.log(JSON.stringify({ suiteFilter, caseCount: results.length, bySuite, failedCases, results, metrics }, null, 2));
+
+if (args.has("--fail-on-failures") && failedCases.length > 0) {
+  process.exit(1);
+}

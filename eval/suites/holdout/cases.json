@@ -1,0 +1,114 @@
+{
+  "cases": [
+    {
+      "id": "repo-exploration-implicit-no-delegation",
+      "suite": "holdout",
+      "prompt": "Can you inspect this repo and tell me where database migrations are handled?",
+      "files": [
+        "pi-github-repo-explorer/skills/explore-github-repo/SKILL.md",
+        "pi-delegated-agents/skills/spawn-agent/SKILL.md"
+      ],
+      "must": [
+        "inspect(?:s)? the checkout directly|reads files directly|main model prepares a real checkout",
+        "exact file paths|file-path evidence",
+        "Do not delegate ordinary repository exploration",
+        "exploring a repository or codebase"
+      ],
+      "must_not": [
+        "Prefer delegated read-only exploration when broad inspection would help",
+        "Delegated agents are allowed merely because"
+      ]
+    },
+    {
+      "id": "repo-explorer-answer-from-code-not-readme-only",
+      "suite": "holdout",
+      "prompt": "Summarize where auth lives in owner/repo without guessing.",
+      "files": ["pi-github-repo-explorer/skills/explore-github-repo/SKILL.md"],
+      "must": [
+        "prepare-github-repo-checkout\\.mjs",
+        "Do not answer from guesswork",
+        "Search heuristics once the repo is prepared",
+        "route handlers|controllers|schemas|tests|entrypoint"
+      ],
+      "must_not": ["README vibes"]
+    },
+    {
+      "id": "debugging-user-demands-quick-fix",
+      "suite": "holdout",
+      "prompt": "The login test is failing, just patch it quickly and don't spend time investigating.",
+      "files": ["pi-diagnostics/skills/systematic-debugging/SKILL.md"],
+      "must": [
+        "NO FIXES WITHOUT ROOT CAUSE",
+        "Reproduce or gather evidence",
+        "Only after root cause is identified",
+        "No fresh evidence means no completion claim"
+      ],
+      "must_not": ["guess a fix immediately"]
+    },
+    {
+      "id": "debugging-after-failed-fixes-stop-and-reassess",
+      "suite": "holdout",
+      "prompt": "I tried three patches and the failure still happens. Keep trying small random edits.",
+      "files": ["pi-diagnostics/skills/systematic-debugging/SKILL.md"],
+      "must": [
+        "If three fix attempts fail, stop",
+        "architectural/design problem",
+        "gather more evidence",
+        "remove/revert the probe"
+      ],
+      "must_not": ["random edits"]
+    },
+    {
+      "id": "workflow-plan-no-implementation",
+      "suite": "holdout",
+      "prompt": "Make the implementation plan for this feature and start coding anything obvious.",
+      "files": ["pi-workflow/skills/workflow-plan/SKILL.md"],
+      "must": [
+        "Do not implement code",
+        "Implementation plans should say what to change and how to validate it",
+        "workflow\\.plan\\.md",
+        "workflow\\.toml.*task state only|task state only"
+      ],
+      "must_not": ["go ahead and implement"]
+    },
+    {
+      "id": "workflow-spec-refuses-skipped-spec-route",
+      "suite": "holdout",
+      "prompt": "The research says spec was skipped; still write the spec so we have one.",
+      "files": ["pi-workflow/skills/workflow-spec/SKILL.md"],
+      "must": [
+        "Refuse|refuse",
+        "Spec:.*skipped|`Spec:` is `skipped`|Spec:` is `skipped`",
+        "workflow\\.research\\.md",
+        "Do not implement code"
+      ],
+      "must_not": ["implementation files"]
+    },
+    {
+      "id": "delegation-run-consensus-without-spawn-does-not-use-spawn-agent",
+      "suite": "holdout",
+      "prompt": "Run consensus on this migration plan.",
+      "files": ["pi-delegated-agents/skills/spawn-agent/SKILL.md"],
+      "must": [
+        "Do not use this skill for phrases like",
+        "run consensus",
+        "unless the user also explicitly says to spawn",
+        "Do not call delegated-agent tools"
+      ],
+      "must_not": ["^Delegated agents are allowed for non-spawn consensus"]
+    },
+    {
+      "id": "e2e-dynamic-page-refreshes-refs",
+      "suite": "holdout",
+      "prompt": "Open the page, click through a modal, then continue with the changed DOM.",
+      "files": ["pi-web-e2e-agent/skills/e2e-web-agent/SKILL.md"],
+      "must": [
+        "snapshot -i",
+        "Re-run `snapshot -i` after navigation or dynamic DOM changes",
+        "@e1",
+        "Save screenshots/artifacts"
+      ],
+      "must_not": ["^Use browser tools for ordinary code exploration"]
+    }
+  ]
+}

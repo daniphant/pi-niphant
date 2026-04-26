@@ -4,8 +4,13 @@ import { discoverSkills, parseSkillFrontmatter } from "./lib.mjs";
 
 const args = new Set(process.argv.slice(2));
 const frontmatterOnly = args.has("--frontmatter-only");
-const maxWordsArg = process.argv.find((arg) => arg.startsWith("--max-skill-words="));
-const maxWords = maxWordsArg ? Number(maxWordsArg.split("=")[1]) : 1800;
+const maxWordsEqualsArg = process.argv.find((arg) => arg.startsWith("--max-skill-words="));
+const maxWordsFlagIndex = process.argv.indexOf("--max-skill-words");
+const maxWords = maxWordsEqualsArg
+  ? Number(maxWordsEqualsArg.split("=")[1])
+  : maxWordsFlagIndex >= 0
+    ? Number(process.argv[maxWordsFlagIndex + 1])
+    : 1800;
 
 const skills = discoverSkills();
 const violations = [];

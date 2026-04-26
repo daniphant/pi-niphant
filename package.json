@@ -27,7 +27,11 @@
     "pi-web-tools"
   ],
   "scripts": {
-    "check": "npm run check --workspaces --if-present",
+    "check": "npm run check:packages && npm run check:skills",
+    "check:packages": "npm run check --workspaces --if-present",
+    "check:skills": "mkdir -p .eval-results && node eval/scripts/static-contract-check.mjs --fail-on-violations && node eval/scripts/run-skill-eval.mjs --suite smoke --fail-on-failures > .eval-results/smoke.json",
+    "eval:skills": "mkdir -p .eval-results && node eval/scripts/run-skill-eval.mjs --suite all --fail-on-failures > .eval-results/skills.json",
+    "eval:holdout": "mkdir -p .eval-results && node eval/scripts/run-skill-eval.mjs --suite holdout --fail-on-failures > .eval-results/holdout.json",
     "install:pi": "./scripts/install.sh",
     "list": "node scripts/list-packages.mjs"
   }
