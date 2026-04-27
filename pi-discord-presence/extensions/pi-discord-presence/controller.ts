@@ -14,6 +14,7 @@ import type { ClientIdResolution, ConnectionState, DiscordPresenceSettings, Inst
 
 type UiLike = { notify?: (message: string, level?: string) => void; setStatus?: (message: string) => void };
 type ContextLike = { cwd?: string; model?: unknown; hasUI?: boolean; ui?: UiLike };
+type ContextSnapshot = { cwd?: string; model?: unknown; ui?: UiLike };
 
 type Timer = ReturnType<typeof setTimeout> | ReturnType<typeof setInterval>;
 
@@ -31,7 +32,7 @@ export class DiscordPresenceController {
   private settings: DiscordPresenceSettings = { ...DEFAULT_SETTINGS };
   private rpc: RpcAdapter;
   private backoff = new ReconnectBackoff();
-  private latestCtx: ContextLike | null = null;
+  private latestCtx: ContextSnapshot | null = null;
   private status: PresenceStatus = "Waiting for input";
   private startedAt = Date.now();
   private lastActiveAt = Date.now();
@@ -62,7 +63,7 @@ export class DiscordPresenceController {
 
   async init(ctx: ContextLike): Promise<void> {
     this.shuttingDown = false;
-    this.latestCtx = ctx;
+    this.latestCtx = this.captureContext(ctx);
     this.settings = await loadSettings(this.settingsPath);
     if (this.settings.enabled && !this.settings.firstRunNoticeShown) {
       this.notify(ctx, "Discord Presence is active and shows sanitized project/model labels. Use /discord-presence hide-project or hide-model to make it more private, or /discord-presence off to disable it.");
@@ -76,7 +77,7 @@ export class DiscordPresenceController {
 
   touch(ctx: ContextLike | null, status: PresenceStatus): void {
     if (this.shuttingDown) return;
-    if (ctx) this.latestCtx = ctx;
+    if (ctx) this.latestCtx = this.captureContext(ctx);
     this.status = status;
     this.lastActiveAt = Date.now();
     this.scheduleIdle();
@@ -85,7 +86,7 @@ export class DiscordPresenceController {
 
   async enable(ctx: ContextLike): Promise<string> {
     this.shuttingDown = false;
-    this.latestCtx = ctx;
+    this.latestCtx = this.captureContext(ctx);
     this.settings.enabled = true;
     await this.persist();
     this.backoff.reset();
@@ -95,7 +96,7 @@ export class DiscordPresenceController {
   }
 
   async disable(ctx?: ContextLike): Promise<string> {
-    if (ctx) this.latestCtx = ctx;
+    if (ctx) this.latestCtx = this.captureContext(ctx);
     this.settings.enabled = false;
     await this.persist();
     await this.rpc.destroy();
@@ -107,7 +108,7 @@ export class DiscordPresenceController {
   }
 
   async reconnect(ctx?: ContextLike): Promise<string> {
-    if (ctx) this.latestCtx = ctx;
+    if (ctx) this.latestCtx = this.captureContext(ctx);
     this.backoff.reset();
     clearTimer(this.reconnectTimer); this.reconnectTimer = null;
     await this.rpc.destroy();
@@ -139,13 +140,20 @@ export class DiscordPresenceController {
     try { await saveSettings(this.settings, this.settingsPath); } catch { /* non-fatal */ }
   }
 
+  private captureContext(ctx: ContextLike): ContextSnapshot {
+    const snapshot: ContextSnapshot = {};
+    try { snapshot.cwd = ctx.cwd; } catch { /* stale ctx; ignore */ }
+    try { snapshot.model = ctx.model; } catch { /* stale ctx; ignore */ }
+    try { if (ctx.hasUI) snapshot.ui = ctx.ui; } catch { /* stale ctx; ignore */ }
+    return snapshot;
+  }
+
   private notify(ctx: ContextLike, message: string): void {
-    if (ctx.hasUI) ctx.ui?.notify?.(message, "info");
+    try { if (ctx.hasUI) ctx.ui?.notify?.(message, "info"); } catch { /* stale ctx; ignore */ }
   }
 
   private setUiStatus(message: string): void {
-    const ctx = this.latestCtx;
-    if (ctx?.hasUI) ctx.ui?.setStatus?.(message);
+    try { this.latestCtx?.ui?.setStatus?.(message); } catch { /* stale UI; ignore */ }
   }
 
   private startTimers(): void {

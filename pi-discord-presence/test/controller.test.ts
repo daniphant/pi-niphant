@@ -45,6 +45,28 @@ describe("DiscordPresenceController", () => {
     await controller.shutdown();
   });
 
+  it("ignores a stale Pi ctx after session replacement", async () => {
+    const tmp = await mkdtemp(path.join(os.tmpdir(), "pi-discord-controller-"));
+    const rpc = new FakeRpc();
+    const statuses: string[] = [];
+    let stale = false;
+    const ctx = {
+      cwd: tmp,
+      model: "secret",
+      get hasUI() {
+        if (stale) throw new Error("stale ctx");
+        return true;
+      },
+      ui: { setStatus: (message: string) => statuses.push(message), notify: vi.fn() },
+    };
+    const controller = new DiscordPresenceController({ rpc, registryPath: path.join(tmp, "instances.json"), leaderPath: path.join(tmp, "leader.lock"), settingsPath: path.join(tmp, "settings.json"), clientIdEnvFiles: [] });
+    await controller.init(ctx);
+    stale = true;
+    await expect(controller.setPrivacy(false, undefined)).resolves.toBeUndefined();
+    await waitFor(() => expect(statuses.at(-1)).toContain("missing client ID"));
+    await controller.shutdown();
+  });
+
   it("can disable and reconnect without throwing", async () => {
     const tmp = await mkdtemp(path.join(os.tmpdir(), "pi-discord-controller-"));
     const rpc = new FakeRpc();
