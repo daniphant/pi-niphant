@@ -34,6 +34,12 @@ function warnOnce(message: string) {
   console.warn(`[pi-codex-like-diff] ${message}`);
 }
 
+function sameMajorMinorVersion(actual: string, expected: string): boolean {
+  const actualParts = actual.split(".");
+  const expectedParts = expected.split(".");
+  return actualParts[0] === expectedParts[0] && actualParts[1] === expectedParts[1];
+}
+
 async function loadComputeEditsDiff(): Promise<ComputeEditsDiff | null> {
   if (!computeEditsDiffPromise) {
     computeEditsDiffPromise = (async () => {
@@ -172,7 +178,7 @@ function formatEditResult(args: EditArgs | undefined, preview: Preview | undefin
 }
 
 export default function codexLikeDiffExtension(pi: ExtensionAPI) {
-  if (VERSION !== "0.70.2") {
+  if (!sameMajorMinorVersion(VERSION, "0.70.2") && process.env.PI_CODEX_LIKE_DIFF_WARN_VERSION !== "0") {
     warnOnce(`tested against Pi 0.70.2, detected ${VERSION}; registering renderer with built-in execution and safe fallbacks`);
   }
 
