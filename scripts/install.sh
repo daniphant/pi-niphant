@@ -11,6 +11,7 @@ INSTALL_DELEGATED=0
 SELECTED=()
 
 DEFAULT_PACKAGES=(
+  pi-ask-user
   pi-clear
   pi-checkpoint
   pi-catppuccin-ui
@@ -25,6 +26,7 @@ DEFAULT_PACKAGES=(
   pi-web-e2e-agent
   pi-web-tools
   pi-workflow
+  pi-update-prompt
   pi-agent-notify
   pi-hud
   pi-whimsy-status
@@ -128,6 +130,9 @@ install_package() {
     pi-agent-notify)
       link_ext pi-agent-notify "$ROOT/pi-agent-notify"
       ;;
+    pi-ask-user)
+      link_ext pi-ask-user "$ROOT/pi-ask-user"
+      ;;
     pi-checkpoint)
       link_ext pi-checkpoint "$ROOT/pi-checkpoint"
       ;;
@@ -177,6 +182,9 @@ install_package() {
       ;;
     pi-web-tools)
       link_ext pi-web-tools "$ROOT/pi-web-tools"
+      ;;
+    pi-update-prompt)
+      link_ext pi-update-prompt "$ROOT/pi-update-prompt"
       ;;
     pi-whimsy-status)
       link_ext pi-whimsy-status "$ROOT/pi-whimsy-status/extensions/pi-whimsy-status"

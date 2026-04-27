@@ -1,0 +1,22 @@
+{
+  "name": "pi-ask-user",
+  "version": "0.1.0",
+  "description": "OpenCode-style ask_user_question tool for Pi, backed by Pi native extension UI dialogs.",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "keywords": ["pi", "pi-package", "extension", "tool", "ask-user"],
+  "pi": {
+    "extensions": ["."]
+  },
+  "scripts": {
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "0.34.49"
+  },
+  "devDependencies": {
+    "@types/node": "25.6.0",
+    "typescript": "6.0.3"
+  }
+}

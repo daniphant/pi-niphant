@@ -7,6 +7,7 @@
   "type": "module",
   "workspaces": [
     "pi-agent-notify",
+    "pi-ask-user",
     "pi-checkpoint",
     "pi-clear",
     "pi-catppuccin-ui",
@@ -21,6 +22,7 @@
     "pi-markdown-commands",
     "pi-pal-consensus-sidecar",
     "pi-skill-lab",
+    "pi-update-prompt",
     "pi-web-e2e-agent",
     "pi-whimsy-status",
     "pi-workflow",

@@ -1,0 +1,19 @@
+{
+  "name": "pi-update-prompt",
+  "version": "0.1.0",
+  "description": "Replace Pi's startup update notice with an interactive update prompt and graceful exit.",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "keywords": ["pi", "pi-package", "extension", "update"],
+  "pi": {
+    "extensions": ["."]
+  },
+  "scripts": {
+    "build": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "25.6.0",
+    "typescript": "6.0.3"
+  }
+}

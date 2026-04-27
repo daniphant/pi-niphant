@@ -22,6 +22,7 @@ Pi should be a predictable, high-agency coding harness:
 | Package | Purpose |
 | --- | --- |
 | [`pi-workflow`](./pi-workflow) | Research → spec → implementation plan → implement workflow with durable user-local markdown state. |
+| [`pi-ask-user`](./pi-ask-user) | OpenCode-style `ask_user_question` native tool backed by Pi UI dialogs. |
 | [`pi-checkpoint`](./pi-checkpoint) | Continuous local auto-commits plus manual patch checkpoints. |
 | [`pi-catppuccin-ui`](./pi-catppuccin-ui) | Catppuccin Mocha theme plus Markdown rendering polish. |
 | [`pi-codex-compaction`](./pi-codex-compaction) | Codex-style checkpoint handoff compaction summaries. |
@@ -33,6 +34,7 @@ Pi should be a predictable, high-agency coding harness:
 | [`pi-delegation-guard`](./pi-delegation-guard) | Blocks accidental subagent use for ordinary repo exploration. |
 | [`pi-delegated-agents`](./pi-delegated-agents) | Explicit delegated specialist-agent orchestration. |
 | [`pi-clear`](./pi-clear) | `/clear` session reset command. |
+| [`pi-update-prompt`](./pi-update-prompt) | Interactive startup prompt for Pi core updates; updates with npm and exits gracefully. |
 | [`pi-agent-notify`](./pi-agent-notify) | Desktop/terminal notifications when Pi finishes a turn. |
 | [`pi-hud`](./pi-hud) | Quota/context-aware Pi footer HUD. |
 | [`pi-whimsy-status`](./pi-whimsy-status) | Whimsical rotating working messages. |
@@ -63,6 +65,7 @@ Then inside Pi:
 
 The default set installs:
 
+- `pi-ask-user`
 - `pi-clear`
 - `pi-checkpoint`
 - `pi-catppuccin-ui`
@@ -74,6 +77,7 @@ The default set installs:
 - `pi-web-e2e-agent`
 - `pi-web-tools`
 - `pi-workflow`
+- `pi-update-prompt`
 - `pi-agent-notify`
 - `pi-hud`
 - `pi-whimsy-status`
