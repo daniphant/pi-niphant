@@ -1,7 +1,35 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { keyHint } from "@mariozechner/pi-coding-agent";
+import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { webOpen } from "./src/web-open.js";
 import { webSearch } from "./src/web-search.js";
+
+function getTextOutput(result: { content: Array<{ type: string; text?: string }> }): string {
+  return result.content
+    .filter((c) => c.type === "text")
+    .map((c) => c.text || "")
+    .join("\n");
+}
+
+function trimTrailingEmptyLines(lines: string[]): string[] {
+  let end = lines.length;
+  while (end > 0 && lines[end - 1] === "") end--;
+  return lines.slice(0, end);
+}
+
+function formatExpandableToolOutput(output: string, expanded: boolean, theme: any): string {
+  const lines = trimTrailingEmptyLines(output.split("\n"));
+  const totalLines = lines.length;
+  const maxLines = expanded ? lines.length : 10;
+  const displayLines = lines.slice(0, maxLines);
+  const remaining = lines.length - maxLines;
+  let text = `\n${displayLines.map((line) => theme.fg("toolOutput", line)).join("\n")}`;
+  if (remaining > 0) {
+    text += `${theme.fg("muted", `\n... (${remaining} more lines, ${totalLines} total,`)} ${keyHint("app.tools.expand", "to expand")})`;
+  }
+  return text;
+}
 
 export default function webToolsExtension(pi: ExtensionAPI) {
   pi.registerTool({
@@ -22,6 +50,11 @@ export default function webToolsExtension(pi: ExtensionAPI) {
     async execute(_toolCallId, params, signal) {
       const text = await webOpen(params, signal);
       return { content: [{ type: "text", text }], details: { tool: "web_open" } };
+    },
+    renderResult(result, { expanded }, theme, context) {
+      const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
+      text.setText(formatExpandableToolOutput(getTextOutput(result), expanded, theme));
+      return text;
     }
   });
 
@@ -38,6 +71,11 @@ export default function webToolsExtension(pi: ExtensionAPI) {
     async execute(_toolCallId, params, signal) {
       const text = await webSearch(params, signal);
       return { content: [{ type: "text", text }], details: { tool: "web_search" } };
+    },
+    renderResult(result, { expanded }, theme, context) {
+      const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
+      text.setText(formatExpandableToolOutput(getTextOutput(result), expanded, theme));
+      return text;
     }
   });
 }
