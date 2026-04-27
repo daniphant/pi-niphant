@@ -1,7 +1,33 @@
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
+import type { ExtensionAPI, ExtensionContext, WorkingIndicatorOptions } from "@mariozechner/pi-coding-agent";
 
 const REFRESH_MS = 100;
 const ROTATE_MS = 7000;
+const INDICATOR_INTERVAL_MS = 120;
+
+type IndicatorMode = "default" | "core-spiral" | "row-sweep" | "pulse-pair" | "orbit-cell" | "braille-beat";
+
+const SETTINGS_PATH = path.join(os.homedir(), ".pi", "agent", "extensions", "pi-whimsy-status.json");
+const indicatorModes: IndicatorMode[] = ["default", "core-spiral", "row-sweep", "pulse-pair", "orbit-cell", "braille-beat"];
+const indicatorLabels: Record<IndicatorMode, string> = {
+	default: "Pi Default",
+	"core-spiral": "Core Spiral",
+	"row-sweep": "Row Sweep",
+	"pulse-pair": "Pulse Pair",
+	"orbit-cell": "Orbit Cell",
+	"braille-beat": "Braille Beat",
+};
+
+const COMPACT_INDICATORS: Record<Exclude<IndicatorMode, "default">, readonly string[]> = {
+	"core-spiral": ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
+	"row-sweep": ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂"],
+	"pulse-pair": ["∙∙", "•∙", "●•", "•●", "∙•"],
+	"orbit-cell": ["◜", "◠", "◝", "◞", "◡", "◟"],
+	"braille-beat": ["⠁", "⠂", "⠄", "⡀", "⢀", "⠠", "⠐", "⠈"],
+};
 
 const messages = [
 	// Familiar classics for variety
@@ -94,6 +120,33 @@ function hasActiveUI(ctx: ExtensionContext): boolean {
 	}
 }
 
+function isIndicatorMode(value: string): value is IndicatorMode {
+	return indicatorModes.includes(value as IndicatorMode);
+}
+
+async function loadIndicatorMode(): Promise<IndicatorMode> {
+	try {
+		const settings = JSON.parse(await readFile(SETTINGS_PATH, "utf8")) as { indicator?: unknown };
+		return typeof settings.indicator === "string" && isIndicatorMode(settings.indicator) ? settings.indicator : "default";
+	} catch {
+		return "default";
+	}
+}
+
+async function saveIndicatorMode(mode: IndicatorMode): Promise<void> {
+	await mkdir(path.dirname(SETTINGS_PATH), { recursive: true });
+	await writeFile(SETTINGS_PATH, `${JSON.stringify({ indicator: mode }, null, 2)}\n`, "utf8");
+}
+
+function getIndicator(mode: IndicatorMode, ctx: ExtensionContext): WorkingIndicatorOptions | undefined {
+	if (mode === "default") return undefined;
+	const theme = ctx.ui.theme;
+	return {
+		frames: COMPACT_INDICATORS[mode].map((frame) => theme.fg("accent", frame)),
+		intervalMs: mode === "braille-beat" ? 80 : INDICATOR_INTERVAL_MS,
+	};
+}
+
 function renderStatus(ctx: ExtensionContext, message: string, startedAt: number): string {
 	const theme = ctx.ui.theme;
 	const elapsed = formatDuration(Date.now() - startedAt);
@@ -110,6 +163,27 @@ export default function whimsicalStatus(pi: ExtensionAPI) {
 	let rotatedAt = 0;
 	let currentMessage = "Working…";
 	let queue = shuffle(messages);
+	let indicatorModeIndex = 0;
+	let settingsLoaded = false;
+
+	function currentIndicatorMode(): IndicatorMode {
+		return indicatorModes[indicatorModeIndex % indicatorModes.length]!;
+	}
+
+	function setIndicatorMode(mode: IndicatorMode) {
+		indicatorModeIndex = Math.max(0, indicatorModes.indexOf(mode));
+	}
+
+	async function loadSettingsOnce() {
+		if (settingsLoaded) return;
+		setIndicatorMode(await loadIndicatorMode());
+		settingsLoaded = true;
+	}
+
+	function applyIndicator(ctx: ExtensionContext) {
+		if (!hasActiveUI(ctx)) return;
+		ctx.ui.setWorkingIndicator(getIndicator(currentIndicatorMode(), ctx));
+	}
 
 	function nextMessage(): string {
 		if (messages.length === 0) return "Working…";
@@ -155,7 +229,9 @@ export default function whimsicalStatus(pi: ExtensionAPI) {
 	}
 
 	pi.on("session_start", async (_event, ctx) => {
+		await loadSettingsOnce();
 		clearWorkingMessage(ctx);
+		applyIndicator(ctx);
 	});
 
 	pi.on("agent_start", async (_event, ctx) => {
@@ -168,5 +244,31 @@ export default function whimsicalStatus(pi: ExtensionAPI) {
 
 	pi.on("session_shutdown", async (_event, ctx) => {
 		stop(ctx);
+		if (hasActiveUI(ctx)) ctx.ui.setWorkingIndicator();
+	});
+
+	pi.registerCommand("whimsy-indicator", {
+		description: "Cycle pi-whimsy-status activity indicators, or set one by name.",
+		handler: async (args, ctx) => {
+			await loadSettingsOnce();
+			const requestedMode = args.trim().toLowerCase();
+			if (requestedMode) {
+				if (!isIndicatorMode(requestedMode)) {
+					ctx.ui.notify(`Usage: /whimsy-indicator [${indicatorModes.join("|")}]`, "error");
+					return;
+				}
+				setIndicatorMode(requestedMode);
+			} else {
+				indicatorModeIndex = (indicatorModeIndex + 1) % indicatorModes.length;
+			}
+
+			applyIndicator(ctx);
+			try {
+				await saveIndicatorMode(currentIndicatorMode());
+			} catch {
+				ctx.ui.notify("Whimsy activity indicator changed, but saving the preference failed.", "warning");
+			}
+			ctx.ui.notify(`Whimsy activity indicator: ${indicatorLabels[currentIndicatorMode()]}`, "info");
+		},
 	});
 }

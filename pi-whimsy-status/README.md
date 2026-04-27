@@ -7,11 +7,38 @@ It adds:
 - elapsed runtime
 - `esc to interrupt`
 - animated shimmer inspired by Codex CLI
+- Dot Matrix-inspired activity indicators
 
 ## Example
 
 ```text
 Untangling the context noodles… (12s • esc to interrupt)
+```
+
+## Commands
+
+```text
+/whimsy-indicator
+```
+
+Cycles through the available activity indicators and persists the selected option across reloads in `~/.pi/agent/extensions/pi-whimsy-status.json`:
+
+- Pi Default
+- Core Spiral
+- Row Sweep
+- Pulse Pair
+- Orbit Cell
+- Braille Beat
+
+You can also set one directly:
+
+```text
+/whimsy-indicator default
+/whimsy-indicator core-spiral
+/whimsy-indicator row-sweep
+/whimsy-indicator pulse-pair
+/whimsy-indicator orbit-cell
+/whimsy-indicator braille-beat
 ```
 
 ## Repository layout
