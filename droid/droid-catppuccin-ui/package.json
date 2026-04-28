@@ -1,0 +1,22 @@
+{
+  "name": "droid-catppuccin-ui",
+  "version": "0.1.0",
+  "description": "Catppuccin Mocha theme for Droid",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "files": [
+    ".factory-plugin",
+    "themes"
+  ],
+  "scripts": {
+    "check": "node -e \"JSON.parse(require('fs').readFileSync('.factory-plugin/plugin.json', 'utf8')); JSON.parse(require('fs').readFileSync('themes/catppuccin-mocha-color-theme.json', 'utf8'))\""
+  },
+  "keywords": [
+    "droid",
+    "factory",
+    "plugin",
+    "theme",
+    "catppuccin"
+  ]
+}

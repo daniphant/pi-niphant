@@ -1,0 +1,27 @@
+{
+  "name": "droid-discord-presence",
+  "version": "0.1.0",
+  "description": "Privacy-conscious Discord Rich Presence for Droid",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "files": [
+    ".factory-plugin",
+    "commands",
+    "hooks",
+    "LICENSE"
+  ],
+  "scripts": {
+    "check": "node --check hooks/discord-presence.mjs"
+  },
+  "dependencies": {
+    "@xhayper/discord-rpc": "1.3.4"
+  },
+  "keywords": [
+    "droid",
+    "factory",
+    "plugin",
+    "discord",
+    "rich-presence"
+  ]
+}

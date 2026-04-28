@@ -60,12 +60,12 @@ describe("format helpers", () => {
   });
 
   it("collapses the project path on narrow terminals", () => {
-    const cwd = "/Users/daniphant/Projects/pi-extensions";
+    const cwd = "/Users/daniphant/Projects/pi-niphant";
     const home = "/Users/daniphant";
-    expect(getAdaptiveProjectLabel(cwd, 120, home)).toBe("~/Projects/pi-extensions");
-    expect(getAdaptiveProjectLabel(cwd, 100, home)).toBe("~/Projects/pi-extensions");
-    expect(getAdaptiveProjectLabel(cwd, 80, home)).toBe("Projects/pi-extensions");
-    expect(getAdaptiveProjectLabel(cwd, 40, home)).toBe("pi-extensions");
+    expect(getAdaptiveProjectLabel(cwd, 120, home)).toBe("~/Projects/pi-niphant");
+    expect(getAdaptiveProjectLabel(cwd, 100, home)).toBe("~/Projects/pi-niphant");
+    expect(getAdaptiveProjectLabel(cwd, 80, home)).toBe("Projects/pi-niphant");
+    expect(getAdaptiveProjectLabel(cwd, 40, home)).toBe("pi-niphant");
   });
 
   it("leaves the home marker alone when cwd equals home", () => {

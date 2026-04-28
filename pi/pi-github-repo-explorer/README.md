@@ -14,7 +14,7 @@ The `explore-github-repo` skill:
 ## Install
 
 ```bash
-pi install /Users/daniphant/projects/pi-extensions/pi-github-repo-explorer
+pi install /Users/daniphant/projects/pi-niphant/pi-github-repo-explorer
 ```
 
 Or add it to Pi settings as a local package path.

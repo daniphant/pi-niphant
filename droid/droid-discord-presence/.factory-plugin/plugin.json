@@ -1,0 +1,9 @@
+{
+  "name": "droid-discord-presence",
+  "description": "Privacy-conscious Discord Rich Presence for Droid",
+  "version": "0.1.0",
+  "author": {
+    "name": "daniphant"
+  },
+  "license": "MIT"
+}

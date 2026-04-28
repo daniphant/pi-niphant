@@ -1,0 +1,21 @@
+{
+  "name": "pi-niphant",
+  "description": "Personal Droid plugins from pi-niphant",
+  "owner": {
+    "name": "daniphant"
+  },
+  "plugins": [
+    {
+      "name": "droid-catppuccin-ui",
+      "description": "Catppuccin Mocha theme for Droid",
+      "source": "./droid/droid-catppuccin-ui",
+      "category": "Themes"
+    },
+    {
+      "name": "droid-discord-presence",
+      "description": "Privacy-conscious Discord Rich Presence for Droid",
+      "source": "./droid/droid-discord-presence",
+      "category": "Productivity"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+plugin_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+node "$plugin_root/hooks/discord-presence.mjs" --command "$@"

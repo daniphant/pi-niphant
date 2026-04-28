@@ -4,9 +4,9 @@
       "id": "smoke-skill-front-door-routing",
       "suite": "smoke",
       "files": [
-        "pi-diagnostics/skills/systematic-debugging/SKILL.md",
-        "pi-github-repo-explorer/skills/explore-github-repo/SKILL.md",
-        "pi-web-e2e-agent/skills/e2e-web-agent/SKILL.md"
+        "pi/pi-diagnostics/skills/systematic-debugging/SKILL.md",
+        "pi/pi-github-repo-explorer/skills/explore-github-repo/SKILL.md",
+        "pi/pi-web-e2e-agent/skills/e2e-web-agent/SKILL.md"
       ],
       "must": ["NO FIXES WITHOUT ROOT CAUSE", "exact file-path evidence|exact file paths", "snapshot -i"]
     },
@@ -14,16 +14,16 @@
       "id": "smoke-workflow-stage-boundaries",
       "suite": "smoke",
       "files": [
-        "pi-workflow/skills/workflow-brainstorm/SKILL.md",
-        "pi-workflow/skills/workflow-spec/SKILL.md",
-        "pi-workflow/skills/workflow-plan/SKILL.md"
+        "pi/pi-workflow/skills/workflow-brainstorm/SKILL.md",
+        "pi/pi-workflow/skills/workflow-spec/SKILL.md",
+        "pi/pi-workflow/skills/workflow-plan/SKILL.md"
       ],
       "must": ["Do not implement code", "workflow\\.research\\.md", "workflow\\.spec\\.md", "workflow\\.plan\\.md"]
     },
     {
       "id": "smoke-spawn-agent-explicit-only",
       "suite": "smoke",
-      "files": ["pi-delegated-agents/skills/spawn-agent/SKILL.md"],
+      "files": ["pi/pi-delegated-agents/skills/spawn-agent/SKILL.md"],
       "must": ["contains the word \"spawn\"|explicitly says \"spawn\"", "exploring a repository or codebase", "Do not call delegated-agent tools"]
     }
   ]

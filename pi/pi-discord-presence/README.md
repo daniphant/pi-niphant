@@ -151,6 +151,6 @@ If `@xhayper/discord-rpc` is incompatible with a local runtime, the integration 
 
 ## Validation status
 
-Automated validation currently passes with `npm run check --workspace pi-discord-presence` and a Pi extension-load smoke test using `pi --no-extensions -e ./pi-discord-presence/extensions/pi-discord-presence/index.ts --offline --no-tools --print "Say ok"`.
+Automated validation currently passes with `npm run check --workspace pi-discord-presence` and a Pi extension-load smoke test using `pi --no-extensions -e ./pi/pi-discord-presence/extensions/pi-discord-presence/index.ts --offline --no-tools --print "Say ok"`.
 
 Manual live Discord validation has not been completed in this environment. This checkout now has `pi-discord-presence/.env` set to Application ID `1497753988873982113`, but the packaged default client ID remains a placeholder for portability. For installed copies, set `PI_DISCORD_CLIENT_ID` or create a user-local `~/.pi/agent/extensions/pi-discord-presence-state/.env`.

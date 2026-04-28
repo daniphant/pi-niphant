@@ -3,21 +3,21 @@
     {
       "id": "debugging-skill-description-routes-failures",
       "suite": "routing",
-      "files": ["pi-diagnostics/skills/systematic-debugging/SKILL.md"],
+      "files": ["pi/pi-diagnostics/skills/systematic-debugging/SKILL.md"],
       "required": ["description:.*bug", "test failure", "build failure", "unexpected behavior"],
       "forbidden": []
     },
     {
       "id": "github-explorer-description-routes-github-prompts",
       "suite": "routing",
-      "files": ["pi-github-repo-explorer/skills/explore-github-repo/SKILL.md"],
+      "files": ["pi/pi-github-repo-explorer/skills/explore-github-repo/SKILL.md"],
       "required": ["description:.*github\\.com URL", "owner/repo", "architecture", "file-path evidence"],
       "forbidden": []
     },
     {
       "id": "e2e-description-routes-browser-work",
       "suite": "routing",
-      "files": ["pi-web-e2e-agent/skills/e2e-web-agent/SKILL.md"],
+      "files": ["pi/pi-web-e2e-agent/skills/e2e-web-agent/SKILL.md"],
       "required": ["description:.*Browser automation", "click/fill/select", "screenshots", "automate browser flows"],
       "forbidden": []
     }

@@ -34,9 +34,9 @@ export const getProjectLabel = (cwd: string, home = os.homedir()) => {
 };
 
 // Shortens the project path so it fits on narrower terminals:
-//   wide (≥100 cols)  → full relative label (e.g. ~/Projects/pi-extensions)
-//   medium (≥60 cols) → last two segments (e.g. Projects/pi-extensions)
-//   narrow (<60 cols) → basename only (e.g. pi-extensions)
+//   wide (≥100 cols)  → full relative label (e.g. ~/Projects/pi-niphant)
+//   medium (≥60 cols) → last two segments (e.g. Projects/pi-niphant)
+//   narrow (<60 cols) → basename only (e.g. pi-niphant)
 // The home marker "~" is dropped once we start trimming, since the path is no longer
 // rooted at home from the user's perspective.
 export const getAdaptiveProjectLabel = (cwd: string, terminalWidth: number, home = os.homedir()) => {

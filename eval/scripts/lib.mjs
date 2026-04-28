@@ -20,10 +20,12 @@ export function walk(dir, predicate = () => true) {
 }
 
 export function discoverPackages() {
-  return readdirSync(ROOT)
-    .filter((name) => name.startsWith("pi-") && existsSync(join(ROOT, name, "package.json")))
+  const piRoot = join(ROOT, "pi");
+  return readdirSync(piRoot)
+    .filter((name) => name.startsWith("pi-") && existsSync(join(piRoot, name, "package.json")))
     .sort()
-    .map((dir) => {
+    .map((name) => {
+      const dir = join("pi", name);
       const packageJson = readJson(join(ROOT, dir, "package.json"));
       return { dir, packageJson };
     });

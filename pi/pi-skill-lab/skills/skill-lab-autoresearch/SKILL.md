@@ -81,19 +81,19 @@ When niphant `/workflow` gains cwd-safe Pi session replacement, prefer that auto
 Policy consistency:
 
 ```text
-/autoresearch improve policy consistency between explore-github-repo and spawn-agent. Only edit pi-github-repo-explorer/skills/explore-github-repo/SKILL.md and pi-delegated-agents/skills/spawn-agent/SKILL.md. Use ./autoresearch.sh. Primary metric policy_consistency_score higher is better. Do not edit eval/.
+/autoresearch improve policy consistency between explore-github-repo and spawn-agent. Only edit pi/pi-github-repo-explorer/skills/explore-github-repo/SKILL.md and pi/pi-delegated-agents/skills/spawn-agent/SKILL.md. Use ./autoresearch.sh. Primary metric policy_consistency_score higher is better. Do not edit eval/.
 ```
 
 Workflow stage gates:
 
 ```text
-/autoresearch improve pi-workflow skill portability and stage-boundary reliability. Only edit pi-workflow/skills/**/*.md. Use ./autoresearch.sh. Primary metric workflow_gate_accuracy higher is better. Secondary metric portability_issues lower is better. Do not edit eval/.
+/autoresearch improve pi-workflow skill portability and stage-boundary reliability. Only edit pi/pi-workflow/skills/**/*.md. Use ./autoresearch.sh. Primary metric workflow_gate_accuracy higher is better. Secondary metric portability_issues lower is better. Do not edit eval/.
 ```
 
 Systematic debugging:
 
 ```text
-/autoresearch improve systematic-debugging adherence. Only edit pi-diagnostics/skills/systematic-debugging/SKILL.md. Use ./autoresearch.sh. Primary metric debugging_score higher is better. Secondary metric guessing_violations lower is better. Do not edit eval/.
+/autoresearch improve systematic-debugging adherence. Only edit pi/pi-diagnostics/skills/systematic-debugging/SKILL.md. Use ./autoresearch.sh. Primary metric debugging_score higher is better. Secondary metric guessing_violations lower is better. Do not edit eval/.
 ```
 
 ## Finalization

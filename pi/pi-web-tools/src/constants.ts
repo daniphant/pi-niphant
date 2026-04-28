@@ -9,4 +9,4 @@ export const BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
 export const BRAVE_DEFAULT_COUNT = 10;
 export const BRAVE_MAX_COUNT = 20;
 export const ALLOWED_METADATA_HEADERS = new Set(["content-type", "content-length", "last-modified", "etag"]);
-export const USER_AGENT = "pi-web-tools/0.1 (+https://github.com/daniphant/pi-extensions)";
+export const USER_AGENT = "pi/pi-web-tools/0.1 (+https://github.com/daniphant/pi-niphant)";

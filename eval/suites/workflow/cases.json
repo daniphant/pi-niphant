@@ -3,28 +3,28 @@
     {
       "id": "brainstorm-does-not-implement",
       "suite": "workflow",
-      "files": ["pi-workflow/skills/workflow-brainstorm/SKILL.md"],
+      "files": ["pi/pi-workflow/skills/workflow-brainstorm/SKILL.md"],
       "required": ["Do not (write|implement).*code|Do not implement code", "workflow\\.research\\.md", "Complexity / Route Recommendation|route recommendation"],
       "forbidden": ["workflow\\.plan\\.md.*contains strategy"]
     },
     {
       "id": "spec-requires-review-and-no-implementation",
       "suite": "workflow",
-      "files": ["pi-workflow/skills/workflow-spec/SKILL.md"],
+      "files": ["pi/pi-workflow/skills/workflow-spec/SKILL.md"],
       "required": ["Do not (write|implement).*code|Do not implement code", "workflow\\.spec\\.md", "browser review|Browser annotation", "Spec: required|route requires spec"],
       "forbidden": ["Populate `workflow\\.toml`"]
     },
     {
       "id": "plan-task-state-only",
       "suite": "workflow",
-      "files": ["pi-workflow/skills/workflow-plan/SKILL.md"],
+      "files": ["pi/pi-workflow/skills/workflow-plan/SKILL.md"],
       "required": ["Do not implement code", "workflow\\.toml.*task state only|task state only", "Browser annotation|browser review", "Task Graph"],
       "forbidden": ["node /Users/[^`\\s]+/Projects"]
     },
     {
       "id": "implement-requires-final-plan",
       "suite": "workflow",
-      "files": ["pi-workflow/skills/workflow-implement/SKILL.md"],
+      "files": ["pi/pi-workflow/skills/workflow-implement/SKILL.md"],
       "required": ["workflow\\.plan\\.md", "workflow\\.toml", "Run diagnostics|validation|tests", "refuse|Refuse|missing prerequisites"],
       "forbidden": ["edit workflow\\.research\\.md"]
     }

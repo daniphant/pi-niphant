@@ -1,8 +1,6 @@
 # Publishing pi-niphant as one GitHub repository
 
-This repository should be published as a **single monorepo/toolbox**, not as separate repositories per extension.
-
-That shape matches the GStack/Superpowers model: one repo, many composable skills/extensions, one installation story.
+This repository should be published as a single monorepo/toolbox, not as separate repositories per extension or plugin.
 
 ## Repo name
 
@@ -10,34 +8,43 @@ That shape matches the GStack/Superpowers model: one repo, many composable skill
 pi-niphant
 ```
 
-A trunkful of opinionated Pi extensions and skills.
+A personal toolbox of Pi extensions/skills and Droid plugins/instructions.
 
-## What lives in the repo
+## Repo shape
 
 ```txt
-README.md                 # top-level toolbox overview
-package.json              # npm workspaces + root scripts
-scripts/install.sh        # symlink installer/uninstaller
-scripts/list-packages.mjs # package inventory
+README.md
+package.json
+package-lock.json
+.factory-plugin/marketplace.json   # Droid plugin marketplace
+scripts/install.sh                  # unified Pi + Droid dispatcher
+scripts/install-pi.sh               # Pi symlink installer/uninstaller
+scripts/install-droid.sh            # Droid local marketplace installer/uninstaller
+scripts/list-packages.mjs           # Pi/Droid inventory
 
-pi-workflow/
-pi-checkpoint/
-pi-codex-compaction/
-pi-pal-consensus-sidecar/
-pi-web-e2e-agent/
-pi-web-tools/
-pi-diagnostics/
-pi-markdown-commands/
-pi-delegation-guard/
-pi-delegated-agents/
-pi-clear/
-pi-agent-notify/
-pi-hud/
-pi-whimsy-status/
-pi-github-repo-explorer/
+pi/
+  pi-workflow/
+  pi-checkpoint/
+  pi-codex-compaction/
+  pi-pal-consensus-sidecar/
+  pi-web-e2e-agent/
+  pi-web-tools/
+  pi-diagnostics/
+  pi-markdown-commands/
+  pi-delegation-guard/
+  pi-delegated-agents/
+  pi-clear/
+  pi-agent-notify/
+  pi-hud/
+  pi-whimsy-status/
+  pi-github-repo-explorer/
+
+droid/
+  droid-catppuccin-ui/
+  droid-discord-presence/
 ```
 
-Each `pi-*` directory remains independently understandable with its own README/package metadata, but users should clone/install the whole toolbox.
+Each `pi/*` and `droid/*` package remains independently understandable, but users should clone/install the whole toolbox.
 
 ## Publish the monorepo
 
@@ -67,28 +74,22 @@ cd pi-niphant
 ./scripts/install.sh
 ```
 
-Then inside Pi:
-
-```text
-/reload
-```
-
-Install everything including explicit delegated-agent orchestration:
+Install selected surfaces:
 
 ```bash
+./scripts/install.sh --pi
+./scripts/install.sh --droid
 ./scripts/install.sh --all
-```
-
-Install selected tools:
-
-```bash
-./scripts/install.sh pi-workflow pi-pal-consensus-sidecar pi-diagnostics pi-web-e2e-agent pi-web-tools
-```
-
-Uninstall symlinks:
-
-```bash
+./scripts/install.sh pi-workflow droid-discord-presence
 ./scripts/install.sh --uninstall
+```
+
+Droid marketplace-only setup can also be done manually:
+
+```bash
+droid plugin marketplace add /path/to/pi-niphant
+droid plugin install droid-catppuccin-ui@pi-niphant
+droid plugin install droid-discord-presence@pi-niphant
 ```
 
 ## Important non-repo artifacts
@@ -105,36 +106,13 @@ coverage/
 .env*
 ```
 
-The root `.gitignore` excludes them.
-
 Planning/debug artifacts are user-local by design:
 
 ```txt
 ~/.pi/agent/workflows/<project>/...
 ~/.pi/agent/debugging/<project>/...
+~/.factory/...
 ```
-
-## Updated packages in this release
-
-Major new/updated toolbox pieces:
-
-- `pi-workflow`
-- `pi-checkpoint`
-- `pi-codex-compaction`
-- `pi-pal-consensus-sidecar`
-- `pi-web-e2e-agent`
-- `pi-diagnostics`
-- `pi-markdown-commands`
-- `pi-delegation-guard`
-- `pi-clear`
-
-Existing pieces still included:
-
-- `pi-agent-notify`
-- `pi-delegated-agents`
-- `pi-github-repo-explorer`
-- `pi-hud`
-- `pi-whimsy-status`
 
 ## Pre-push sanity check
 
@@ -144,4 +122,4 @@ npm run check
 npm run pack:check --workspace pi-pal-consensus-sidecar
 ```
 
-The sidecar pack check verifies that the Vite dashboard build and built-in stack JSON are included in the package tarball. If PAL/OpenRouter model availability changed, refresh `pi-pal-consensus-sidecar/test/fixtures/pal-models.json` intentionally and rerun the checks.
+The sidecar pack check verifies that the Vite dashboard build and built-in stack JSON are included in the package tarball. If PAL/OpenRouter model availability changed, refresh `pi/pi-pal-consensus-sidecar/test/fixtures/pal-models.json` intentionally and rerun the checks.

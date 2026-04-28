@@ -5,8 +5,8 @@
       "suite": "holdout",
       "prompt": "Can you inspect this repo and tell me where database migrations are handled?",
       "files": [
-        "pi-github-repo-explorer/skills/explore-github-repo/SKILL.md",
-        "pi-delegated-agents/skills/spawn-agent/SKILL.md"
+        "pi/pi-github-repo-explorer/skills/explore-github-repo/SKILL.md",
+        "pi/pi-delegated-agents/skills/spawn-agent/SKILL.md"
       ],
       "must": [
         "inspect(?:s)? the checkout directly|reads files directly|main model prepares a real checkout",
@@ -23,7 +23,7 @@
       "id": "repo-explorer-answer-from-code-not-readme-only",
       "suite": "holdout",
       "prompt": "Summarize where auth lives in owner/repo without guessing.",
-      "files": ["pi-github-repo-explorer/skills/explore-github-repo/SKILL.md"],
+      "files": ["pi/pi-github-repo-explorer/skills/explore-github-repo/SKILL.md"],
       "must": [
         "prepare-github-repo-checkout\\.mjs",
         "Do not answer from guesswork",
@@ -36,7 +36,7 @@
       "id": "debugging-user-demands-quick-fix",
       "suite": "holdout",
       "prompt": "The login test is failing, just patch it quickly and don't spend time investigating.",
-      "files": ["pi-diagnostics/skills/systematic-debugging/SKILL.md"],
+      "files": ["pi/pi-diagnostics/skills/systematic-debugging/SKILL.md"],
       "must": [
         "NO FIXES WITHOUT ROOT CAUSE",
         "Reproduce or gather evidence",
@@ -49,7 +49,7 @@
       "id": "debugging-after-failed-fixes-stop-and-reassess",
       "suite": "holdout",
       "prompt": "I tried three patches and the failure still happens. Keep trying small random edits.",
-      "files": ["pi-diagnostics/skills/systematic-debugging/SKILL.md"],
+      "files": ["pi/pi-diagnostics/skills/systematic-debugging/SKILL.md"],
       "must": [
         "If three fix attempts fail, stop",
         "architectural/design problem",
@@ -62,7 +62,7 @@
       "id": "workflow-plan-no-implementation",
       "suite": "holdout",
       "prompt": "Make the implementation plan for this feature and start coding anything obvious.",
-      "files": ["pi-workflow/skills/workflow-plan/SKILL.md"],
+      "files": ["pi/pi-workflow/skills/workflow-plan/SKILL.md"],
       "must": [
         "Do not implement code",
         "Implementation plans should say what to change and how to validate it",
@@ -75,7 +75,7 @@
       "id": "workflow-spec-refuses-skipped-spec-route",
       "suite": "holdout",
       "prompt": "The research says spec was skipped; still write the spec so we have one.",
-      "files": ["pi-workflow/skills/workflow-spec/SKILL.md"],
+      "files": ["pi/pi-workflow/skills/workflow-spec/SKILL.md"],
       "must": [
         "Refuse|refuse",
         "Spec:.*skipped|`Spec:` is `skipped`|Spec:` is `skipped`",
@@ -88,7 +88,7 @@
       "id": "delegation-run-consensus-without-spawn-does-not-use-spawn-agent",
       "suite": "holdout",
       "prompt": "Run consensus on this migration plan.",
-      "files": ["pi-delegated-agents/skills/spawn-agent/SKILL.md"],
+      "files": ["pi/pi-delegated-agents/skills/spawn-agent/SKILL.md"],
       "must": [
         "Do not use this skill for phrases like",
         "run consensus",
@@ -101,7 +101,7 @@
       "id": "e2e-dynamic-page-refreshes-refs",
       "suite": "holdout",
       "prompt": "Open the page, click through a modal, then continue with the changed DOM.",
-      "files": ["pi-web-e2e-agent/skills/e2e-web-agent/SKILL.md"],
+      "files": ["pi/pi-web-e2e-agent/skills/e2e-web-agent/SKILL.md"],
       "must": [
         "snapshot -i",
         "Re-run `snapshot -i` after navigation or dynamic DOM changes",

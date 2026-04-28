@@ -2,41 +2,14 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-EXT_DIR="${PI_EXTENSIONS_DIR:-$HOME/.pi/agent/extensions}"
-SKILL_DIR="${PI_SKILLS_DIR:-$HOME/.pi/agent/skills}"
-BIN_DIR="${PI_BIN_DIR:-$HOME/.local/bin}"
-UNINSTALL=0
+INSTALL_PI=0
+INSTALL_DROID=0
 INSTALL_ALL=0
-INSTALL_DELEGATED=0
+UNINSTALL=0
+EXPLICIT_TARGET=0
+PI_ARGS=()
+DROID_ARGS=()
 SELECTED=()
-
-DEFAULT_PACKAGES=(
-  pi-ask-user
-  pi-clear
-  pi-checkpoint
-  pi-catppuccin-ui
-  pi-codex-compaction
-  pi-codex-like-diff
-  pi-pal-consensus-sidecar
-  pi-skill-lab
-  pi-delegation-guard
-  pi-diagnostics
-  pi-discord-presence
-  pi-markdown-commands
-  pi-web-e2e-agent
-  pi-web-tools
-  pi-workflow
-  pi-update-prompt
-  pi-agent-notify
-  pi-hud
-  pi-whimsy-status
-  pi-github-repo-explorer
-)
-
-ALL_PACKAGES=(
-  "${DEFAULT_PACKAGES[@]}"
-  pi-delegated-agents
-)
 
 usage() {
   cat <<'EOF'
@@ -44,32 +17,50 @@ Usage:
   scripts/install.sh [options] [package...]
 
 Options:
-  --all                 Install every package, including pi-delegated-agents.
-  --delegated-agents    Include pi-delegated-agents with the default set.
-  --uninstall           Remove symlinks instead of installing.
+  --pi                  Install only Pi packages.
+  --droid               Install only Droid plugins.
+  --all                 Install all Pi packages and all Droid plugins.
+  --delegated-agents    Include pi-delegated-agents with the default Pi set.
+  --uninstall           Remove symlinks/plugins instead of installing.
   PI_BIN_DIR=dir        Override ni launcher install dir (default ~/.local/bin).
+  DROID_SCOPE=scope     Droid install scope: user or project (default user).
   -h, --help            Show help.
 
 Examples:
   scripts/install.sh
+  scripts/install.sh --pi
+  scripts/install.sh --droid
   scripts/install.sh --all
-  scripts/install.sh pi-workflow pi-pal-consensus-sidecar pi-diagnostics
+  scripts/install.sh pi-workflow droid-discord-presence
   scripts/install.sh --uninstall
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --pi)
+      INSTALL_PI=1
+      EXPLICIT_TARGET=1
+      shift
+      ;;
+    --droid)
+      INSTALL_DROID=1
+      EXPLICIT_TARGET=1
+      shift
+      ;;
     --all)
       INSTALL_ALL=1
+      PI_ARGS+=(--all)
       shift
       ;;
     --delegated-agents)
-      INSTALL_DELEGATED=1
+      PI_ARGS+=(--delegated-agents)
       shift
       ;;
     --uninstall)
       UNINSTALL=1
+      PI_ARGS+=(--uninstall)
+      DROID_ARGS+=(--uninstall)
       shift
       ;;
     -h|--help)
@@ -83,153 +74,47 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ "$INSTALL_ALL" == "1" ]]; then
+  INSTALL_PI=1
+  INSTALL_DROID=1
+fi
+
 if [[ ${#SELECTED[@]} -gt 0 ]]; then
-  PACKAGES=("${SELECTED[@]}")
-elif [[ "$UNINSTALL" == "1" && "$INSTALL_DELEGATED" != "1" ]]; then
-  # A bare uninstall should clean every symlink this installer may have created,
-  # including optional packages installed by a previous --all/--delegated-agents run.
-  PACKAGES=("${ALL_PACKAGES[@]}")
-elif [[ "$INSTALL_ALL" == "1" ]]; then
-  PACKAGES=("${ALL_PACKAGES[@]}")
-else
-  PACKAGES=("${DEFAULT_PACKAGES[@]}")
-  if [[ "$INSTALL_DELEGATED" == "1" ]]; then
-    PACKAGES+=(pi-delegated-agents)
+  for pkg in "${SELECTED[@]}"; do
+    case "$pkg" in
+      pi-*)
+        PI_ARGS+=("$pkg")
+        INSTALL_PI=1
+        ;;
+      droid-*)
+        DROID_ARGS+=("$pkg")
+        INSTALL_DROID=1
+        ;;
+      *)
+        echo "Unknown package namespace: $pkg (expected pi-* or droid-*)" >&2
+        exit 1
+        ;;
+    esac
+  done
+fi
+
+if [[ ${#SELECTED[@]} -eq 0 && "$EXPLICIT_TARGET" == "0" && "$INSTALL_ALL" == "0" ]]; then
+  INSTALL_PI=1
+  INSTALL_DROID=1
+fi
+
+if [[ "$INSTALL_PI" == "1" ]]; then
+  if [[ ${#PI_ARGS[@]} -gt 0 ]]; then
+    "$ROOT/scripts/install-pi.sh" "${PI_ARGS[@]}"
+  else
+    "$ROOT/scripts/install-pi.sh"
   fi
 fi
 
-mkdir -p "$EXT_DIR" "$SKILL_DIR" "$BIN_DIR"
-
-link_ext() {
-  local name="$1"
-  local target="$2"
-  if [[ "$UNINSTALL" == "1" ]]; then
-    rm -f "$EXT_DIR/$name"
-    echo "removed extension $name"
+if [[ "$INSTALL_DROID" == "1" ]]; then
+  if [[ ${#DROID_ARGS[@]} -gt 0 ]]; then
+    "$ROOT/scripts/install-droid.sh" "${DROID_ARGS[@]}"
   else
-    ln -sfn "$target" "$EXT_DIR/$name"
-    echo "installed extension $name -> $target"
+    "$ROOT/scripts/install-droid.sh"
   fi
-}
-
-link_skill() {
-  local name="$1"
-  local target="$2"
-  if [[ "$UNINSTALL" == "1" ]]; then
-    rm -f "$SKILL_DIR/$name"
-    echo "removed skill $name"
-  else
-    ln -sfn "$target" "$SKILL_DIR/$name"
-    echo "installed skill $name -> $target"
-  fi
-}
-
-install_package() {
-  local pkg="$1"
-  case "$pkg" in
-    pi-agent-notify)
-      link_ext pi-agent-notify "$ROOT/pi-agent-notify"
-      ;;
-    pi-ask-user)
-      link_ext pi-ask-user "$ROOT/pi-ask-user"
-      ;;
-    pi-checkpoint)
-      link_ext pi-checkpoint "$ROOT/pi-checkpoint"
-      ;;
-    pi-catppuccin-ui)
-      link_ext pi-catppuccin-ui "$ROOT/pi-catppuccin-ui"
-      ;;
-    pi-clear)
-      link_ext pi-clear "$ROOT/pi-clear"
-      ;;
-    pi-codex-compaction)
-      link_ext pi-codex-compaction "$ROOT/pi-codex-compaction"
-      ;;
-    pi-codex-like-diff)
-      link_ext pi-codex-like-diff "$ROOT/pi-codex-like-diff"
-      ;;
-    pi-pal-consensus-sidecar)
-      link_ext pi-pal-consensus-sidecar "$ROOT/pi-pal-consensus-sidecar"
-      ;;
-    pi-skill-lab)
-      link_skill skill-lab-autoresearch "$ROOT/pi-skill-lab/skills/skill-lab-autoresearch"
-      ;;
-    pi-delegated-agents)
-      link_ext pi-delegated-agents "$ROOT/pi-delegated-agents/extensions/pi-delegated-agents"
-      ;;
-    pi-delegation-guard)
-      link_ext pi-delegation-guard "$ROOT/pi-delegation-guard"
-      ;;
-    pi-diagnostics)
-      link_ext pi-diagnostics "$ROOT/pi-diagnostics"
-      link_skill systematic-debugging "$ROOT/pi-diagnostics/skills/systematic-debugging"
-      ;;
-    pi-discord-presence)
-      link_ext pi-discord-presence "$ROOT/pi-discord-presence"
-      ;;
-    pi-github-repo-explorer)
-      link_skill explore-github-repo "$ROOT/pi-github-repo-explorer/skills/explore-github-repo"
-      ;;
-    pi-hud)
-      link_ext pi-hud "$ROOT/pi-hud/extensions/pi-hud"
-      ;;
-    pi-markdown-commands)
-      link_ext pi-markdown-commands "$ROOT/pi-markdown-commands"
-      ;;
-    pi-web-e2e-agent)
-      link_ext pi-web-e2e-agent "$ROOT/pi-web-e2e-agent"
-      link_skill e2e-web-agent "$ROOT/pi-web-e2e-agent/skills/e2e-web-agent"
-      ;;
-    pi-web-tools)
-      link_ext pi-web-tools "$ROOT/pi-web-tools"
-      ;;
-    pi-update-prompt)
-      link_ext pi-update-prompt "$ROOT/pi-update-prompt"
-      ;;
-    pi-whimsy-status)
-      link_ext pi-whimsy-status "$ROOT/pi-whimsy-status/extensions/pi-whimsy-status"
-      ;;
-    pi-workflow)
-      link_ext pi-workflow "$ROOT/pi-workflow"
-      link_skill research-plan-implement "$ROOT/pi-workflow/skills/research-plan-implement"
-      link_skill workflow-start "$ROOT/pi-workflow/skills/workflow-start"
-      link_skill workflow-brainstorm "$ROOT/pi-workflow/skills/workflow-brainstorm"
-      link_skill workflow-spec "$ROOT/pi-workflow/skills/workflow-spec"
-      link_skill workflow-plan "$ROOT/pi-workflow/skills/workflow-plan"
-      link_skill workflow-implement "$ROOT/pi-workflow/skills/workflow-implement"
-      ;;
-    *)
-      echo "Unknown package: $pkg" >&2
-      return 1
-      ;;
-  esac
-}
-
-for pkg in "${PACKAGES[@]}"; do
-  install_package "$pkg"
-done
-
-install_ni=0
-for pkg in "${PACKAGES[@]}"; do
-  if [[ "$pkg" == "pi-workflow" ]]; then install_ni=1; fi
-done
-
-if [[ "$install_ni" == "1" ]]; then
-  if [[ "$UNINSTALL" == "1" ]]; then
-    if [[ -L "$BIN_DIR/ni" && "$(readlink "$BIN_DIR/ni")" == "$ROOT/scripts/ni" ]]; then
-      rm -f "$BIN_DIR/ni"
-      echo "removed launcher ni"
-    else
-      echo "left launcher ni untouched (not an owned symlink)"
-    fi
-  else
-    ln -sfn "$ROOT/scripts/ni" "$BIN_DIR/ni"
-    echo "installed launcher ni -> $ROOT/scripts/ni"
-  fi
-fi
-
-if [[ "$UNINSTALL" == "1" ]]; then
-  echo "Done. Removed selected Pi symlinks."
-else
-  echo "Done. Run /reload inside Pi. Ensure $BIN_DIR is on PATH, then use: ni"
 fi
